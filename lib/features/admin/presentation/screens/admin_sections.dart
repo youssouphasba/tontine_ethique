@@ -862,57 +862,6 @@ class AdminSettingsSection extends StatelessWidget {
           ),
           const SizedBox(height: 24),
 
-          // System Maintenance
-          Container(
-            padding: const EdgeInsets.all(20),
-            decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12)),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text('Système & Maintenance', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.red)),
-                const Divider(),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    const Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text('Initialisation des Plans Entreprise', style: TextStyle(fontWeight: FontWeight.bold)),
-                        Text('Créer/Mettre à jour les abonnements dans Firestore', style: TextStyle(fontSize: 12, color: Colors.grey)),
-                      ],
-                    ),
-                    Consumer(
-                      builder: (context, ref, _) {
-                        return ElevatedButton.icon(
-                          onPressed: () async {
-                             try {
-                               await ref.read(adminServiceProvider).seedCorporatePlans();
-                               if (context.mounted) {
-                                 ScaffoldMessenger.of(context).showSnackBar(
-                                   const SnackBar(content: Text('✅ Plans entreprise initialisés avec succès !'), backgroundColor: Colors.green)
-                                 );
-                               }
-                             } catch (e) {
-                               if (context.mounted) {
-                                 ScaffoldMessenger.of(context).showSnackBar(
-                                   SnackBar(content: Text('❌ Erreur: $e'), backgroundColor: Colors.red)
-                                 );
-                               }
-                             }
-                          },
-                          icon: const Icon(Icons.auto_fix_high),
-                          label: const Text('INITIALISER'),
-                          style: ElevatedButton.styleFrom(backgroundColor: Colors.orange),
-                        );
-                      }
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 24),
-
           // Countries
           Container(
             padding: const EdgeInsets.all(20),
@@ -935,11 +884,11 @@ class AdminSettingsSection extends StatelessWidget {
               ],
             ),
           ),
-
         ],
       ),
     );
   }
+
 
   Widget _buildSettingRow(String label, String value) {
     return Padding(
