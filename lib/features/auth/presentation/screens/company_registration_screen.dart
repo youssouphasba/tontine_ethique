@@ -652,104 +652,83 @@ class _CompanyRegistrationScreenState extends ConsumerState<CompanyRegistrationS
               border: Border.all(color: Theme.of(context).brightness == Brightness.dark ? Colors.teal.withValues(alpha: 0.4) : Colors.teal.shade200),
             ),
             child: Row(
+    final plansAsync = ref.watch(enterprisePlansProvider);
+    final isEuro = _selectedCountry == 'FR';
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text('Choisissez votre formule', style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Colors.orange)),
+        const SizedBox(height: 8),
+        Text(
+          'Des tarifs adaptés à la taille de votre structure.',
+          style: TextStyle(color: Theme.of(context).brightness == Brightness.dark ? Colors.white60 : Colors.grey),
+        ),
+        const SizedBox(height: 24),
+
+        plansAsync.when(
+          data: (plans) {
+            if (plans.isEmpty) {
+              return Center(
+                child: Column(
+                  children: [
+                    const Icon(Icons.info_outline, size: 48, color: Colors.orange),
+                    const SizedBox(height: 16),
+                    const Text('Aucune formule disponible pour le moment.'),
+                    const SizedBox(height: 8),
+                    const Text('Veuillez contacter le support ou initialiser les plans via le Back Office.', textAlign: TextAlign.center, style: TextStyle(fontSize: 12, color: Colors.grey)),
+                  ],
+                ),
+              );
+            }
+
+            return Column(
               children: [
-                Icon(Icons.info_outline, color: Theme.of(context).brightness == Brightness.dark ? Colors.teal.shade200 : Colors.teal.shade600, size: 20),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    'Nombre de salariés impair ou supérieur au plan ? Contactez notre support pour un ajustement personnalisé.',
-                    style: TextStyle(fontSize: 12, color: Theme.of(context).brightness == Brightness.dark ? Colors.teal.shade100 : Colors.teal.shade700),
+                ...plans.map((plan) {
+                  final price = isEuro ? plan.prices['EUR'] : plan.prices['XOF'];
+                  final priceStr = isEuro ? '$price €/mois' : '${price?.toInt()} FCFA/mois';
+                  
+                  return Padding(
+                    padding: const EdgeInsets.only(bottom: 12),
+                    child: _buildPlanCard(
+                      name: plan.name,
+                      price: priceStr,
+                      features: plan.features,
+                      isSelected: _selectedPlan == plan.code,
+                      recommended: plan.isRecommended,
+                      onTap: () => setState(() => _selectedPlan = plan.code),
+                    ),
+                  );
+                }),
+                const SizedBox(height: 24),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton(
+                    onPressed: _selectedPlan != null ? () => setState(() => _currentStep = 4) : null,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.orange, 
+                      foregroundColor: Colors.white, 
+                      padding: const EdgeInsets.symmetric(vertical: 16)
+                    ),
+                    child: const Text('Continuer vers le paiement'),
                   ),
                 ),
               ],
+            );
+          },
+          loading: () => const Center(
+            child: Padding(
+              padding: EdgeInsets.all(40.0),
+              child: CircularProgressIndicator(color: Colors.orange),
             ),
           ),
-          const SizedBox(height: 16),
-
-          // Starter - V17 Updated: 12 salariés, 1 tontine
-          _buildPlanCard(
-            name: 'Starter',
-            price: '19,99 €/mois',
-            features: ['12 salariés max', '1 tontine', 'Dashboard complet', 'Messagerie interne', 'Support flexible'],
-            isSelected: _selectedPlan == 'starter',
-            onTap: () => setState(() => _selectedPlan = 'starter'),
+          error: (err, stack) => Center(
+            child: Text('Erreur lors du chargement des plans : $err', style: const TextStyle(color: Colors.red)),
           ),
-          const SizedBox(height: 12),
-
-          // Starter Pro - V17 Updated: 24 salariés, 2 tontines
-          _buildPlanCard(
-            name: 'Starter Pro',
-            price: '29,99 €/mois',
-            features: ['24 salariés max', '2 tontines', 'Dashboard complet', 'Messagerie interne', 'Support flexible'],
-            isSelected: _selectedPlan == 'starter_pro',
-            onTap: () => setState(() => _selectedPlan = 'starter_pro'),
-          ),
-          const SizedBox(height: 12),
-
-          // Team - V17 Updated: 48 salariés, 4 tontines
-          _buildPlanCard(
-            name: 'Team',
-            price: '39,99 €/mois',
-            features: ['48 salariés max', '4 tontines', 'Dashboard complet', 'Tontines multi-équipes', 'Support flexible'],
-            isSelected: _selectedPlan == 'team',
-            recommended: true,
-            onTap: () => setState(() => _selectedPlan = 'team'),
-          ),
-          const SizedBox(height: 12),
-
-          // Team Pro - V17 Updated: 60 salariés, 4 tontines
-          _buildPlanCard(
-            name: 'Team Pro',
-            price: '49,99 €/mois',
-            features: ['60 salariés max', '4 tontines', 'Dashboard complet', 'Tontines multi-services', 'Support prioritaire'],
-            isSelected: _selectedPlan == 'team_pro',
-            onTap: () => setState(() => _selectedPlan = 'team_pro'),
-          ),
-          const SizedBox(height: 12),
-
-          // Department - V17 Updated: 84 salariés, 7 tontines
-          _buildPlanCard(
-            name: 'Department',
-            price: '69,99 €/mois',
-            features: ['84 salariés max', '7 tontines', 'Suivi scores par équipe', 'Notifications avancées', 'Support prioritaire'],
-            isSelected: _selectedPlan == 'department',
-            onTap: () => setState(() => _selectedPlan = 'department'),
-          ),
-          const SizedBox(height: 12),
-
-          // Enterprise - V17 Updated: 108 salariés, 10 tontines
-          _buildPlanCard(
-            name: 'Enterprise',
-            price: '89,99 €/mois',
-            features: ['108 salariés max', '10 tontines', 'Export PDF/CSV', 'Reporting consolidé', 'Support dédié'],
-            isSelected: _selectedPlan == 'enterprise',
-            onTap: () => setState(() => _selectedPlan = 'enterprise'),
-          ),
-          const SizedBox(height: 12),
-
-          // Unlimited
-          _buildPlanCard(
-            name: 'Unlimited',
-            price: 'Sur devis',
-            features: ['Salariés illimités', 'Tontines illimitées', 'Support premium 24/7', 'Dashboard avancé', 'Reporting détaillé'],
-            isSelected: _selectedPlan == 'unlimited',
-            onTap: () => setState(() => _selectedPlan = 'unlimited'),
-          ),
-          const SizedBox(height: 24),
-
-          SizedBox(
-            width: double.infinity,
-            child: ElevatedButton(
-              onPressed: _selectedPlan != null ? () => setState(() => _currentStep = 4) : null,
-              style: ElevatedButton.styleFrom(backgroundColor: Colors.orange, foregroundColor: Colors.white, padding: const EdgeInsets.symmetric(vertical: 16)),
-              child: const Text('Continuer vers le paiement'),
-            ),
-          ),
-        ],
-      ),
+        ),
+      ],
     );
   }
-
 
   Widget _buildPlanCard({
     required String name,
