@@ -1,0 +1,118 @@
+﻿Running Gradle task 'assembleDebug'...                          
+flutter : lib/feature
+s/tontine/presentatio
+n/screens/circle_deta
+ils_screen.dart:35:10
+: Error: The method '
+CircleDetailsScreen.b
+uild' has fewer 
+positional arguments 
+than those of 
+overridden method 'Co
+nsumerWidget.build'.
+Au caractère Ligne:1 
+: 66
++ ... tudio1\jbr"; 
+flutter build apk 
+--debug > 
+build_log_3.txt 
+2>&1; Get-Co ...
++                  ~~
+~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~
+~~~~
+    + CategoryInfo   
+           : NotSpe  
+  cified: (lib/fea   
+ tures/to...rWidg    
+et.build'.:Strin    
+g) [], RemoteExc    
+eption
+    + FullyQualified 
+   ErrorId : Native  
+  CommandError
+ 
+  Widget 
+build(BuildContext 
+context) {
+         ^
+../../../../AppData/L
+ocal/Pub/Cache/hosted
+/pub.dev/flutter_rive
+rpod-2.6.1/lib/src/co
+nsumer.dart:466:10: 
+Context: This is the 
+overridden method 
+('build').
+  Widget 
+build(BuildContext 
+context, WidgetRef 
+ref);
+         ^
+lib/features/tontine/
+presentation/screens/
+circle_details_screen
+.dart:100:42: Error: 
+The getter 'ref' 
+isn't defined for 
+the type 'CircleDetai
+lsScreen'.
+ - 'CircleDetailsScre
+en' is from 'package:
+tontetic/features/ton
+tine/presentation/scr
+eens/circle_details_s
+creen.dart' ('lib/fea
+tures/tontine/present
+ation/screens/circle_
+details_screen.dart')
+.
+Try correcting the 
+name to the name of 
+an existing getter, 
+or defining a getter 
+or field named 'ref'.
+              _buildJ
+oinSection(context, 
+ref),
+                     
+                    
+^^^
+Target kernel_snapsho
+t_program failed: 
+Exception
+
+
+FAILURE: Build 
+failed with an 
+exception.
+
+* What went wrong:
+Execution failed for 
+task ':app:compileFlu
+tterBuildDebug'.
+> Process 'command 'C
+:\src\flutter\bin\flu
+tter.bat'' finished 
+with non-zero exit 
+value 1
+
+* Try:
+> Run with 
+--stacktrace option 
+to get the stack 
+trace.
+> Run with --info or 
+--debug option to 
+get more log output.
+> Run with --scan to 
+get full insights.
+> Get more help at ht
+tps://help.gradle.org
+.
+
+BUILD FAILED in 26s
+Running Gradle task 'assembleDebug'...                             26,9s
+Gradle task 
+assembleDebug failed 
+with exit code 1

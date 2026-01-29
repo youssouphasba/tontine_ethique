@@ -1,0 +1,289 @@
+import 'dart:async';
+import 'package:flutter/foundation.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:tontetic/core/providers/user_provider.dart';
+
+import 'package:tontetic/core/providers/auth_provider.dart';
+import 'package:tontetic/core/services/circle_service.dart';
+
+/// V14: Circle State Management
+/// V15: Added join request system - creator must approve before joining
+
+/// Join request status
+enum JoinRequestStatus { pending, approved, rejected }
+
+/// Join request model
+class JoinRequest {
+  final String id;
+  final String circleId;
+  final String circleName;
+  final String requesterId;
+  final String requesterName;
+  final DateTime requestedAt;
+  final JoinRequestStatus status;
+  final String? message; // Optional message from requester
+
+  JoinRequest({
+    required this.id,
+    required this.circleId,
+    required this.circleName,
+    required this.requesterId,
+    required this.requesterName,
+    required this.requestedAt,
+    this.status = JoinRequestStatus.pending,
+    this.message,
+  });
+
+  JoinRequest copyWith({JoinRequestStatus? status}) {
+    return JoinRequest(
+      id: id,
+      circleId: circleId,
+      circleName: circleName,
+      requesterId: requesterId,
+      requesterName: requesterName,
+      requestedAt: requestedAt,
+      status: status ?? this.status,
+      message: message,
+    );
+  }
+}
+
+class TontineCircle {
+  final String id;
+  final String name;
+  final String objective;
+  final double amount;
+  final int maxParticipants;
+  final String frequency;
+  final int payoutDay;
+  final String orderType;
+  final String creatorId;
+  final String creatorName;
+  final String invitationCode;
+  final bool isPublic;
+  final bool isSponsored;
+  final DateTime createdAt;
+  final List<String> memberIds;
+  final int currentCycle;
+  final String currency; // V15: Dynamic Currency Support
+  final List<JoinRequest> joinRequests; // V15: Pending join requests
+
+  TontineCircle({
+    required this.id,
+    required this.name,
+    required this.objective,
+    required this.amount,
+    required this.maxParticipants,
+    required this.frequency,
+    required this.payoutDay,
+    required this.orderType,
+    required this.creatorId,
+    required this.creatorName,
+    required this.invitationCode,
+    required this.isPublic,
+    required this.isSponsored,
+    required this.createdAt,
+    required this.memberIds,
+    this.currency = 'FCFA',
+    this.currentCycle = 1,
+    this.joinRequests = const [],
+  });
+
+  TontineCircle copyWith({
+    String? id,
+    int? currentCycle,
+    String? currency,
+    List<String>? memberIds,
+    List<JoinRequest>? joinRequests,
+  }) {
+    return TontineCircle(
+      id: id ?? this.id,
+      name: name,
+      objective: objective,
+      amount: amount,
+      maxParticipants: maxParticipants,
+      frequency: frequency,
+      payoutDay: payoutDay,
+      orderType: orderType,
+      creatorId: creatorId,
+      creatorName: creatorName,
+      invitationCode: invitationCode,
+      isPublic: isPublic,
+      isSponsored: isSponsored,
+      createdAt: createdAt,
+      memberIds: memberIds ?? this.memberIds,
+      currency: currency ?? this.currency,
+      currentCycle: currentCycle ?? this.currentCycle,
+      joinRequests: joinRequests ?? this.joinRequests,
+    );
+  }
+
+  double get progress => currentCycle / maxParticipants;
+  bool get isFull => memberIds.length >= maxParticipants;
+  bool get isComplete => memberIds.length >= maxParticipants;
+  bool get isFinished => currentCycle > maxParticipants;
+  int get pendingRequestsCount => joinRequests.where((r) => r.status == JoinRequestStatus.pending).length;
+}
+
+
+class CircleState {
+  final List<TontineCircle> myCircles;
+  final List<TontineCircle> explorerCircles;
+  final List<JoinRequest> pendingInvitations;
+  final List<JoinRequest> myJoinRequests; // V15: Requests I've sent to join circles
+
+  CircleState({
+    this.myCircles = const [],
+    this.explorerCircles = const [],
+    this.pendingInvitations = const [],
+    this.myJoinRequests = const [],
+  });
+
+  CircleState copyWith({
+    List<TontineCircle>? myCircles,
+    List<TontineCircle>? explorerCircles,
+    List<JoinRequest>? pendingInvitations,
+    List<JoinRequest>? myJoinRequests,
+  }) {
+    return CircleState(
+      myCircles: myCircles ?? this.myCircles,
+      explorerCircles: explorerCircles ?? this.explorerCircles,
+      pendingInvitations: pendingInvitations ?? this.pendingInvitations,
+      myJoinRequests: myJoinRequests ?? this.myJoinRequests,
+    );
+  }
+}
+
+
+// (Enums and Models stay the same, but let's ensure the classes are available)
+
+/// Service provider for CircleService
+final circleServiceProvider = Provider<CircleService>((ref) => CircleService());
+
+class CircleNotifier extends StateNotifier<CircleState> {
+  final Ref ref;
+  StreamSubscription? _myCirclesSub;
+  StreamSubscription? _explorerCirclesSub;
+
+  CircleNotifier(this.ref) : super(CircleState()) {
+    _initListeners();
+  }
+
+  void _initListeners() {
+    final authState = ref.watch(authStateProvider);
+    final circleService = ref.read(circleServiceProvider);
+
+    // Explorer (Public Circles) should always be visible, even for guests
+    _explorerCirclesSub?.cancel();
+    _explorerCirclesSub = circleService.getPublicCircles().listen((circles) {
+      if (mounted) {
+        state = state.copyWith(explorerCircles: circles);
+      }
+    });
+
+    authState.whenData((user) {
+      if (user != null) {
+        // Écouter mes cercles
+        _myCirclesSub?.cancel();
+        _myCirclesSub = circleService.getMyCircles(user.uid).listen((circles) {
+          if (mounted) {
+            state = state.copyWith(myCircles: circles);
+          }
+        });
+      } else {
+        _myCirclesSub?.cancel();
+        state = state.copyWith(myCircles: []);
+      }
+    });
+  }
+
+  String _generateCode() {
+    final now = DateTime.now();
+    return 'TONT-${now.year}-${now.millisecondsSinceEpoch.toString().substring(8)}';
+  }
+
+  Future<String?> createCircle({
+    required String name,
+    required String objective,
+    required double amount,
+    required int maxParticipants,
+    required String frequency,
+    required int payoutDay,
+    required String orderType,
+    required String creatorId,
+    required String creatorName,
+    required bool isPublic,
+    required bool isSponsored,
+    List<String> invitedContacts = const [],
+    String? currency, // V15: Explicit currency
+  }) async {
+    final user = ref.read(userProvider);
+    final newCircle = TontineCircle(
+      id: '', // Sera généré par Firestore
+      name: name,
+      objective: objective,
+      amount: amount,
+      maxParticipants: maxParticipants,
+      frequency: frequency,
+      payoutDay: payoutDay,
+      orderType: orderType,
+      creatorId: creatorId,
+      creatorName: creatorName,
+      invitationCode: _generateCode(),
+      isPublic: isPublic,
+      isSponsored: isSponsored,
+      createdAt: DateTime.now(),
+      memberIds: [creatorId, ...invitedContacts],
+      currency: currency ?? user.zone.currency,
+    );
+
+    final circleId = await ref.read(circleServiceProvider).createCircle(newCircle);
+    
+    // Inrémenter le compteur d'ACL dans le UserProvider
+    ref.read(userProvider.notifier).incrementActiveCircles();
+
+    return circleId;
+  }
+
+  Future<void> requestToJoin({
+    required String circleId,
+    required String circleName,
+    required String requesterId,
+    required String requesterName,
+    String? message,
+  }) async {
+    await ref.read(circleServiceProvider).requestToJoin(
+      circleId: circleId,
+      circleName: circleName,
+      requesterId: requesterId,
+      requesterName: requesterName,
+      message: message,
+    );
+  }
+
+  Future<void> approveJoinRequest(String requestId, String circleId, String userId) async {
+    await ref.read(circleServiceProvider).approveRequest(requestId, circleId, userId);
+  }
+
+  // Debug/Sandbox methods
+  Future<void> advanceCycle(String circleId) async {
+    // In a real app, this would increment currentCycle in Firestore
+    debugPrint('🔄 Sandbox: Advance cycle for $circleId');
+  }
+
+
+  // Les autres méthodes (joinByCode, etc.) devront aussi être migrées vers CircleService
+  // pour une persistance réelle.
+
+  @override
+  void dispose() {
+    _myCirclesSub?.cancel();
+    _explorerCirclesSub?.cancel();
+    super.dispose();
+  }
+}
+
+final circleProvider = StateNotifierProvider<CircleNotifier, CircleState>((ref) {
+  return CircleNotifier(ref);
+});
+

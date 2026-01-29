@@ -1,0 +1,16 @@
+﻿Analyzing lib...                                                
+
+  error - Undefined name '_selectedScenarioId' - lib\features\advertising\presentation\screens\merchant_boost_screen.dart:307:27 - undefined_identifier
+  error - Expected to find ']' - lib\features\advertising\presentation\screens\merchant_boost_screen.dart:313:7 - expected_token
+  error - Expected to find ')' - lib\features\advertising\presentation\screens\merchant_boost_screen.dart:314:6 - expected_token
+  error - Undefined name '_isSigning' - lib\features\advertising\presentation\screens\merchant_charter_screen.dart:122:29 - undefined_identifier
+  error - Undefined name '_selectedSector' - lib\features\advertising\presentation\screens\merchant_registration_screen.dart:442:27 - undefined_identifier
+  error - Undefined name 'v' - lib\features\advertising\presentation\screens\merchant_registration_screen.dart:445:35 - undefined_identifier
+  error - Undefined name 'v' - lib\features\advertising\presentation\screens\merchant_registration_screen.dart:446:33 - undefined_identifier
+  error - 4 positional arguments expected by 'scaleByDouble', but 1 found - lib\features\ai\presentation\widgets\pulsating_mic_button.dart:68:71 - not_enough_positional_arguments
+   info - Don't use 'BuildContext's across async gaps - lib\features\kyc\presentation\screens\identity_verification_screen.dart:52:25 - use_build_context_synchronously
+   info - Don't use 'BuildContext's across async gaps - lib\features\subscription\presentation\screens\subscription_selection_screen.dart:526:28 - use_build_context_synchronously
+warning - The declaration '_showDetailedEditDialog' isn't referenced - lib\features\tontine\presentation\screens\circle_details_screen.dart:548:8 - unused_element
+warning - Unused import: 'package:tontetic/features/social/data/social_provider.dart' - lib\features\tontine\presentation\screens\exit_circle_screen.dart:5:8 - unused_import
+warning - The value of the field '_awaitingApproval' isn't used - lib\features\tontine\presentation\screens\invitation_landing_screen.dart:35:8 - unused_field
+

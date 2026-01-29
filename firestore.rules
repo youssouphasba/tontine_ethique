@@ -1,0 +1,200 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // --- HELPER FUNCTIONS ---
+    function isSignedIn() {
+      return request.auth != null;
+    }
+    
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function isMember(resourceData) {
+      return isSignedIn() && (
+        resourceData.creatorId == request.auth.uid || 
+        request.auth.uid in resourceData.members
+      );
+    }
+
+    function isAdmin() {
+      // Check for Firebase Custom Claims (request.auth.token.admin)
+      // This is the most secure and performant way to handle admin rights.
+      return isSignedIn() && 
+        (request.auth.token.admin == true || request.auth.token.super_admin == true);
+    }
+    
+    // --- COLLECTIONS ---
+
+    // USERS: Public Read (Profiles), Owner Write + Admin
+    match /users/{userId} {
+      allow read: if isSignedIn(); // Allow reading public profiles
+      allow update: if isSignedIn() && (request.auth.uid == userId 
+        && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['subscriptionStatus', 'isPremium', 'role', 'stripeConnectAccountId']))
+        || isAdmin();
+      allow create: if isSignedIn() && request.auth.uid == userId; 
+      
+      // E2EE Keys
+      match /keys/{keyId} {
+        allow read: if isSignedIn(); // Public Keys are public
+        allow write: if isSignedIn() && request.auth.uid == userId;
+      }
+      
+      // Following: User can manage their own following list
+      match /following/{targetId} {
+        allow read: if isSignedIn();
+        allow write: if isSignedIn() && request.auth.uid == userId;
+      }
+      
+      // Followers: Any authenticated user can add/remove themselves as follower
+      match /followers/{followerId} {
+        allow read: if isSignedIn();
+        allow write: if isSignedIn() && request.auth.uid == followerId;
+      }
+      
+      // Notifications
+      match /notifications/{notificationId} {
+        allow read: if isSignedIn() && request.auth.uid == userId;
+        allow write: if isSignedIn();
+      }
+    }
+
+    // ENTITLEMENTS: Server-Side Authority + Admin Support
+    match /entitlements/{userId} {
+      allow read: if isOwner(userId) || isAdmin();
+      allow write: if isAdmin(); // Admin can manually fix entitlements
+    }
+
+    // PLANS: Public Read, Admin Write
+    match /plans/{planId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+    
+    // AUDIT LOGS: Client Creation allowed
+    match /audit_logs/{logId} {
+      allow create: if isSignedIn();
+      allow read: if isAdmin();
+    }
+
+    // CHAT & CONVERSATIONS (E2EE)
+    match /conversations/{conversationId} {
+       // Check if auth.uid is in the participants array of the conversation document
+       allow read, write: if isSignedIn() && request.auth.uid in resource.data.participants;
+       
+       match /messages/{messageId} {
+         // Inherits check from parent for existing messages, 
+         // but for creation, check if the user is a participant
+         allow read: if isSignedIn() && request.auth.uid in get(/databases/$(database)/documents/conversations/$(conversationId)).data.participants;
+         allow create: if isSignedIn() && request.auth.uid in get(/databases/$(database)/documents/conversations/$(conversationId)).data.participants;
+       }
+    }
+
+    // ================= TONTINES (Core Business Data) =================
+    // TONTINES: Members Only + Admin Oversight
+    match /tontines/{tontineId} {
+      // Read: Public Get (Invitations), Members/Admin List
+      allow get: if true; 
+      allow list: if isSignedIn() || isAdmin();
+      
+      // Create: Any authenticated user
+      // limit checks removed here (moved to Cloud Function/App logic) to prevent Rule complexity errors
+      allow create: if isSignedIn();
+
+      // Update: Members/Creator Only
+      // Detailed validation (e.g. locking fields) should be done via Cloud Functions for sensitive updates
+      allow update: if isMember(resource.data) || isAdmin();
+      
+      // Delete: Only Creator (and maybe only if empty/pending)
+      allow delete: if isSignedIn() && request.auth.uid == resource.data.creatorId;
+      
+      // Circle Chat Messages: Restricted to members of the tontine
+      match /messages/{messageId} {
+        allow read, write: if isMember(get(/databases/$(database)/documents/tontines/$(tontineId)).data);
+      }
+    }
+
+    // ================= TRANSACTIONS (Financial Records) =================
+    // CRITICAL: NEVER Writable by Client.
+    match /transactions/{transactionId} {
+      allow read: if isSignedIn() && (
+        resource.data.userId == request.auth.uid || 
+        resource.data.tontineCreatorId == request.auth.uid
+      );
+      allow write: if false; // SERVER-SIDE ONLY
+    }
+    
+    // ================= MAN SEPA MANDATES (Sensitive) =================
+    match /mandates/{mandateId} {
+       allow read: if isSignedIn() && resource.data.userId == request.auth.uid;
+       allow write: if false; // SERVER-SIDE ONLY
+    }
+
+    // ================= SUPPORT TICKETS =================
+    match /support_tickets/{ticketId} {
+      allow read: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
+      allow update: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
+      
+      match /messages/{messageId} {
+        allow read, create: if isSignedIn();
+      }
+    }
+
+    // ================= SOCIAL ACTIVITIES =================
+    match /activities/{activityId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn();
+      allow update, delete: if isAdmin();
+    }
+
+    // ================= JOIN REQUESTS =================
+    match /join_requests/{requestId} {
+      allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
+      allow read: if isSignedIn() && (
+        resource.data.userId == request.auth.uid || 
+        isAdmin() ||
+        get(/databases/$(database)/documents/tontines/$(resource.data.circleId)).data.creatorId == request.auth.uid
+      );
+      allow update, delete: if isSignedIn() && (
+        resource.data.userId == request.auth.uid || 
+        isAdmin() ||
+        get(/databases/$(database)/documents/tontines/$(resource.data.circleId)).data.creatorId == request.auth.uid
+      );
+    }
+
+    // ================= WEBHOOK LOGS (Audit) =================
+    // Internal use only.
+    match /webhook_logs/{logId} {
+      allow read, write: if false;
+    }
+
+    // ================= ENTERPRISE & CORPORATE =================
+    match /enterprise_overrides/{companyId} {
+      // Allow read for authenticated users (app logic might check limits)
+      // Ideally restrict to company members, but for now matching flexible requirements
+      allow read: if isSignedIn();
+      // Write: STRICTLY ADMIN ONLY
+      allow write: if isAdmin();
+    }
+
+    match /limit_requests/{requestId} {
+      // Read: Requester or Admin
+      allow read: if isSignedIn() && (
+        resource.data.requester_id == request.auth.uid || 
+        isAdmin()
+      );
+      // Create: Any authenticated company admin (client-side enforcement)
+      allow create: if isSignedIn();
+      // Update: Admin only (approvals)
+      allow update: if isAdmin();
+    }
+
+    // ================= DEFAULT FALLBACK =================
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

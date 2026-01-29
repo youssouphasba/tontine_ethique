@@ -1,0 +1,18 @@
+{
+  "projects": {
+    "default": "tontetic-admin"
+  },
+  "targets": {
+    "tontetic-admin": {
+      "hosting": {
+        "app": [
+          "tontetic-app"
+        ],
+        "admin": [
+          "tontetic-admin"
+        ]
+      }
+    }
+  },
+  "etags": {}
+}

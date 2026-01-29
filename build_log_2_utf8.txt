@@ -1,0 +1,33 @@
+﻿Upgrading build.gradle.kts
+Running Gradle task 'assembleDebug'...                          
+flutter : Note: Some 
+input files use or 
+override a 
+deprecated API.
+Au caractère Ligne:1 
+: 66
++ ... tudio1\jbr"; 
+flutter build apk 
+--debug > 
+build_log_2.txt 
+2>&1; Get-Co ...
++                  ~~
+~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~
+~~~~
+    + CategoryInfo   
+           : NotSpe  
+  cified: (Note: S   
+ ome inpu...depre    
+cated API.:Strin    
+g) [], RemoteExc    
+eption
+    + FullyQualified 
+   ErrorId : Native  
+  CommandError
+ 
+Note: Recompile with 
+-Xlint:deprecation 
+for details.
+Running Gradle task 'assembleDebug'...                            156,8s
+ÔêÜ Built build\app\outputs\flutter-apk\app-debug.apk

@@ -1,0 +1,22 @@
+[
+    {
+        "origin": [
+            "https://tontetic-app.web.app",
+            "https://tontetic-admin.web.app",
+            "http://localhost:*"
+        ],
+        "method": [
+            "GET",
+            "HEAD",
+            "PUT",
+            "POST",
+            "DELETE"
+        ],
+        "maxAgeSeconds": 3600,
+        "responseHeader": [
+            "Content-Type",
+            "Access-Control-Allow-Origin",
+            "x-goog-resumable"
+        ]
+    }
+]

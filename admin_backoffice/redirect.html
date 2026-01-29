@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="fr">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tontetic - Redirection</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            margin: 0;
+            background-color: #f4f7f9;
+            color: #333;
+            text-align: center;
+        }
+
+        .container {
+            padding: 2rem;
+            background: white;
+            border-radius: 1rem;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            max-width: 90%;
+            width: 400px;
+        }
+
+        .icon {
+            font-size: 3rem;
+            margin-bottom: 1rem;
+        }
+
+        h1 {
+            font-size: 1.5rem;
+            margin-bottom: 0.5rem;
+        }
+
+        p {
+            color: #666;
+            margin-bottom: 2rem;
+        }
+
+        .btn {
+            display: inline-block;
+            background-color: #7c3aed;
+            color: white;
+            padding: 0.75rem 1.5rem;
+            border-radius: 0.5rem;
+            text-decoration: none;
+            font-weight: bold;
+            transition: background-color 0.2s;
+        }
+
+        .btn:hover {
+            background-color: #6d28d9;
+        }
+
+        .loader {
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #7c3aed;
+            border-radius: 50%;
+            width: 24px;
+            height: 24px;
+            animation: spin 1s linear infinite;
+            display: inline-block;
+            margin-right: 10px;
+        }
+
+        @keyframes spin {
+            0% {
+                transform: rotate(0deg);
+            }
+
+            100% {
+                transform: rotate(3600deg);
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <div id="statusIcon" class="icon">🔄</div>
+        <h1 id="title">Redirection en cours...</h1>
+        <p id="message">Nous vous redirigeons vers l'application Tontetic.</p>
+
+        <div id="actionArea">
+            <div class="loader"></div>
+            <span>Veuillez patienter...</span>
+        </div>
+
+        <div id="manualBtnArea" style="display: none; margin-top: 1rem;">
+            <a href="#" id="manualBtn" class="btn">Ouvrir l'application</a>
+            <p style="font-size: 0.8rem; margin-top: 1rem;">Si l'application ne s'ouvre pas, cliquez sur le bouton
+                ci-dessus.</p>
+        </div>
+    </div>
+
+    <script>
+        function getQueryParam(name) {
+            const urlParams = new URLSearchParams(window.location.search);
+            return urlParams.get(name);
+        }
+
+        const target = getQueryParam('target') || 'dashboard';
+        const isError = getQueryParam('error') === 'true';
+        const source = getQueryParam('source') || 'auto'; // 'web' or 'mobile'
+
+        // Configuration
+        const deepLink = `tontetic://${target}`;
+        const webLink = `https://tontetic-app.web.app/${target}`;
+
+        const titleEl = document.getElementById('title');
+        const messageEl = document.getElementById('message');
+        const iconEl = document.getElementById('statusIcon');
+        const actionArea = document.getElementById('actionArea');
+        const manualBtnArea = document.getElementById('manualBtnArea');
+        const manualBtn = document.getElementById('manualBtn');
+
+        // Logic for button and messaging
+        if (isError) {
+            titleEl.textContent = "Une erreur est survenue";
+            messageEl.textContent = "Désolé, l'opération a été interrompue ou a échoué.";
+            iconEl.textContent = "⚠️";
+        } else if (target.includes('success')) {
+            titleEl.textContent = "Opération réussie !";
+            messageEl.textContent = "Tout est en ordre. Retournez dans l'application pour continuer.";
+            iconEl.textContent = "✅";
+        }
+
+        function isMobile() {
+            return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+        }
+
+        function tryRedirect() {
+            console.log("Source: " + source + ", IsMobile: " + isMobile());
+
+            if (source === 'web' || (!isMobile() && source !== 'mobile')) {
+                // Desktop or explicit Web source
+                console.log("Redirection Web vers : " + webLink);
+                window.location.href = webLink;
+
+                // If it fails or takes too long, show button
+                setTimeout(() => {
+                    actionArea.style.display = 'none';
+                    manualBtnArea.style.display = 'block';
+                    manualBtn.href = webLink;
+                    manualBtn.textContent = "Accéder à l'application Web";
+                }, 2000);
+            } else {
+                // Mobile target
+                console.log("Tentative de redirection Deep Link : " + deepLink);
+                window.location.href = deepLink;
+
+                // Fallback: stay on page but show manual button
+                setTimeout(() => {
+                    actionArea.style.display = 'none';
+                    manualBtnArea.style.display = 'block';
+                    manualBtn.href = deepLink;
+                    manualBtn.textContent = "Ouvrir l'application Mobile";
+
+                    // Add secondary option for web if mobile fails
+                    const secondary = document.createElement('div');
+                    secondary.style.marginTop = '15px';
+                    secondary.innerHTML = `<a href="${webLink}" style="color: #7c3aed; font-size: 0.9rem;">Ou continuer sur la version Web</a>`;
+                    manualBtnArea.appendChild(secondary);
+                }, 3000);
+            }
+        }
+
+        // Start redirect process
+        setTimeout(tryRedirect, 1000);
+    </script>
+</body>
+
+</html>

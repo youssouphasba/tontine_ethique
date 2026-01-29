@@ -1,0 +1,88 @@
+﻿Resolving dependencies...
+Downloading packages...
+  _flutterfire_internals 1.3.59 (1.3.65 available)
+  app_links 6.4.1 (7.0.0 available)
+  characters 1.4.0 (1.4.1 available)
+  cloud_firestore 5.6.12 (6.1.1 available)
+  cloud_firestore_platform_interface 6.6.12 (7.0.5 available)
+  cloud_firestore_web 4.4.12 (5.1.1 available)
+  dart_jsonwebtoken 3.1.1 (3.3.1 available)
+  ffi 2.1.4 (2.1.5 available)
+  firebase_auth 5.7.0 (6.1.3 available)
+  firebase_auth_platform_interface 7.7.3 (8.1.5 available)
+  firebase_auth_web 5.15.3 (6.1.1 available)
+  firebase_core 3.15.2 (4.3.0 available)
+  firebase_core_web 2.24.1 (3.3.1 available)
+  firebase_messaging 15.2.10 (16.1.0 available)
+  firebase_messaging_platform_interface 4.6.10 (4.7.5 available)
+  firebase_messaging_web 3.10.10 (4.1.1 available)
+  firebase_storage 12.4.10 (13.0.5 available)
+  firebase_storage_platform_interface 5.2.10 (5.2.16 available)
+  firebase_storage_web 3.10.17 (3.11.1 available)
+  flutter_dotenv 5.2.1 (6.0.0 available)
+  flutter_local_notifications 18.0.1 (19.5.0 available)
+  flutter_local_notifications_linux 5.0.0 (6.0.0 available)
+  flutter_local_notifications_platform_interface 8.0.0 (9.1.0 available)
+  flutter_riverpod 2.6.1 (3.1.0 available)
+  flutter_secure_storage 9.2.4 (10.0.0 available)
+  flutter_secure_storage_linux 1.2.3 (3.0.0 available)
+  flutter_secure_storage_macos 3.1.3 (4.0.0 available)
+  flutter_secure_storage_platform_interface 1.1.2 (2.0.1 available)
+  flutter_secure_storage_web 1.2.1 (2.1.0 available)
+  flutter_secure_storage_windows 3.1.2 (4.1.0 available)
+  flutter_stripe 11.5.0 (12.1.1 available)
+  freezed_annotation 2.4.4 (3.1.0 available)
+  google_fonts 6.3.3 (7.0.1 available)
+  google_sign_in 6.3.0 (7.2.0 available)
+  google_sign_in_android 6.2.1 (7.2.7 available)
+  google_sign_in_ios 5.9.0 (6.2.4 available)
+  google_sign_in_platform_interface 2.5.0 (3.1.0 available)
+  google_sign_in_web 0.12.4+4 (1.1.0 available)
+  image 4.5.4 (4.7.2 available)
+  intl 0.19.0 (0.20.2 available)
+  js 0.6.7 (0.7.2 available)
+  local_auth 2.3.0 (3.0.0 available)
+  local_auth_android 1.0.56 (2.0.4 available)
+  local_auth_darwin 1.6.1 (2.0.1 available)
+  local_auth_windows 1.0.11 (2.0.1 available)
+  matcher 0.12.17 (0.12.18 available)
+  material_color_utilities 0.11.1 (0.13.0 available)
+  mobile_scanner 6.0.11 (7.1.4 available)
+  permission_handler 11.4.0 (12.0.1 available)
+  permission_handler_android 12.1.0 (13.0.1 available)
+  pointycastle 3.9.1 (4.0.0 available)
+  record 5.2.1 (6.1.2 available)
+! record_linux 1.2.1 (overridden)
+  riverpod 2.6.1 (3.1.0 available)
+  share_plus 10.1.4 (12.0.1 available)
+  share_plus_platform_interface 5.0.2 (6.1.0 available)
+  stripe_android 11.5.0 (12.1.0 available)
+  stripe_ios 11.5.0 (12.1.0 available)
+  stripe_platform_interface 11.5.0 (12.1.1 available)
+  test_api 0.7.7 (0.7.9 available)
+  timezone 0.10.1 (0.11.0 available)
+Got dependencies!
+60 packages have newer versions incompatible with dependency constraints.
+Try `flutter pub outdated` for more information.
+Analyzing tontine_ethique...                                    
+
+   info - The import of 'dart:typed_data' is unnecessary because all of the used elements are also provided by the import of 'package:flutter/foundation.dart' - lib\core\services\encryption_service.dart:2:8 - unnecessary_import
+   info - Statements in a for should be enclosed in a block - lib\core\services\encryption_service.dart:31:34 - curly_braces_in_flow_control_structures
+   info - Don't use 'BuildContext's across async gaps, guarded by an unrelated 'mounted' check - lib\features\admin\presentation\screens\content_moderation_dashboard.dart:342:31 - use_build_context_synchronously
+   info - Don't use 'BuildContext's across async gaps, guarded by an unrelated 'mounted' check - lib\features\admin\presentation\screens\content_moderation_dashboard.dart:368:31 - use_build_context_synchronously
+   info - Don't use 'BuildContext's across async gaps - lib\features\advertising\presentation\widgets\report_content_dialog.dart:249:19 - use_build_context_synchronously
+   info - Don't use 'BuildContext's across async gaps - lib\features\advertising\presentation\widgets\report_content_dialog.dart:252:28 - use_build_context_synchronously
+   info - Don't use 'BuildContext's across async gaps - lib\features\advertising\presentation\widgets\report_content_dialog.dart:266:28 - use_build_context_synchronously
+warning - Unused import: 'package:permission_handler/permission_handler.dart' - lib\features\tontine\presentation\screens\circle_chat_screen.dart:11:8 - unused_import
+warning - The value of the field '_recordingPath' isn't used - lib\features\tontine\presentation\screens\circle_chat_screen.dart:38:11 - unused_field
+
+flutter : 9 issues found. (ran in 6.2s)
+Au caractère Ligne:1 : 1
++ flutter analyze > analysis_errors.txt 2>&1
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (9 
+    issues found. (ran in 6.2s):String) [], R  
+  emoteException
+    + FullyQualifiedErrorId : NativeCommandErr 
+   or
+ 

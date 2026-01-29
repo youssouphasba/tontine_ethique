@@ -1,0 +1,15 @@
+﻿Nom d'alias : androiddebugkey
+Date de crÚation : 8 janv. 2026
+Type d'entrÚeá: PrivateKeyEntry
+Longueur de cha¯ne du certificat : 1
+Certificat[1]:
+PropriÚtaire : C=US, O=Android, CN=Android Debug
+Emetteur : C=US, O=Android, CN=Android Debug
+NumÚro de sÚrie : 1
+Valide du Thu Jan 08 10:03:51 CET 2026 au Sat Jan 01 10:03:51 CET 2056
+Empreintes du certificat :
+	 SHA 1: D3:BA:3F:5A:8C:97:6D:C0:F4:30:B3:1E:9C:61:A0:55:3D:B7:C0:84
+	 SHA 256: 97:56:B3:34:60:A2:51:20:D0:32:F7:73:BB:C3:A7:51:6E:CE:82:39:ED:C9:FC:B2:FF:7E:3E:61:54:CF:54:A1
+Nom de l'algorithme de signature : SHA256withRSA
+Algorithme de clÚ publique du sujet : ClÚ RSA 2048 bits
+Version : 1
