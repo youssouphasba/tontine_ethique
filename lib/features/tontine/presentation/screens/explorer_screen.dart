@@ -7,6 +7,7 @@ import 'package:tontetic/core/theme/app_theme.dart';
 import 'package:tontetic/core/providers/localization_provider.dart';
 import 'package:tontetic/core/services/security_service.dart';
 import 'package:tontetic/features/social/data/social_provider.dart';
+import 'package:tontetic/features/social/data/contact_service.dart';
 import 'package:tontetic/features/social/data/suggestion_service.dart';
 import 'package:tontetic/features/social/presentation/screens/profile_screen.dart';
 import 'package:tontetic/features/tontine/presentation/screens/circle_details_screen.dart';
@@ -24,6 +25,7 @@ class _ExplorerScreenState extends ConsumerState<ExplorerScreen> with SingleTick
   final List<String> _filters = ['Pour vous', 'Proximité', '🏠 Maison', '🚗 Transport', '📦 Business'];
   final Set<String> _hiddenUserIds = {};
   Future<List<SuggestionResult>>? _suggestionsFuture;
+  bool _isSyncingContacts = false; // Sync loading state
 
   String _searchQuery = '';
   
@@ -41,12 +43,59 @@ class _ExplorerScreenState extends ConsumerState<ExplorerScreen> with SingleTick
     });
   }
 
-  void _loadSuggestions() {
-    final user = ref.read(userProvider);
-    if (user.uid.isNotEmpty) {
-      setState(() {
-        _suggestionsFuture = ref.read(suggestionServiceProvider).getSuggestions(user.uid);
-      });
+  Future<void> _syncContacts() async {
+    setState(() => _isSyncingContacts = true);
+    
+    try {
+      final contactService = ref.read(contactServiceProvider);
+      final matches = await contactService.findRegisteredContacts();
+      
+      if (matches.isEmpty) {
+        if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Aucun contact trouvé sur Tontetic.')));
+      } else {
+        // Convert matches to suggestions and prepend/merge
+        // For MVP, we'll just reload suggestions and maybe the service should have stored them?
+        // Actually, SuggestionService doesn't know about them yet unless we update it or mixing them here.
+        // Let's mix them here for now by updating the Future or a separate list.
+        
+        // Better: Update SuggestionService to cache them? 
+        // Simplest: Just confirm sync done and rely on 'findRegisteredContacts' returning data we can use.
+        // Let's refresh the main list and hope the service (if updated) picks them up?
+        // No, the ContactService is standalone. 
+        // Let's add them to a local list or display a success message and then how do we show them?
+        
+        // Strategy: We will add them to the _suggestionsFuture manually or via a new state variable.
+        // But _suggestionsFuture is a Future.
+        // Let's add a `_contactSuggestions` list.
+        
+        final newSuggestions = matches.map((m) => SuggestionResult(
+          userId: m.userId,
+          userName: m.userData['fullName'] ?? m.userData['pseudo'] ?? m.contactName,
+          userAvatar: m.userData['photoUrl'], // Assuming photoUrl exists
+          reason: 'Contact: ${m.contactName}',
+          mutualFriendsCount: 0,
+          score: 100, // High score for contacts
+        )).toList();
+
+        // We need to merge this with the existing future results.
+        // This is tricky with FutureBuilder.
+        // Let's just create a new Future that returns the merged list.
+        
+        final currentSuggestions = await _suggestionsFuture ?? [];
+        final uniqueNew = newSuggestions.where((n) => !currentSuggestions.any((c) => c.userId == n.userId)).toList();
+        
+        final merged = [...uniqueNew, ...currentSuggestions];
+        
+        setState(() {
+          _suggestionsFuture = Future.value(merged);
+        });
+
+        if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('${uniqueNew.length} contacts trouvés !')));
+      }
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Erreur synchro: $e')));
+    } finally {
+      if (mounted) setState(() => _isSyncingContacts = false);
     }
   }
 
@@ -435,13 +484,26 @@ class _ExplorerScreenState extends ConsumerState<ExplorerScreen> with SingleTick
             SliverToBoxAdapter(
               child: Padding(
                 padding: const EdgeInsets.all(16.0),
-                child: Text(
-                  'Connaissez-vous ?',
-                  style: TextStyle(
-                    fontSize: 20,
-                    fontWeight: FontWeight.bold,
-                    color: Theme.of(context).brightness == Brightness.dark ? AppTheme.gold : AppTheme.marineBlue,
-                  ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      'Connaissez-vous ?',
+                      style: TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                        color: Theme.of(context).brightness == Brightness.dark ? AppTheme.gold : AppTheme.marineBlue,
+                      ),
+                    ),
+                    if (_isSyncingContacts)
+                      const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))
+                    else
+                      IconButton(
+                        icon: const Icon(Icons.sync, color: AppTheme.marineBlue),
+                        tooltip: 'Synchroniser contacts',
+                        onPressed: _syncContacts,
+                      ),
+                  ],
                 ),
               ),
             ),
