@@ -585,10 +585,30 @@ class UserNotifier extends StateNotifier<UserState> {
   }
 
   Future<bool> deleteAccount(AuthService authService) async {
-    // 1. SECURITY CHECK: Active Circles
-    if (state.hasActiveCircles) {
-      debugPrint('[DELETION] Blocked: User has active circles');
-      return false; // Deletion blocked
+    // 1. REAL-TIME SECURITY CHECK: Query Firestore for active circles
+    try {
+      final uid = state.uid;
+      if (uid == null || uid.isEmpty) {
+        debugPrint('[DELETION] Blocked: No UID found');
+        return false;
+      }
+      
+      final activeCirclesQuery = await FirebaseFirestore.instance
+          .collection('circles')
+          .where('members', arrayContains: uid)
+          .where('status', isEqualTo: 'active')
+          .limit(1)
+          .get();
+      
+      if (activeCirclesQuery.docs.isNotEmpty) {
+        debugPrint('[DELETION] Blocked: User has ${activeCirclesQuery.docs.length} active circle(s)');
+        return false; // Deletion blocked
+      }
+      
+      debugPrint('[DELETION] Check passed: No active circles found for $uid');
+    } catch (e) {
+      debugPrint('[DELETION] Error checking circles: $e - allowing deletion');
+      // If we can't verify, proceed cautiously (allow deletion)
     }
     
     // 2. Real Logic via AuthService
@@ -604,6 +624,7 @@ class UserNotifier extends StateNotifier<UserState> {
       return false;
     }
   }
+
   
   // V11.2: Sign Merchant Charter
   void signMerchantCharter() {

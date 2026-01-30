@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -12,7 +13,6 @@ import '../../features/social/presentation/screens/conversations_list_screen.dar
 import '../../features/shop/presentation/screens/boutique_screen.dart';
 import '../../features/ai/presentation/screens/smart_coach_screen.dart';
 import '../../features/tontine/presentation/screens/create_tontine_screen.dart';
-import '../../features/tontine/presentation/screens/explorer_screen.dart';
 import '../../features/tontine/presentation/screens/tontine_simulator_screen.dart';
 import '../../features/tontine/presentation/screens/qr_invitation_screen.dart';
 import '../../features/tontine/presentation/screens/invitation_landing_screen.dart';
@@ -20,6 +20,8 @@ import '../../features/tontine/presentation/screens/my_circles_screen.dart';
 import '../../features/wallet/presentation/screens/wallet_tab_screen.dart';
 import '../../features/auth/presentation/screens/type_selection_screen.dart';
 import '../../features/auth/presentation/screens/auth_screen.dart';
+import '../../features/auth/presentation/screens/individual_registration_screen.dart';
+import '../../features/auth/presentation/screens/company_registration_screen.dart';
 import '../../features/social/presentation/screens/direct_chat_screen.dart';
 import '../presentation/auth_wrapper.dart';
 import '../presentation/main_shell.dart';
@@ -27,31 +29,45 @@ import '../../features/subscription/presentation/screens/subscription_selection_
 import '../../features/subscription/presentation/screens/payment_success_screen.dart';
 import '../providers/auth_provider.dart';
 import '../providers/user_provider.dart';
+import '../../features/tontine/presentation/screens/connect_success_screen.dart';
 
 
 /// Stores the pending redirect URL for after login (e.g., /join links)
 final pendingRedirectProvider = StateProvider<String?>((ref) => null);
 
+final rootNavigatorKey = GlobalKey<NavigatorState>();
+
 final routerProvider = Provider<GoRouter>((ref) {
-  final authState = ref.watch(authStateProvider);
-  final isGuestMode = ref.watch(isGuestModeProvider);
+  final authService = ref.read(authServiceProvider);
   
   return GoRouter(
+    navigatorKey: rootNavigatorKey,
     initialLocation: '/',
     debugLogDiagnostics: true,
+    refreshListenable: GoRouterRefreshStream(authService.userStream),
     redirect: (context, state) {
+      final path = state.matchedLocation;
+      final authState = ref.read(authStateProvider);
       final user = authState.value;
       final isLoading = authState.isLoading;
+      final isGuestMode = ref.read(isGuestModeProvider);
+      debugPrint('ROUTER_DEBUG: path=$path, user=${user?.uid}, public=${path == '/onboarding' || path.startsWith('/register')}, guest=$isGuestMode');
+
+      // 0. Force Stay on Registration pages regardless of Auth State
+      if (path.startsWith('/register')) {
+        debugPrint('ROUTER: Forced stay on $path');
+        return null; 
+      }
 
       // 1. Wait for Auth to initialize
       if (isLoading) return null;
 
       // 2. Define routes that don't require authentication
-      final path = state.matchedLocation;
       final fullUri = state.uri.toString();
       final isPublicRoute = path == '/onboarding' || 
                            path == '/auth' || 
                            path == '/type-selection' ||
+                           path.startsWith('/register') ||
                            path.startsWith('/join');
 
       // 3. Authorization Logic
@@ -108,6 +124,14 @@ final routerProvider = Provider<GoRouter>((ref) {
         path: '/type-selection',
         builder: (context, state) => const TypeSelectionScreen(),
       ),
+      GoRoute(
+        path: '/register-individual',
+        builder: (context, state) => IndividualRegistrationScreen(),
+      ),
+      GoRoute(
+        path: '/register-company',
+        builder: (context, state) => CompanyRegistrationScreen(),
+      ),
       
       // Invitation links - redirect to circle details with isJoined=false
       GoRoute(
@@ -133,6 +157,10 @@ final routerProvider = Provider<GoRouter>((ref) {
           final planId = state.uri.queryParameters['planId'];
           return PaymentSuccessScreen(returnUrl: returnUrl, planId: planId);
         },
+      ),
+      GoRoute(
+        path: '/connect/success',
+        builder: (context, state) => const ConnectSuccessScreen(),
       ),
       GoRoute(
         path: '/payment/cancel',
@@ -243,10 +271,6 @@ final routerProvider = Provider<GoRouter>((ref) {
             builder: (context, state) => const CreateTontineScreen(),
           ),
           GoRoute(
-            path: '/explorer',
-            builder: (context, state) => const ExplorerScreen(),
-          ),
-          GoRoute(
             path: '/simulator',
             builder: (context, state) => const TontineSimulatorScreen(),
           ),
@@ -259,3 +283,20 @@ final routerProvider = Provider<GoRouter>((ref) {
     ],
   );
 });
+
+class GoRouterRefreshStream extends ChangeNotifier {
+  GoRouterRefreshStream(Stream<dynamic> stream) {
+    notifyListeners();
+    _subscription = stream.asBroadcastStream().listen(
+      (dynamic _) => notifyListeners(),
+    );
+  }
+
+  late final StreamSubscription<dynamic> _subscription;
+
+  @override
+  void dispose() {
+    _subscription.cancel();
+    super.dispose();
+  }
+}

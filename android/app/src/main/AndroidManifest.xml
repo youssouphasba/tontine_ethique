@@ -14,6 +14,14 @@
             <action android:name="android.intent.action.SENDTO" />
             <data android:scheme="mailto" />
         </intent>
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <data android:scheme="sms" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <data android:scheme="whatsapp" />
+        </intent>
     </queries>
 
     <application
@@ -56,7 +64,9 @@
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
+                <!-- Handle both custom domain and firebase default domain -->
                 <data android:scheme="https" android:host="tontetic.app" />
+                <data android:scheme="https" android:host="tontetic-app.web.app" />
                 <data android:scheme="https" android:host="tontetic-admin.web.app" />
                 <data android:scheme="https" android:host="tontetic-admin.firebaseapp.com" />
             </intent-filter>

@@ -8,7 +8,10 @@ final authServiceProvider = Provider<AuthService>((ref) {
 
 /// Stream provider pour suivre l'état de l'utilisateur Firebase
 final authStateProvider = StreamProvider((ref) {
-  return ref.watch(authServiceProvider).userStream;
+  return ref.watch(authServiceProvider).userStream.map((user) {
+    // print('AUTH_PROVIDER_DEBUG: User state emitted: ${user?.uid}'); // Use print if debugPrint fails
+    return user;
+  });
 });
 
 /// Provider pour le mode invité (État local)

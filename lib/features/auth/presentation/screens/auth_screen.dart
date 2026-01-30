@@ -496,7 +496,7 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
             GestureDetector(
               onTap: () {
                 if (mounted) {
-                  Navigator.push(context, MaterialPageRoute(builder: (_) => const TypeSelectionScreen()));
+                  context.push('/type-selection');
                 }
               },
               child: const Text(

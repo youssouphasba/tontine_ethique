@@ -4,7 +4,9 @@ import 'package:app_links/app_links.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
+
 import 'core/theme/app_theme.dart';
 import 'core/providers/theme_provider.dart';
 import 'core/providers/user_provider.dart';
@@ -19,6 +21,7 @@ import 'core/providers/auth_provider.dart';
 import 'package:flutter/foundation.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'core/routing/router.dart';
+import 'package:flutter/services.dart';
 import 'firebase_options.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -229,7 +232,6 @@ class TonteticApp extends ConsumerStatefulWidget {
 class _TonteticAppState extends ConsumerState<TonteticApp> {
   late AppLinks _appLinks;
   StreamSubscription<Uri>? _linkSubscription;
-  final GlobalKey<NavigatorState> _navigatorKey = GlobalKey<NavigatorState>();
 
   @override
   void initState() {
@@ -273,7 +275,7 @@ class _TonteticAppState extends ConsumerState<TonteticApp> {
     
     // Navigation Logic based on Path
     // This allows the app to restore the screen on Refresh
-    final context = _navigatorKey.currentContext;
+    final context = rootNavigatorKey.currentContext;
     if (context == null) {
       debugPrint('[DEEP_LINK] ⚠️ Context is null, cannot handle link yet');
       return;
@@ -287,6 +289,12 @@ class _TonteticAppState extends ConsumerState<TonteticApp> {
     } else if (uriStringLower.contains('payment/cancel')) {
        debugPrint('[DEEP_LINK] ❌ Payment Cancelled detected');
        _showNotification('Annulé', 'Le paiement a été interrompu.', isError: true);
+    } else if (uriStringLower.contains('connect/success')) {
+       debugPrint('[DEEP_LINK] ✅ Connect Success detected - Refreshing User Profile');
+       // Refresh user to update Stripe status, but STAY on the current screen (LegalCommitment)
+       ref.read(authServiceProvider).refreshUser();
+       _showNotification('Compte connecté !', 'Votre identité bancaire a été validée.');
+       // No navigation push: naturally returns to LegalCommitmentScreen logic
     } else if (uriStringLower.contains('/settings')) {
        ref.read(routerProvider).push('/settings');
     } else if (uriStringLower.contains('/profile')) {
@@ -301,7 +309,7 @@ class _TonteticAppState extends ConsumerState<TonteticApp> {
   }
 
   void _showNotification(String title, String message, {bool isError = false}) {
-    final context = _navigatorKey.currentContext;
+    final context = rootNavigatorKey.currentContext;
     if (context != null) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -331,6 +339,22 @@ class _TonteticAppState extends ConsumerState<TonteticApp> {
     final themeMode = ref.watch(themeModeProvider);
     final goRouter = ref.watch(routerProvider);
     
+    // FIX: Update Status Bar Color based on Theme
+    // We use a post-frame callback to avoid calling setState during build, 
+    // though setSystemUIOverlayStyle doesn't trigger a rebuild of this widget directly.
+    // However, it's safer to just call it.
+    
+    final Brightness platformBrightness = MediaQuery.platformBrightnessOf(context);
+    final bool isDark = themeMode == ThemeMode.dark || 
+                       (themeMode == ThemeMode.system && platformBrightness == Brightness.dark);
+    
+    SystemChrome.setSystemUIOverlayStyle(SystemUiOverlayStyle(
+      statusBarColor: Colors.transparent,
+      statusBarIconBrightness: isDark ? Brightness.light : Brightness.dark, // White icons on Dark, Black on Light
+      systemNavigationBarColor: isDark ? const Color(0xFF1E1E1E) : Colors.white,
+      systemNavigationBarIconBrightness: isDark ? Brightness.light : Brightness.dark,
+    ));
+
     return MaterialApp.router(
       routerConfig: goRouter,
       title: 'Tontetic',

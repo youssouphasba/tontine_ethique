@@ -243,22 +243,36 @@ class StripeService {
           'priceId': priceId,
           'email': email,
           'customerId': customerId,
-          'successUrl': successUrl ?? 'https://tontetic-app.web.app/payment/success${kIsWeb ? "?source=web" : ""}',
-          'cancelUrl': cancelUrl ?? 'https://tontetic-app.web.app/payment/cancel${kIsWeb ? "?source=web" : ""}',
+          'successUrl': successUrl ?? (kIsWeb 
+              ? 'https://tontetic-app.web.app/payment/success?source=web' 
+              : 'tontetic://payment/success'),
+          'cancelUrl': cancelUrl ?? (kIsWeb 
+              ? 'https://tontetic-app.web.app/payment/cancel?source=web' 
+              : 'tontetic://payment/cancel'),
           'userId': userId,
           'planId': planId,
         }),
       );
       
       if (response.statusCode == 200) {
-        final data = jsonDecode(response.body);
-        final url = data['url'];
-        debugPrint('[FUNCTION_OK] sessionId=${data['sessionId']}, sessionUrl=$url');
-        return url;
+        try {
+          final data = jsonDecode(response.body);
+          final url = data['url'];
+          debugPrint('[FUNCTION_OK] sessionId=${data['sessionId']}, sessionUrl=$url');
+          return url;
+        } catch (parseError) {
+          debugPrint('[STRIPE] ❌ Failed to parse response: ${response.body}');
+          throw Exception('Réponse serveur invalide. Veuillez réessayer.');
+        }
       } else {
-        final error = jsonDecode(response.body);
-        debugPrint('[FUNCTION_ERROR] ${response.statusCode}: ${error['error']}');
-        throw Exception(error['error'] ?? 'Erreur serveur');
+        try {
+          final error = jsonDecode(response.body);
+          debugPrint('[FUNCTION_ERROR] ${response.statusCode}: ${error['error']}');
+          throw Exception(error['error'] ?? 'Erreur serveur');
+        } catch (parseError) {
+          debugPrint('[STRIPE] ❌ Non-JSON error response: ${response.body}');
+          throw Exception('Erreur serveur (${response.statusCode}). Fonctions Cloud non disponibles.');
+        }
       }
     } catch (e, stack) {
       debugPrint('[STRIPE] ❌ Erreur création Checkout Session: $e');
@@ -300,12 +314,21 @@ class StripeService {
       );
 
       if (response.statusCode == 200) {
-        final data = jsonDecode(response.body);
-        debugPrint('[STRIPE CONNECT] ✅ Compte créé: ${data['accountId']}');
-        return data['accountId'];
+        try {
+          final data = jsonDecode(response.body);
+          debugPrint('[STRIPE CONNECT] ✅ Compte créé: ${data['accountId']}');
+          return data['accountId'];
+        } catch (parseError) {
+          debugPrint('[STRIPE CONNECT] ❌ Failed to parse response: ${response.body}');
+          throw Exception('Réponse serveur invalide.');
+        }
       } else {
-        final error = jsonDecode(response.body);
-        throw Exception(error['error'] ?? 'Erreur serveur');
+        try {
+          final error = jsonDecode(response.body);
+          throw Exception(error['error'] ?? 'Erreur serveur');
+        } catch (parseError) {
+          throw Exception('Erreur serveur (${response.statusCode}). Fonctions Cloud non disponibles.');
+        }
       }
     } catch (e) {
       debugPrint('[STRIPE CONNECT] ❌ Erreur: $e');
@@ -327,18 +350,31 @@ class StripeService {
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({
           'accountId': accountId,
-          'refreshUrl': refreshUrl ?? 'https://tontetic-admin.firebaseapp.com/redirect.html?target=connect/refresh&error=true',
-          'returnUrl': returnUrl ?? 'https://tontetic-admin.firebaseapp.com/redirect.html?target=connect/success',
+          'refreshUrl': refreshUrl ?? (kIsWeb 
+              ? 'https://tontetic-app.web.app/redirect.html?target=connect/refresh&error=true'
+              : 'https://tontetic-app.web.app/redirect.html?target=tontetic://connect/refresh'),
+          'returnUrl': returnUrl ?? (kIsWeb 
+              ? 'https://tontetic-app.web.app/redirect.html?target=connect/success'
+              : 'https://tontetic-app.web.app/redirect.html?target=tontetic://connect/success'),
         }),
       );
 
       if (response.statusCode == 200) {
-        final data = jsonDecode(response.body);
-        debugPrint('[STRIPE CONNECT] ✅ Lien généré');
-        return data['url'];
+        try {
+          final data = jsonDecode(response.body);
+          debugPrint('[STRIPE CONNECT] ✅ Lien généré');
+          return data['url'];
+        } catch (parseError) {
+          debugPrint('[STRIPE CONNECT] ❌ Failed to parse response: ${response.body}');
+          throw Exception('Réponse serveur invalide.');
+        }
       } else {
-        final error = jsonDecode(response.body);
-        throw Exception(error['error'] ?? 'Erreur serveur');
+        try {
+          final error = jsonDecode(response.body);
+          throw Exception(error['error'] ?? 'Erreur serveur');
+        } catch (parseError) {
+          throw Exception('Erreur serveur (${response.statusCode}). Fonctions Cloud non disponibles.');
+        }
       }
     } catch (e) {
       debugPrint('[STRIPE CONNECT] ❌ Erreur: $e');

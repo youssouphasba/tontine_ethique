@@ -2,7 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:intl/intl.dart';
+
 import 'package:tontetic/core/providers/user_provider.dart';
 import 'package:tontetic/core/theme/app_theme.dart';
 import 'package:tontetic/core/providers/plans_provider.dart';
@@ -277,7 +280,96 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> with SingleTi
     }
   }
 
+  void _showJoinByCodeDialog() {
+    final codeController = TextEditingController();
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) {
+        bool isChecking = false;
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            return AlertDialog(
+              title: const Text('🔐 Rejoindre un cercle'),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Text('Saisissez le code d\'invitation partagé par l\'organisateur.'),
+                  const SizedBox(height: 16),
+                  TextField(
+                    controller: codeController,
+                    enabled: !isChecking,
+                    decoration: const InputDecoration(
+                      labelText: 'Code d\'invitation',
+                      hintText: 'Ex: TONT-2026-XYZ',
+                      border: OutlineInputBorder(),
+                      prefixIcon: Icon(Icons.vpn_key),
+                    ),
+                    textCapitalization: TextCapitalization.characters,
+                  ),
+                  if (isChecking) ...[
+                    const SizedBox(height: 16),
+                    const CircularProgressIndicator(),
+                  ],
+                ],
+              ),
+              actions: [
+                TextButton(
+                  onPressed: isChecking ? null : () => Navigator.pop(ctx), 
+                  child: const Text('ANNULER')
+                ),
+                ElevatedButton(
+                  onPressed: isChecking ? null : () async {
+                    if (codeController.text.isEmpty) return;
+                    
+                    setDialogState(() => isChecking = true);
+                    
+                    try {
+                      final query = await FirebaseFirestore.instance
+                          .collection('tontines')
+                          .where('inviteCode', isEqualTo: codeController.text.trim().toUpperCase())
+                          .limit(1)
+                          .get();
+                      
+                      if (query.docs.isNotEmpty) {
+                        final doc = query.docs.first;
+                        final data = doc.data();
+                        if (mounted) {
+                          Navigator.pop(ctx);
+                          this.context.push('/tontine/${doc.id}?name=${Uri.encodeComponent(data['name'] ?? 'Cercle')}&isJoined=false');
+                        }
+                      } else {
+                        setDialogState(() => isChecking = false);
+                        if (mounted) {
+                          ScaffoldMessenger.of(this.context).showSnackBar(
+                            const SnackBar(
+                              content: Text('Code invalide ou cercle inexistant.'),
+                              backgroundColor: Colors.red,
+                            ),
+                          );
+                        }
+                      }
+                    } catch (e) {
+                      setDialogState(() => isChecking = false);
+                      if (mounted) {
+                        ScaffoldMessenger.of(this.context).showSnackBar(
+                          SnackBar(content: Text('Erreur: $e'), backgroundColor: Colors.red),
+                        );
+                      }
+                    }
+                  }, 
+                  child: const Text('VÉRIFIER LE CODE')
+                ),
+              ],
+            );
+          }
+        );
+      },
+    );
+  }
+
   Widget _buildHomeContent() {
+
     return FadeTransition(
       opacity: _fadeAnim,
       child: SlideTransition(
@@ -385,6 +477,8 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> with SingleTi
               fontSize: 14,
               color: Theme.of(context).brightness == Brightness.dark ? Colors.white : Colors.black87,
             ),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
           ),
           Text(
             label, 
@@ -393,6 +487,8 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> with SingleTi
               color: Theme.of(context).brightness == Brightness.dark ? Colors.white70 : Colors.grey[700], 
               height: 1.2,
             ),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
           ),
         ],
       ),
@@ -626,13 +722,15 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> with SingleTi
               mainAxisSize: MainAxisSize.min,
               children: [
                 ListTile(
-                  leading: const Icon(Icons.search, color: AppTheme.marineBlue),
+                  leading: const Icon(Icons.vpn_key, color: AppTheme.marineBlue),
                   title: const Text('Rejoindre une tontine existante'),
-                  subtitle: const Text('Parcourez les offres publiques'),
+                  subtitle: const Text('Entrez le code d\'invitation'),
                   onTap: () {
-                    context.push('/explorer');
+                    Navigator.pop(ctx); // Close bottom sheet first
+                    _showJoinByCodeDialog();
                   },
                 ),
+
                 const Divider(),
                 ListTile(
                   leading: const Icon(Icons.add_circle_outline, color: AppTheme.gold),
@@ -671,17 +769,23 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> with SingleTi
       ),
     );
   }
+
   Widget _buildGreeting(String displayName) {
     final l10n = ref.watch(localizationProvider);
+    // Fallback to Auth displayName if Firestore name is not yet loaded
+    final effectiveName = displayName.isNotEmpty && displayName != 'Membre' 
+        ? displayName 
+        : (FirebaseAuth.instance.currentUser?.displayName ?? 'Membre');
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          '${l10n.translate('hello')}, ${displayName.isNotEmpty ? displayName : 'Membre'} 👋',
+          '${l10n.translate('hello')}, $effectiveName 👋',
           style: const TextStyle(
             fontSize: 18,
             fontWeight: FontWeight.bold,
-            color: Colors.white, // Always white on marineBlue AppBar
+            color: Colors.white,
           ),
         ),
         Row(
@@ -704,6 +808,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> with SingleTi
   }
 
   Widget _buildReferralBanner() {
+
     // Generate referral code based on user name
     final userState = ref.watch(userProvider);
     final userName = userState.displayName;

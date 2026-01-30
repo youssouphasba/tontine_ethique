@@ -652,12 +652,20 @@ class SubscriptionSelectionScreen extends ConsumerWidget {
       }
       final encodedReturnUrl = Uri.encodeComponent(currentPath);
       
+      final successUrl = kIsWeb 
+          ? 'https://tontetic-app.web.app/payment/success?returnUrl=$encodedReturnUrl&planId=${plan.id}&source=web'
+          : 'tontetic://app/payment/success?returnUrl=$encodedReturnUrl&planId=${plan.id}';
+          
+      final cancelUrl = kIsWeb
+          ? 'https://tontetic-app.web.app/payment/cancel?returnUrl=$encodedReturnUrl&source=web'
+          : 'tontetic://app/payment/cancel?returnUrl=$encodedReturnUrl';
+
       final checkoutUrl = await StripeService.createCheckoutSession(
         priceId: priceId,
         email: email,
         customerId: user.stripeCustomerId,
-        successUrl: 'https://tontetic-app.web.app/payment/success?returnUrl=$encodedReturnUrl&planId=${plan.id}${kIsWeb ? "&source=web" : ""}',
-        cancelUrl: 'https://tontetic-app.web.app/payment/cancel?returnUrl=$encodedReturnUrl${kIsWeb ? "&source=web" : ""}',
+        successUrl: successUrl,
+        cancelUrl: cancelUrl,
         userId: userId,
         planId: plan.id,
       );
@@ -679,7 +687,7 @@ class SubscriptionSelectionScreen extends ConsumerWidget {
       
       await launchUrl(
         uri,
-        mode: kIsWeb ? LaunchMode.platformDefault : LaunchMode.externalNonBrowserApplication,
+        mode: kIsWeb ? LaunchMode.platformDefault : LaunchMode.externalApplication,
         webOnlyWindowName: kIsWeb ? '_self' : null,
       );
       

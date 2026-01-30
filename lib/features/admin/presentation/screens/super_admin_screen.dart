@@ -272,8 +272,8 @@ class _AdminDashboardView extends StatelessWidget {
             ),
           );
         },
-      ),
-    );
+      );
+
   }
 
   Widget _buildKpiCard(String title, String value, String sub, IconData icon, Color color) {

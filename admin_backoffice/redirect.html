@@ -111,6 +111,7 @@
 
         // Configuration
         const deepLink = `tontetic://${target}`;
+        // Fallback web link (only used if we are sure we are on web)
         const webLink = `https://tontetic-app.web.app/${target}`;
 
         const titleEl = document.getElementById('title');
@@ -127,7 +128,7 @@
             iconEl.textContent = "⚠️";
         } else if (target.includes('success')) {
             titleEl.textContent = "Opération réussie !";
-            messageEl.textContent = "Tout est en ordre. Retournez dans l'application pour continuer.";
+            messageEl.textContent = "Retour vers l'application Tontetic...";
             iconEl.textContent = "✅";
         }
 
@@ -142,32 +143,20 @@
                 // Desktop or explicit Web source
                 console.log("Redirection Web vers : " + webLink);
                 window.location.href = webLink;
-
-                // If it fails or takes too long, show button
-                setTimeout(() => {
-                    actionArea.style.display = 'none';
-                    manualBtnArea.style.display = 'block';
-                    manualBtn.href = webLink;
-                    manualBtn.textContent = "Accéder à l'application Web";
-                }, 2000);
             } else {
-                // Mobile target
-                console.log("Tentative de redirection Deep Link : " + deepLink);
+                // Mobile target - Always use Custom Scheme for consistency in Debug/Prod
+                console.log("Tentative de redirection Deep Link (Custom Scheme) : " + deepLink);
                 window.location.href = deepLink;
 
-                // Fallback: stay on page but show manual button
+                // Provide a big manual button in case auto-redirect fails (Chrome security)
                 setTimeout(() => {
                     actionArea.style.display = 'none';
                     manualBtnArea.style.display = 'block';
                     manualBtn.href = deepLink;
                     manualBtn.textContent = "Ouvrir l'application Mobile";
 
-                    // Add secondary option for web if mobile fails
-                    const secondary = document.createElement('div');
-                    secondary.style.marginTop = '15px';
-                    secondary.innerHTML = `<a href="${webLink}" style="color: #7c3aed; font-size: 0.9rem;">Ou continuer sur la version Web</a>`;
-                    manualBtnArea.appendChild(secondary);
-                }, 3000);
+                    document.getElementById('message').textContent = "Si l'application ne s'ouvre pas automatiquement, cliquez ci-dessous.";
+                }, 500);
             }
         }
 

@@ -4,6 +4,240 @@ const stripe = require("stripe")(functions.config().stripe.secret_key);
 
 admin.initializeApp();
 
+// ============ STRIPE CHECKOUT FUNCTIONS ============
+
+/**
+ * CREATE PAYMENT INTENT
+ * Creates a PaymentIntent for mobile native checkout.
+ */
+exports.createPaymentIntent = functions.region('europe-west1').https.onRequest(async (req, res) => {
+  res.set('Access-Control-Allow-Origin', '*');
+  res.set('Access-Control-Allow-Methods', 'POST, OPTIONS');
+  res.set('Access-Control-Allow-Headers', 'Content-Type');
+
+  if (req.method === 'OPTIONS') {
+    return res.status(204).send('');
+  }
+
+  try {
+    const { amount, currency, description } = req.body;
+
+    const paymentIntent = await stripe.paymentIntents.create({
+      amount: amount,
+      currency: currency || 'eur',
+      description: description || 'Paiement Tontetic',
+      automatic_payment_methods: { enabled: true },
+    });
+
+    res.json({
+      paymentIntentId: paymentIntent.id,
+      clientSecret: paymentIntent.client_secret,
+    });
+  } catch (error) {
+    console.error('[createPaymentIntent] Error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * CREATE CHECKOUT SESSION
+ * Creates a Stripe Checkout session for subscriptions (Web + Mobile redirect).
+ */
+exports.createCheckoutSession = functions.region('europe-west1').https.onRequest(async (req, res) => {
+  res.set('Access-Control-Allow-Origin', '*');
+  res.set('Access-Control-Allow-Methods', 'POST, OPTIONS');
+  res.set('Access-Control-Allow-Headers', 'Content-Type');
+
+  if (req.method === 'OPTIONS') {
+    return res.status(204).send('');
+  }
+
+  try {
+    const { priceId, email, customerId, successUrl, cancelUrl, userId, planId } = req.body;
+
+    if (!priceId) {
+      return res.status(400).json({ error: 'priceId is required' });
+    }
+
+    const sessionParams = {
+      mode: 'subscription',
+      line_items: [{ price: priceId, quantity: 1 }],
+      success_url: successUrl || 'https://tontetic-app.web.app/payment/success?session_id={CHECKOUT_SESSION_ID}',
+      cancel_url: cancelUrl || 'https://tontetic-app.web.app/payment/cancel',
+      metadata: { userId, planId },
+    };
+
+    if (customerId) {
+      sessionParams.customer = customerId;
+    } else if (email) {
+      sessionParams.customer_email = email;
+    }
+
+    const session = await stripe.checkout.sessions.create(sessionParams);
+
+    console.log(`[createCheckoutSession] Created session ${session.id} for ${email || customerId}`);
+    res.json({ sessionId: session.id, url: session.url });
+  } catch (error) {
+    console.error('[createCheckoutSession] Error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * CREATE SETUP INTENT
+ * For SEPA mandate setup.
+ */
+exports.createSetupIntent = functions.region('europe-west1').https.onRequest(async (req, res) => {
+  res.set('Access-Control-Allow-Origin', '*');
+  res.set('Access-Control-Allow-Methods', 'POST, OPTIONS');
+  res.set('Access-Control-Allow-Headers', 'Content-Type');
+
+  if (req.method === 'OPTIONS') {
+    return res.status(204).send('');
+  }
+
+  try {
+    const { email, customerId } = req.body;
+
+    let customer;
+    if (customerId) {
+      customer = await stripe.customers.retrieve(customerId);
+    } else {
+      customer = await stripe.customers.create({ email });
+    }
+
+    const setupIntent = await stripe.setupIntents.create({
+      customer: customer.id,
+      payment_method_types: ['sepa_debit'],
+    });
+
+    res.json({
+      clientSecret: setupIntent.client_secret,
+      customerId: customer.id,
+    });
+  } catch (error) {
+    console.error('[createSetupIntent] Error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// ============ STRIPE CONNECT FUNCTIONS ============
+
+/**
+ * CREATE CONNECT ACCOUNT
+ * Creates a Stripe Connect Express account for tontine payouts.
+ */
+exports.createConnectAccount = functions.region('europe-west1').https.onRequest(async (req, res) => {
+  res.set('Access-Control-Allow-Origin', '*');
+  res.set('Access-Control-Allow-Methods', 'POST, OPTIONS');
+  res.set('Access-Control-Allow-Headers', 'Content-Type');
+
+  if (req.method === 'OPTIONS') {
+    return res.status(204).send('');
+  }
+
+  try {
+    const { email, userId, firstName, lastName, businessType } = req.body;
+
+    if (!email) {
+      return res.status(400).json({ error: 'email is required' });
+    }
+
+    const account = await stripe.accounts.create({
+      type: 'express',
+      country: 'FR',
+      email: email,
+      capabilities: {
+        card_payments: { requested: true },
+        transfers: { requested: true },
+      },
+      business_type: businessType || 'individual',
+      individual: {
+        first_name: firstName,
+        last_name: lastName,
+        email: email,
+      },
+      metadata: { userId },
+    });
+
+    console.log(`[createConnectAccount] Created account ${account.id} for ${email}`);
+    res.json({ accountId: account.id });
+  } catch (error) {
+    console.error('[createConnectAccount] Error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * CREATE CONNECT ACCOUNT LINK
+ * Generates onboarding URL for Stripe Connect Express.
+ */
+exports.createConnectAccountLink = functions.region('europe-west1').https.onRequest(async (req, res) => {
+  res.set('Access-Control-Allow-Origin', '*');
+  res.set('Access-Control-Allow-Methods', 'POST, OPTIONS');
+  res.set('Access-Control-Allow-Headers', 'Content-Type');
+
+  if (req.method === 'OPTIONS') {
+    return res.status(204).send('');
+  }
+
+  try {
+    const { accountId, refreshUrl, returnUrl } = req.body;
+
+    if (!accountId) {
+      return res.status(400).json({ error: 'accountId is required' });
+    }
+
+    const accountLink = await stripe.accountLinks.create({
+      account: accountId,
+      refresh_url: refreshUrl || 'https://tontetic-app.web.app/connect/refresh',
+      return_url: returnUrl || 'https://tontetic-app.web.app/connect/success',
+      type: 'account_onboarding',
+    });
+
+    console.log(`[createConnectAccountLink] Generated link for ${accountId}`);
+    res.json({ url: accountLink.url });
+  } catch (error) {
+    console.error('[createConnectAccountLink] Error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * GET CONNECT ACCOUNT STATUS
+ * Returns the status of a Stripe Connect account.
+ */
+exports.getConnectAccountStatus = functions.region('europe-west1').https.onRequest(async (req, res) => {
+  res.set('Access-Control-Allow-Origin', '*');
+  res.set('Access-Control-Allow-Methods', 'GET, OPTIONS');
+  res.set('Access-Control-Allow-Headers', 'Content-Type');
+
+  if (req.method === 'OPTIONS') {
+    return res.status(204).send('');
+  }
+
+  try {
+    const accountId = req.query.accountId;
+
+    if (!accountId) {
+      return res.status(400).json({ error: 'accountId query param is required' });
+    }
+
+    const account = await stripe.accounts.retrieve(accountId);
+
+    res.json({
+      accountId: account.id,
+      chargesEnabled: account.charges_enabled,
+      payoutsEnabled: account.payouts_enabled,
+      detailsSubmitted: account.details_submitted,
+      requirements: account.requirements,
+    });
+  } catch (error) {
+    console.error('[getConnectAccountStatus] Error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 /**
  * HONOR SCORE CALCULATION (CRON JOB)
  * Runs every Sunday at 00:00 to update reliability scores.

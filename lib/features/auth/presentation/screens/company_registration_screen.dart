@@ -7,8 +7,10 @@ import 'package:tontetic/core/providers/consent_provider.dart';
 import 'package:tontetic/core/providers/account_status_provider.dart';
 import 'package:tontetic/core/providers/auth_provider.dart'; // ADDED: For authServiceProvider
 import 'package:tontetic/core/constants/stripe_constants.dart'; // ADDED: For Stripe Price IDs
+import 'package:tontetic/core/providers/plans_provider.dart'; // ADDED: For enterprisePlansProvider
 
 import 'package:cloud_firestore/cloud_firestore.dart';
+
 import 'package:go_router/go_router.dart';
 import 'package:tontetic/core/services/auth_service.dart';
 
@@ -582,19 +584,30 @@ class _CompanyRegistrationScreenState extends ConsumerState<CompanyRegistrationS
     final fullPhone = '$_selectedCountryCode${_phoneController.text.trim()}';
     setState(() => _isLoading = true);
     
+    // Auto-detect zone based on country
+    if (_selectedCountry == 'FR') {
+       // Force update to make sure user provider has correct zone
+       ref.read(userProvider.notifier).setUser(fullPhone, false); 
+       // Note: updateProfile is called later, but zone is needed for some logic
+    }
+    
     final authService = ref.read(authServiceProvider);
     final result = await authService.sendOtp(fullPhone);
     
     setState(() => _isLoading = false);
 
     if (!result.success) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Erreur envoi SMS: ${result.error}'), backgroundColor: Colors.red),
-      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Erreur envoi SMS: ${result.error}'), backgroundColor: Colors.red),
+        );
+      }
     } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Code envoyé !'), backgroundColor: Colors.green),
-      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Code envoyé !'), backgroundColor: Colors.green),
+        );
+      }
     }
   }
 
@@ -652,83 +665,93 @@ class _CompanyRegistrationScreenState extends ConsumerState<CompanyRegistrationS
               border: Border.all(color: Theme.of(context).brightness == Brightness.dark ? Colors.teal.withValues(alpha: 0.4) : Colors.teal.shade200),
             ),
             child: Row(
-    final plansAsync = ref.watch(enterprisePlansProvider);
-    final isEuro = _selectedCountry == 'FR';
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const Text('Choisissez votre formule', style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Colors.orange)),
-        const SizedBox(height: 8),
-        Text(
-          'Des tarifs adaptés à la taille de votre structure.',
-          style: TextStyle(color: Theme.of(context).brightness == Brightness.dark ? Colors.white60 : Colors.grey),
-        ),
-        const SizedBox(height: 24),
-
-        plansAsync.when(
-          data: (plans) {
-            if (plans.isEmpty) {
-              return Center(
-                child: Column(
-                  children: [
-                    const Icon(Icons.info_outline, size: 48, color: Colors.orange),
-                    const SizedBox(height: 16),
-                    const Text('Aucune formule disponible pour le moment.'),
-                    const SizedBox(height: 8),
-                    const Text('Veuillez contacter le support ou initialiser les plans via le Back Office.', textAlign: TextAlign.center, style: TextStyle(fontSize: 12, color: Colors.grey)),
-                  ],
-                ),
-              );
-            }
-
-            return Column(
               children: [
-                ...plans.map((plan) {
-                  final price = isEuro ? plan.prices['EUR'] : plan.prices['XOF'];
-                  final priceStr = isEuro ? '$price €/mois' : '${price?.toInt()} FCFA/mois';
-                  
-                  return Padding(
-                    padding: const EdgeInsets.only(bottom: 12),
-                    child: _buildPlanCard(
-                      name: plan.name,
-                      price: priceStr,
-                      features: plan.features,
-                      isSelected: _selectedPlan == plan.code,
-                      recommended: plan.isRecommended,
-                      onTap: () => setState(() => _selectedPlan = plan.code),
-                    ),
-                  );
-                }),
-                const SizedBox(height: 24),
-                SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton(
-                    onPressed: _selectedPlan != null ? () => setState(() => _currentStep = 4) : null,
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.orange, 
-                      foregroundColor: Colors.white, 
-                      padding: const EdgeInsets.symmetric(vertical: 16)
-                    ),
-                    child: const Text('Continuer vers le paiement'),
+                Icon(Icons.info_outline, color: Theme.of(context).brightness == Brightness.dark ? Colors.teal : Colors.teal.shade700),
+                const SizedBox(width: 12),
+                const Expanded(
+                  child: Text(
+                    'Tous nos abonnements peuvent évoluer selon vos besoins.',
+                    style: TextStyle(fontSize: 12),
                   ),
                 ),
               ],
-            );
-          },
-          loading: () => const Center(
-            child: Padding(
-              padding: EdgeInsets.all(40.0),
-              child: CircularProgressIndicator(color: Colors.orange),
             ),
           ),
-          error: (err, stack) => Center(
-            child: Text('Erreur lors du chargement des plans : $err', style: const TextStyle(color: Colors.red)),
-          ),
-        ),
-      ],
+          const SizedBox(height: 24),
+
+          // Plans from Firestore
+          _buildEnterprisePlansSection(),
+        ],
+      ),
     );
   }
+
+  Widget _buildEnterprisePlansSection() {
+    final plansAsync = ref.watch(enterprisePlansProvider);
+    final isEuro = _selectedCountry == 'FR';
+
+    return plansAsync.when(
+      data: (plans) {
+        if (plans.isEmpty) {
+          return Center(
+            child: Column(
+              children: [
+                const Icon(Icons.info_outline, size: 48, color: Colors.orange),
+                const SizedBox(height: 16),
+                const Text('Aucune formule disponible pour le moment.'),
+                const SizedBox(height: 8),
+                const Text('Veuillez contacter le support ou initialiser les plans via le Back Office.', textAlign: TextAlign.center, style: TextStyle(fontSize: 12, color: Colors.grey)),
+              ],
+            ),
+          );
+        }
+
+        return Column(
+          children: [
+            ...plans.map((plan) {
+              final price = isEuro ? plan.prices['EUR'] : plan.prices['XOF'];
+              final priceStr = isEuro ? '$price €/mois' : '${price?.toInt()} FCFA/mois';
+              
+              return Padding(
+                padding: const EdgeInsets.only(bottom: 12),
+                child: _buildPlanCard(
+                  name: plan.name,
+                  price: priceStr,
+                  features: plan.features,
+                  isSelected: _selectedPlan == plan.code,
+                  recommended: plan.isRecommended,
+                  onTap: () => setState(() => _selectedPlan = plan.code),
+                ),
+              );
+            }),
+            const SizedBox(height: 24),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                onPressed: _selectedPlan != null ? () => setState(() => _currentStep = 4) : null,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.orange, 
+                  foregroundColor: Colors.white, 
+                  padding: const EdgeInsets.symmetric(vertical: 16)
+                ),
+                child: const Text('Continuer vers le paiement'),
+              ),
+            ),
+          ],
+        );
+      },
+      loading: () => const Center(
+        child: Padding(
+          padding: EdgeInsets.all(40.0),
+          child: CircularProgressIndicator(color: Colors.orange),
+        ),
+      ),
+      error: (err, stack) => Center(
+        child: Text('Erreur lors du chargement des plans : $err', style: const TextStyle(color: Colors.red)),
+      ),
+    );
+  }
+
 
   Widget _buildPlanCard({
     required String name,
@@ -1040,15 +1063,26 @@ class _CompanyRegistrationScreenState extends ConsumerState<CompanyRegistrationS
     // Show success message
     if (mounted) {
       // Send Email Verification (Real Logic)
-      await authService.sendEmailVerification();
+      // Send Email Verification with visual feedback
+      final emailResult = await authService.sendEmailVerification();
+      if (!emailResult.success) {
+         debugPrint('REGISTRATION: Failed to send email: ${emailResult.error}');
+         if (mounted) {
+           ScaffoldMessenger.of(context).showSnackBar(
+             SnackBar(content: Text('Attention: Erreur envoi email: ${emailResult.error}'), backgroundColor: Colors.orange),
+           );
+         }
+      }
       
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('✅ Compte Entreprise créé ! Un email de vérification a été envoyé.'),
-          backgroundColor: Colors.green,
-          duration: Duration(seconds: 4),
-        ),
-      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('✅ Compte Entreprise créé ! Vérifiez vos emails.'),
+            backgroundColor: Colors.green,
+            duration: Duration(seconds: 4),
+          ),
+        );
+      }
     }
   }
 

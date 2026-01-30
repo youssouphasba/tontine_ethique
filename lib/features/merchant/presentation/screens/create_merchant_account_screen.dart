@@ -519,15 +519,16 @@ class _CreateMerchantAccountScreenState extends ConsumerState<CreateMerchantAcco
   void _createMerchantAccount(String? pspAccountId) {
     final user = ref.read(userProvider);
     
-    // Create shop
+    // Create shop - IMPORTANT: Use uid to match the provider's listener
     ref.read(merchantAccountProvider.notifier).createShop(
-      userId: user.phoneNumber,
+      userId: user.uid ?? user.phoneNumber, // Use Firebase UID (matches provider listener)
       shopName: _shopNameController.text,
       professionalEmail: _professionalEmailController.text.isNotEmpty ? _professionalEmailController.text : null,
       category: _selectedCategory,
       address: _addressController.text,
       description: _descriptionController.text.isNotEmpty ? _descriptionController.text : null,
     );
+
 
     // Activate if PSP connected
     if (pspAccountId != null) {

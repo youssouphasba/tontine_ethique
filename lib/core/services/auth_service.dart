@@ -56,6 +56,9 @@ class AuthService {
       );
 
       if (credential.user != null) {
+        // Update display name immediately for post-onboarding UI sync
+        await credential.user!.updateDisplayName(fullName);
+        
         await _createUserProfile(
           uid: credential.user!.uid,
           email: email,
@@ -295,6 +298,11 @@ class AuthService {
     } catch (e) {
        return AuthResult(success: false, error: e.toString());
     }
+  }
+
+  /// Rafraîchir les données de l'utilisateur (utile après retour Stripe)
+  Future<void> refreshUser() async {
+    await _auth.currentUser?.reload();
   }
 
   /// Changer le mot de passe (utilisateur connecté)

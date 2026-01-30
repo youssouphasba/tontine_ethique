@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:tontetic/core/theme/app_theme.dart';
 
 import 'package:tontetic/features/auth/presentation/screens/individual_registration_screen.dart';
@@ -52,12 +53,11 @@ class TypeSelectionScreen extends ConsumerWidget {
                 '✅ Utilisez vos vraies informations pour la confiance communautaire',
               ],
               onTap: () async {
-                final result = await Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (_) => const IndividualRegistrationScreen()),
-                );
+                final result = await context.push<bool>('/register-individual');
                 if (result == true && context.mounted) {
-                  Navigator.pop(context, true);
+                  if (Navigator.canPop(context)) {
+                    Navigator.pop(context, true);
+                  }
                 }
               },
               onReadMore: () => _showModalitiesDialog(context, isCompany: false),
@@ -81,10 +81,7 @@ class TypeSelectionScreen extends ConsumerWidget {
                 '⚠️ Numéro SIRET/NINEA requis',
                 '⚠️ Représentant légal identifié',
               ],
-              onTap: () => Navigator.push(
-                context,
-                MaterialPageRoute(builder: (_) => const CompanyRegistrationScreen()),
-              ),
+              onTap: () => context.push('/register-company'),
               onReadMore: () => _showModalitiesDialog(context, isCompany: true),
             ),
           ],

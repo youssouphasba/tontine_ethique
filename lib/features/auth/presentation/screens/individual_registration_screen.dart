@@ -307,7 +307,7 @@ class _IndividualRegistrationScreenState extends ConsumerState<IndividualRegistr
                       ? const Icon(Icons.check_circle, color: Colors.green)
                       : TextButton(
                           onPressed: _verifyPhone,
-                          child: const Text('OTP'),
+                          child: const Text('Vérifier'),
                         ),
                 ),
                 validator: (v) => v!.isEmpty ? 'Requis' : null,
@@ -405,7 +405,8 @@ class _IndividualRegistrationScreenState extends ConsumerState<IndividualRegistr
 
     Color color = Colors.red;
     String label = 'Faible';
-    if (strength >= 3) { color = Colors.green; label = 'Fort'; }
+    if (strength >= 4) { color = Colors.green; label = 'Excellent'; }
+    else if (strength >= 3) { color = Colors.green; label = 'Fort'; }
     else if (strength >= 2) { color = Colors.orange; label = 'Moyen'; }
 
     return Row(
@@ -433,7 +434,13 @@ class _IndividualRegistrationScreenState extends ConsumerState<IndividualRegistr
       return;
     }
 
-    final fullPhone = '$_selectedCountryCode${_phoneController.text.trim()}';
+    // Strip leading zero from the local number before adding country code
+    String localNumber = _phoneController.text.trim();
+    if (localNumber.startsWith('0')) {
+      localNumber = localNumber.substring(1);
+    }
+    final fullPhone = '$_selectedCountryCode$localNumber';
+    
     setState(() => _isLoading = true);
     
     final authService = ref.read(authServiceProvider);
@@ -520,6 +527,15 @@ class _IndividualRegistrationScreenState extends ConsumerState<IndividualRegistr
 
   void _goToStep2() {
     if (_formKey.currentState!.validate()) {
+      if (!_phoneVerified) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('⚠️ Veuillez vérifier votre numéro par OTP pour continuer.'),
+            backgroundColor: Colors.orange,
+          ),
+        );
+        return;
+      }
       setState(() => _currentStep = 1);
     }
   }
@@ -950,27 +966,74 @@ Tout litige est soumis à l'arbitrage communautaire avant toute procédure exter
     
     if (!mounted) return;
     
-    // Navigate to Dashboard
-    if (Navigator.canPop(context)) {
-      Navigator.pop(context, true); // Return to caller (e.g. TypeSelection -> Invitation)
-    } else {
-      context.go('/');
-    }
+    // Navigate to Dashboard or Show Verification Dialog
+    if (!mounted) return;
     
-    // Trigger Email Verification if needed
     if (!widget.skipEmailStep) {
-       await ref.read(authServiceProvider).sendEmailVerification();
+       // Send verification email
+       final emailResult = await ref.read(authServiceProvider).sendEmailVerification();
+       if (!emailResult.success) {
+          debugPrint('REGISTRATION: Failed to send email: ${emailResult.error}');
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text('Attention: Erreur envoi email: ${emailResult.error}'), backgroundColor: Colors.orange),
+            );
+          }
+       }
+       
+       if (!mounted) return;
+       
+       // Show MANDATORY verification dialog
+       await showDialog(
+         context: context,
+         barrierDismissible: false,
+         builder: (ctx) => AlertDialog(
+           title: const Text('📧 Vérification requise'),
+           content: Column(
+             mainAxisSize: MainAxisSize.min,
+             children: [
+               const Icon(Icons.mark_email_read, size: 64, color: AppTheme.marineBlue),
+               const SizedBox(height: 16),
+               const Text(
+                 'Un email de vérification a été envoyé à votre adresse.\n\n'
+                 'Veuillez cliquer sur le lien dans l\'email pour activer votre compte. '
+                 'Vous pourrez ensuite accéder à toutes les fonctionnalités.',
+                 textAlign: TextAlign.center,
+               ),
+             ],
+           ),
+           actions: [
+             TextButton(
+               onPressed: () {
+                 Navigator.pop(ctx);
+                 context.go('/');
+               },
+               child: const Text('PLUS TARD (ACCÈS SPECTATEUR)'),
+             ),
+             ElevatedButton(
+               onPressed: () {
+                 Navigator.pop(ctx);
+                 context.go('/');
+               },
+               child: const Text('C\'EST FAIT'),
+             ),
+           ],
+         ),
+       );
+    } else {
+      if (Navigator.canPop(context)) {
+        Navigator.pop(context, true);
+      } else {
+        context.go('/');
+      }
+      
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('✅ Compte créé avec succès !'),
+          backgroundColor: Colors.green,
+          duration: Duration(seconds: 4),
+        ),
+      );
     }
-
-    // Show success message
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(!widget.skipEmailStep 
-            ? '✅ Compte créé ! Un email de vérification a été envoyé.' 
-            : '✅ Compte créé avec succès ! Mode lecture seule activé.'),
-        backgroundColor: Colors.green,
-        duration: const Duration(seconds: 4),
-      ),
-    );
   }
 }

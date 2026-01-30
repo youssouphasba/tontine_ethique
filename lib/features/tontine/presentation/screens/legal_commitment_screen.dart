@@ -131,8 +131,6 @@ class _LegalCommitmentScreenState extends ConsumerState<LegalCommitmentScreen> {
       // 2. Générer le lien d'onboarding
       final onboardingUrl = await StripeService.createConnectAccountLink(
         accountId: connectAccountId,
-        refreshUrl: 'https://tontetic-admin.firebaseapp.com/redirect.html?target=connect/refresh&error=true',
-        returnUrl: 'https://tontetic-admin.firebaseapp.com/redirect.html?target=connect/success',
       );
       
       if (onboardingUrl.isEmpty) {
@@ -183,9 +181,9 @@ class _LegalCommitmentScreenState extends ConsumerState<LegalCommitmentScreen> {
       builder: (ctx) => AlertDialog(
         title: const Row(
           children: [
-            Icon(Icons.security, color: Colors.blue),
+            Icon(Icons.shield, color: Colors.blue), // Changed to Shield for trust
             SizedBox(width: 12),
-            Text('Configuration Sécurisée'),
+            Expanded(child: Text('Activation Bancaire Sécurisée', style: TextStyle(fontSize: 18))),
           ],
         ),
         content: Column(
@@ -193,28 +191,42 @@ class _LegalCommitmentScreenState extends ConsumerState<LegalCommitmentScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             const Text(
-              'Vous allez être redirigé vers Stripe, notre partenaire bancaire agréé, pour enregistrer votre RIB.',
+              'Vous allez être redirigé vers l\'interface sécurisée de Stripe (notre partenaire bancaire) pour valider votre identité.',
               style: TextStyle(fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 16),
-            _guideItem(Icons.verified_user, 'C\'est une obligation légale (KYC) pour recevoir des fonds.'),
-            _guideItem(Icons.business_center_outlined, 'Choisissez "Individuel" si la question est posée.'),
-            _guideItem(Icons.language, 'Si on vous demande un site web, utilisez : tontetic-app.web.app'),
-            _guideItem(Icons.lock_outline, 'Vos données bancaires ne sont jamais stockées par Tontetic.'),
+            const Text(
+              '🔒 Pourquoi tant d\'informations ?',
+              style: TextStyle(fontWeight: FontWeight.bold, color: Colors.blue),
+            ),
+            const SizedBox(height: 8),
+            const Text(
+              'Pour lutter contre le blanchiment d\'argent (loi KYC), Stripe doit vérifier votre identité avant de pouvoir vous virer votre gain.',
+              style: TextStyle(fontSize: 13),
+            ),
+            const SizedBox(height: 16),
+             _guideItem(Icons.badge, 'Préparez votre Pièce d\'Identité (CNI/Passeport).'),
+            _guideItem(Icons.savings, 'C\'est uniquement pour recevoir votre tour de Tontine (le pot).'),
+            _guideItem(Icons.language, 'Site web : mettez "tontetic-app.web.app" (requis par Stripe).'),
+            _guideItem(Icons.lock_outline, 'Vérification 100% sécurisée et chiffrée par Stripe.'),
           ],
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
-            child: const Text('ANNULER'),
+            child: const Text('PLUS TARD'),
           ),
           ElevatedButton(
             onPressed: () {
               Navigator.pop(ctx);
               _startConnectOnboarding();
             },
-            style: ElevatedButton.styleFrom(backgroundColor: AppTheme.marineBlue, foregroundColor: Colors.white),
-            child: const Text('CONTINUER VERS STRIPE'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppTheme.marineBlue, 
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+            ),
+            child: const Text('OUVRIR L\'ESPACE SÉCURISÉ'),
           ),
         ],
       ),

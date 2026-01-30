@@ -1,5 +1,6 @@
 // ignore_for_file: deprecated_member_use
 import 'package:flutter/material.dart';
+import 'package:url_launcher/url_launcher.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:tontetic/core/providers/user_provider.dart';
 import 'package:tontetic/core/theme/app_theme.dart';
@@ -283,10 +284,23 @@ class _CreateTontineScreenState extends ConsumerState<CreateTontineScreen> {
             children: [
               Expanded(
                 child: OutlinedButton.icon(
-                  onPressed: () {
-                    final inviteLink = "https://tontetic-app.web.app/join/TONT-2026-NEW";
-                    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('⏳ Ouverture de WhatsApp...')));
-                    // Note: share_plus is better for general sharing
+                  onPressed: () async {
+                    const inviteLink = "https://tontetic-app.web.app/join/TONT-2026-NEW";
+                    final message = "Rejoins ma tontine sur Tontetic ! Voici le lien : $inviteLink";
+                    final url = Uri.parse("whatsapp://send?text=${Uri.encodeComponent(message)}");
+                    
+                    try {
+                      if (await canLaunchUrl(url)) {
+                        await launchUrl(url);
+                      } else {
+                        // Fallback to web whatsapp if app not installed
+                        await launchUrl(Uri.parse("https://wa.me/?text=${Uri.encodeComponent(message)}"), mode: LaunchMode.externalApplication);
+                      }
+                    } catch (e) {
+                      if (mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Impossible d\'ouvrir WhatsApp')));
+                      }
+                    }
                   },
                   icon: const Icon(Icons.chat, color: Colors.green),
                   label: const Text('WhatsApp'),
@@ -295,8 +309,22 @@ class _CreateTontineScreenState extends ConsumerState<CreateTontineScreen> {
               const SizedBox(width: 12),
               Expanded(
                 child: OutlinedButton.icon(
-                  onPressed: () {
-                    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('⏳ Ouverture de la messagerie...')));
+                  onPressed: () async {
+                    const inviteLink = "https://tontetic-app.web.app/join/TONT-2026-NEW";
+                    final message = "Rejoins ma tontine sur Tontetic ! Voici le lien : $inviteLink";
+                    final url = Uri.parse("sms:?body=${Uri.encodeComponent(message)}");
+                    
+                    try {
+                      if (await canLaunchUrl(url)) {
+                         await launchUrl(url);
+                      } else {
+                        throw 'Could not launch SMS';
+                      }
+                    } catch (e) {
+                      if (mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Impossible d\'ouvrir les SMS')));
+                      }
+                    }
                   },
                   icon: const Icon(Icons.sms, color: Colors.blue),
                   label: const Text('SMS'),
@@ -353,14 +381,47 @@ class _CreateTontineScreenState extends ConsumerState<CreateTontineScreen> {
                 style: IconButton.styleFrom(backgroundColor: AppTheme.marineBlue, foregroundColor: Colors.white),
                 icon: const Icon(Icons.send),
                 tooltip: 'Envoyer l\'invitation',
-                onPressed: () {
+                onPressed: () async {
                    if (_inviteCtrl.text.isNotEmpty) {
+                     final contact = _inviteCtrl.text.trim();
                      setState(() {
-                       _invitedContacts.add(_inviteCtrl.text);
+                       _invitedContacts.add(contact);
                        _inviteCtrl.clear();
                      });
+                     
+                     // V17: Real Invite Action
+                     const inviteLink = "https://tontetic-app.web.app/join/TONT-2026-NEW";
+                     final message = "Rejoins ma tontine sur Tontetic ! Voici le lien : $inviteLink";
+                     
+                     Uri? url;
+                     if (contact.contains('@')) {
+                       // Email intent
+                       url = Uri.parse("mailto:$contact?subject=Invitation Tontine&body=${Uri.encodeComponent(message)}");
+                     } else {
+                       // SMS intent
+                       // Normalize phone number if needed, but basic 'sms:' usually works
+                       url = Uri.parse("sms:$contact?body=${Uri.encodeComponent(message)}");
+                     }
+                     
+                     try {
+                        if (await canLaunchUrl(url)) {
+                          await launchUrl(url);
+                        } else {
+                          if (contact.contains('@')) {
+                              // If mailto fails, just warn
+                              if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Impossible d\'ouvrir l\'appli Mail')));
+                          } else {
+                              // Fallback for SMS if specific number fails, try generic
+                              final genericSms = Uri.parse("sms:?body=${Uri.encodeComponent(message)}");
+                              if (await canLaunchUrl(genericSms)) await launchUrl(genericSms);
+                          }
+                        }
+                     } catch (e) {
+                        debugPrint('Invite launch error: $e');
+                     }
+
                      ScaffoldMessenger.of(context).showSnackBar(
-                       const SnackBar(content: Text('Invitation envoyée ! La personne recevra un lien.')),
+                       SnackBar(content: Text('Contact $contact ajouté et invitation lancée !')),
                      );
                    }
                 },

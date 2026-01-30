@@ -856,10 +856,6 @@ class AdminSettingsSection extends StatelessWidget {
               ],
             ),
           ),
-                ),
-              ],
-            ),
-          ),
           const SizedBox(height: 24),
 
           // Countries

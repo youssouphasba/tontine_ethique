@@ -299,10 +299,10 @@ class _PaymentSuccessScreenState extends ConsumerState<PaymentSuccessScreen> {
                   width: double.infinity,
                   child: ElevatedButton.icon(
                     onPressed: () {
-                      context.go('/create-tontine');
+                      context.go('/'); // Redirect to Dashboard
                     },
-                    icon: const Icon(Icons.add_circle_outline),
-                    label: const Text('Continuer la création de tontine'),
+                    icon: const Icon(Icons.home),
+                    label: const Text('Retour à l\'accueil'),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: Colors.green,
                       foregroundColor: Colors.white,
@@ -311,12 +311,12 @@ class _PaymentSuccessScreenState extends ConsumerState<PaymentSuccessScreen> {
                   ),
                 ),
               ] else ...[
-                // Skip button while waiting
+                  // Skip button while waiting
                 TextButton(
                   onPressed: () {
-                    context.go('/create-tontine');
+                    context.go('/'); // Redirect to Dashboard
                   },
-                  child: const Text('Continuer sans attendre →'),
+                  child: const Text('Aller à l\'accueil →'),
                 ),
               ],
             ],
