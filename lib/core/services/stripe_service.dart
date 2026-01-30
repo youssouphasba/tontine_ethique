@@ -17,29 +17,14 @@ class StripeService {
   static const String _functionsBaseUrl = 
       'https://europe-west1-tontetic-admin.cloudfunctions.net';
   
-  // Clé publique TEST
-  static const String _publishableKeyTest = 
-      'pk_test_51Sn77kCpguZvNb1UQ8Ibz8GlpkssFBHC6ob7z0AqiwBbeJE13MYeQVmasKi1OL2vT1qEzHwDTVfZ6o4GubvxsvNE00LKsvjda0';
-  
-  static bool _isInitialized = false;
-  static bool get isInitialized => _isInitialized;
-  static bool get isTestMode => true;
-  
-  /// Initialise Stripe avec la clé publique
-  static Future<void> initialize() async {
-    if (_isInitialized) return;
-    
-    // WEB: Skip flutter_stripe SDK
-    if (kIsWeb) {
-      _isInitialized = true;
-      debugPrint('[STRIPE] ✅ Mode WEB - SDK natif ignoré');
-      return;
-    }
-    
-    try {
       // Prioritize key from .env
       final envKey = dotenv.env['STRIPE_PUBLIC_KEY'];
-      Stripe.publishableKey = envKey ?? _publishableKeyTest;
+      
+      if (envKey == null || envKey.isEmpty) {
+        throw Exception('MANDATORY: STRIPE_PUBLIC_KEY missing from .env');
+      }
+
+      Stripe.publishableKey = envKey;
       Stripe.merchantIdentifier = 'merchant.com.tontetic';
       
       await Stripe.instance.applySettings();

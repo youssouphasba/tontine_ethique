@@ -298,11 +298,51 @@ exports.monitorGuarantees = functions.pubsub.schedule("0 1 * * *").onRun(async (
       if (daysOverdue > gracePeriod) {
         console.log(`⚠️ Triggering guarantee for ${payment.userId} in tontine ${tontineDoc.id}`);
 
-        // 1. Move funds from guarantee hold to collective payout (Stripe Connect Transfer)
-        // await stripe.transfers.create({ ... });
+        // 1. Audit Log (Security & Compliance)
+        await admin.firestore().collection('audit_logs').add({
+          action: 'GUARANTEE_TRIGGERED',
+          details: `Guarantee triggered for user ${payment.userId} in tontine ${tontineDoc.id}`,
+          metadata: {
+            tontineId: tontineDoc.id,
+            userId: payment.userId,
+            paymentId: paymentDoc.id,
+            daysOverdue: daysOverdue
+          },
+          timestamp: admin.firestore.FieldValue.serverTimestamp(),
+          performedBy: 'system_cron'
+        });
 
-        // 2. Mark as defaulted
-        await paymentDoc.ref.update({ "status": "guarantee_triggered" });
+        // 2. Notify User
+        await admin.firestore().collection('user_notifications').add({
+          userId: payment.userId,
+          title: 'Garantie Activée',
+          body: `Votre paiement est en retard de ${daysOverdue} jours. La procédure de garantie a été déclenchée.`,
+          type: 'alert',
+          isRead: false,
+          createdAt: admin.firestore.FieldValue.serverTimestamp()
+        });
+
+        // 3. Move funds from guarantee hold to collective payout (Stripe Connect Transfer)
+        // TODO: Enable this when 'destinationAccountId' is available in Tontine model
+        /*
+        try {
+            await stripe.transfers.create({
+                amount: payment.amount,
+                currency: payment.currency,
+                destination: tontine.destinationAccountId, // MISSING IN MODEL
+                transfer_group: tontineDoc.id,
+            });
+            console.log(`✅ Funds transferred for guarantee: ${paymentDoc.id}`);
+        } catch (e) {
+            console.error(`❌ Transfer failed: ${e.message}`);
+        }
+        */
+
+        // 4. Mark as defaulted
+        await paymentDoc.ref.update({
+          "status": "guarantee_triggered",
+          "guaranteeTriggeredAt": admin.firestore.FieldValue.serverTimestamp()
+        });
       }
     }
   }

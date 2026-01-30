@@ -412,19 +412,53 @@ class AdminPaymentsSection extends StatelessWidget {
                     ),
                   ),
                   const Divider(height: 1),
+                  const Divider(height: 1),
                   Expanded(
-                    child: ListView.builder(
-                      itemCount: 5,
-                      itemBuilder: (ctx, i) => ListTile(
-                        leading: Icon(Icons.close, color: Colors.red.shade300),
-                        title: Text('Erreur webhook #${1000 + i}'),
-                        subtitle: Text('PSP: ${i % 2 == 0 ? "Stripe" : "Wave"} • Cercle #${i + 100} • Il y a ${i + 1}h'),
-                        trailing: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                          decoration: BoxDecoration(color: Colors.orange.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(4)),
-                          child: const Text('RO', style: TextStyle(fontSize: 10, color: Colors.orange)),
-                        ),
-                      ),
+                    child: StreamBuilder<QuerySnapshot>(
+                      stream: FirebaseFirestore.instance
+                          .collection('webhook_logs')
+                          .orderBy('timestamp', descending: true)
+                          .limit(20)
+                          .snapshots(),
+                      builder: (context, snapshot) {
+                        if (snapshot.hasError) return Text('Erreur: ${snapshot.error}');
+                        if (snapshot.connectionState == ConnectionState.waiting) return const Center(child: CircularProgressIndicator());
+
+                        final logs = snapshot.data?.docs ?? [];
+
+                        if (logs.isEmpty) {
+                          return const Center(child: Text('Aucune erreur récente.', style: TextStyle(color: Colors.grey)));
+                        }
+
+                        return ListView.builder(
+                          itemCount: logs.length,
+                          itemBuilder: (ctx, i) {
+                            final log = logs[i].data() as Map<String, dynamic>;
+                            final provider = log['provider'] ?? 'Unknown';
+                            final eventId = log['eventId'] ?? logs[i].id;
+                            final status = log['status'] ?? 'unknown';
+                            final time = (log['timestamp'] as Timestamp?)?.toDate().toString().substring(0, 16) ?? 'N/A';
+                            final isError = status == 'failed' || status == 'error';
+
+                            return ListTile(
+                              leading: Icon(
+                                isError ? Icons.close : Icons.check, 
+                                color: isError ? Colors.red.shade300 : Colors.green.shade300
+                              ),
+                              title: Text('${isError ? "Erreur" : "Info"} Webhook'),
+                              subtitle: Text('PSP: $provider • Event: $eventId • $time'),
+                              trailing: Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                decoration: BoxDecoration(
+                                  color: (isError ? Colors.red : Colors.green).withValues(alpha: 0.1), 
+                                  borderRadius: BorderRadius.circular(4)
+                                ),
+                                child: Text(status.toUpperCase(), style: TextStyle(fontSize: 10, color: isError ? Colors.red : Colors.green)),
+                              ),
+                            );
+                          },
+                        );
+                      }
                     ),
                   ),
                 ],

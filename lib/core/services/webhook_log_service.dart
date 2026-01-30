@@ -57,7 +57,7 @@ class WebhookLogEntry {
 }
 
 class WebhookLogService {
-  // In production, this would write to Supabase table `webhook_logs`
+  // In production, this would write to Firestore table `webhook_logs`
   final List<WebhookLogEntry> _logs = [];
 
   /// Log an incoming webhook
@@ -102,8 +102,8 @@ class WebhookLogService {
     // Log to console for debugging
     debugPrint('[WEBHOOK LOG] ${provider.name} | $eventType | ${status.name} | sig=${signatureValid ? '✓' : '✗'}');
 
-    // TODO: In production, persist to Supabase:
-    // await supabase.from('webhook_logs').insert(entry.toJson());
+    // TODO: In production, persist to Firestore:
+    // await firestore.collection('webhook_logs').add(entry.toJson());
 
     return id;
   }
@@ -159,35 +159,3 @@ class WebhookLogService {
 final webhookLogServiceProvider = Provider<WebhookLogService>((ref) {
   return WebhookLogService();
 });
-
-/* 
-=== SUPABASE TABLE SCHEMA ===
-Execute this SQL in your Supabase SQL Editor to create the webhook_logs table:
-
-CREATE TABLE webhook_logs (
-  id TEXT PRIMARY KEY,
-  provider TEXT NOT NULL,
-  event_type TEXT NOT NULL,
-  timestamp TIMESTAMPTZ DEFAULT NOW(),
-  status TEXT NOT NULL,
-  transaction_id TEXT,
-  user_id TEXT REFERENCES auth.users(id),
-  amount DECIMAL(12,2),
-  currency TEXT,
-  raw_payload TEXT,
-  error_message TEXT,
-  ip_address TEXT,
-  signature_valid BOOLEAN DEFAULT FALSE,
-  created_at TIMESTAMPTZ DEFAULT NOW()
-);
-
--- Index for quick lookups
-CREATE INDEX idx_webhook_logs_transaction ON webhook_logs(transaction_id);
-CREATE INDEX idx_webhook_logs_user ON webhook_logs(user_id);
-CREATE INDEX idx_webhook_logs_timestamp ON webhook_logs(timestamp DESC);
-
--- RLS: Only admins can read logs
-ALTER TABLE webhook_logs ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "Admins can view logs" ON webhook_logs
-  FOR SELECT USING (auth.jwt() ->> 'role' = 'admin');
-*/

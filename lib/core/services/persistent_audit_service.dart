@@ -2,17 +2,17 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:crypto/crypto.dart';
 
 /// V16: Persistent Audit Service
-/// Stores all critical actions to Supabase for legal compliance
+/// Stores all critical actions to Firestore for legal compliance
 /// 
 /// Features:
 /// - Immutable logs (append-only)
 /// - Tamper detection via hash chain
 /// - Automatic data sanitization
 /// - GDPR-compliant (no raw PII in logs)
+/// - MIGRATED TO FIRESTORE
 
 enum AuditSeverity {
   debug,    // Dev only
@@ -88,10 +88,13 @@ class AuditEntry {
 }
 
 class PersistentAuditService {
-  final SupabaseClient _client;
+  final FirebaseFirestore _firestore;
   String _lastHash = 'genesis';
 
-  PersistentAuditService() : _client = Supabase.instance.client;
+  PersistentAuditService() : _firestore = FirebaseFirestore.instance;
+
+  CollectionReference<Map<String, dynamic>> get _collection => 
+      _firestore.collection('audit_logs');
 
   /// Hash user ID for privacy (GDPR compliance)
   String _hashUserId(String userId) {
@@ -165,7 +168,7 @@ class PersistentAuditService {
 
     try {
       // V17: Write to Firestore for Back Office visibility
-      await FirebaseFirestore.instance.collection('audit_logs').doc(entry.id).set(entry.toJson());
+      await _collection.doc(entry.id).set(entry.toJson());
       
       _lastHash = hash;
       
@@ -258,26 +261,24 @@ class PersistentAuditService {
   /// Get logs for a specific user (admin only)
   Future<List<AuditEntry>> getLogsForUser(String userId, {int limit = 100}) async {
     final userHash = _hashUserId(userId);
-    final response = await _client
-        .from('audit_logs')
-        .select()
-        .eq('user_id_hash', userHash)
-        .order('timestamp', ascending: false)
-        .limit(limit);
+    final snapshot = await _collection
+        .where('user_id_hash', isEqualTo: userHash)
+        .orderBy('timestamp', descending: true)
+        .limit(limit)
+        .get();
     
-    return (response as List).map((e) => AuditEntry.fromJson(e)).toList();
+    return snapshot.docs.map((e) => AuditEntry.fromJson(e.data())).toList();
   }
 
   /// Get logs by category
   Future<List<AuditEntry>> getLogsByCategory(AuditCategory category, {int limit = 100}) async {
-    final response = await _client
-        .from('audit_logs')
-        .select()
-        .eq('category', category.name)
-        .order('timestamp', ascending: false)
-        .limit(limit);
+    final snapshot = await _collection
+        .where('category', isEqualTo: category.name)
+        .orderBy('timestamp', descending: true)
+        .limit(limit)
+        .get();
     
-    return (response as List).map((e) => AuditEntry.fromJson(e)).toList();
+    return snapshot.docs.map((e) => AuditEntry.fromJson(e.data())).toList();
   }
 
   /// Export logs for legal compliance
@@ -286,31 +287,32 @@ class PersistentAuditService {
     DateTime? to,
     AuditCategory? category,
   }) async {
-    var query = _client.from('audit_logs').select();
+    Query<Map<String, dynamic>> query = _collection;
     
     if (from != null) {
-      query = query.gte('timestamp', from.toIso8601String());
+      query = query.where('timestamp', isGreaterThanOrEqualTo: from.toIso8601String());
     }
     if (to != null) {
-      query = query.lte('timestamp', to.toIso8601String());
+      query = query.where('timestamp', isLessThanOrEqualTo: to.toIso8601String());
     }
     if (category != null) {
-      query = query.eq('category', category.name);
+      query = query.where('category', isEqualTo: category.name);
     }
     
-    final response = await query.order('timestamp', ascending: true);
-    return const JsonEncoder.withIndent('  ').convert(response);
+    final snapshot = await query.orderBy('timestamp', descending: false).get();
+    final entries = snapshot.docs.map((d) => d.data()).toList();
+
+    return const JsonEncoder.withIndent('  ').convert(entries);
   }
 
   /// Verify log chain integrity
   Future<bool> verifyIntegrity({int lastNEntries = 100}) async {
-    final response = await _client
-        .from('audit_logs')
-        .select()
-        .order('timestamp', ascending: false)
-        .limit(lastNEntries);
+    final snapshot = await _collection
+        .orderBy('timestamp', descending: true)
+        .limit(lastNEntries)
+        .get();
     
-    final logs = (response as List).map((e) => AuditEntry.fromJson(e)).toList();
+    final logs = snapshot.docs.map((e) => AuditEntry.fromJson(e.data())).toList();
     
     for (int i = 0; i < logs.length - 1; i++) {
       if (logs[i].previousHash != logs[i + 1].hash) {

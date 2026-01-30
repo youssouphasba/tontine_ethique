@@ -1,7 +1,7 @@
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:crypto/crypto.dart';
 
 /// V16: AI Conversation Logging Service
@@ -12,6 +12,7 @@ import 'package:crypto/crypto.dart';
 /// - Financial content detection
 /// - Safety alert triggers
 /// - No personal data stored
+/// - MIGRATED TO FIRESTORE
 
 class AIConversationLogEntry {
   final String id;
@@ -62,9 +63,15 @@ class AIConversationLogEntry {
 }
 
 class AIConversationLoggingService {
-  final SupabaseClient _client;
+  final FirebaseFirestore _firestore;
 
-  AIConversationLoggingService() : _client = Supabase.instance.client;
+  AIConversationLoggingService() : _firestore = FirebaseFirestore.instance;
+
+  CollectionReference<Map<String, dynamic>> get _logsCollection => 
+      _firestore.collection('ai_conversation_logs');
+
+  CollectionReference<Map<String, dynamic>> get _alertsCollection => 
+      _firestore.collection('admin_alerts');
 
   // Financial keywords to detect
   static const List<String> _financialKeywords = [
@@ -147,7 +154,7 @@ class AIConversationLoggingService {
     );
 
     try {
-      await _client.from('ai_conversation_logs').insert(entry.toJson());
+      await _logsCollection.doc(entry.id).set(entry.toJson());
       
       // If safety alert, notify admin
       if (triggeredSafety) {
@@ -188,7 +195,7 @@ class AIConversationLoggingService {
 
   /// Notify admin of safety concern
   Future<void> _notifyAdmin(String userId, String excerpt) async {
-    await _client.from('admin_alerts').insert({
+    await _alertsCollection.add({
       'type': 'ai_safety',
       'severity': 'high',
       'message': 'AI safety trigger detected',
@@ -204,12 +211,11 @@ class AIConversationLoggingService {
   Future<Map<String, dynamic>> getStatistics({int lastDays = 7}) async {
     final since = DateTime.now().subtract(Duration(days: lastDays));
     
-    final response = await _client
-        .from('ai_conversation_logs')
-        .select()
-        .gte('timestamp', since.toIso8601String());
+    final snapshot = await _logsCollection
+        .where('timestamp', isGreaterThanOrEqualTo: since.toIso8601String())
+        .get();
 
-    final logs = response as List;
+    final logs = snapshot.docs.map((d) => d.data()).toList();
     
     return {
       'total_conversations': logs.length,
@@ -236,19 +242,20 @@ class AIConversationLoggingService {
     required DateTime from,
     required DateTime to,
   }) async {
-    final response = await _client
-        .from('ai_conversation_logs')
-        .select()
-        .gte('timestamp', from.toIso8601String())
-        .lte('timestamp', to.toIso8601String())
-        .order('timestamp', ascending: true);
+    final snapshot = await _logsCollection
+        .where('timestamp', isGreaterThanOrEqualTo: from.toIso8601String())
+        .where('timestamp', isLessThanOrEqualTo: to.toIso8601String())
+        .orderBy('timestamp', descending: false)
+        .get();
+
+    final entries = snapshot.docs.map((d) => d.data()).toList();
 
     return const JsonEncoder.withIndent('  ').convert({
       'export_date': DateTime.now().toIso8601String(),
       'from': from.toIso8601String(),
       'to': to.toIso8601String(),
-      'total_entries': (response as List).length,
-      'entries': response,
+      'total_entries': entries.length,
+      'entries': entries,
     });
   }
 }

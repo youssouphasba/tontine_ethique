@@ -11,7 +11,7 @@ class NotificationService {
     required String email,
     required WebhookLogEntry log,
   }) async {
-    // In production: Use SendGrid, Mailjet, or Supabase Auth Emails
+    // In production: Use SendGrid, Mailjet, or Firebase Auth Emails
     debugPrint('[NOTIFICATION] EMAIL envoyée à $email');
     debugPrint('Sujet: Preuve de transaction Tontetic - ${log.id}');
     debugPrint('Message: Votre paiement de ${log.amount} ${log.currency} a été certifié cryptographiquement.');

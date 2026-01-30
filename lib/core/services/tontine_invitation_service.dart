@@ -5,11 +5,12 @@
 /// 2. Les invitations sont soumises à la validation du CRÉATEUR de la tontine
 /// 3. Le créateur peut accepter ou refuser les invitations
 /// 4. L'invité reçoit une notification quand son invitation est validée
+/// - MIGRATED TO FIRESTORE
 library;
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 enum TontineInvitationStatus {
   pending,    // En attente de validation par le créateur
@@ -84,12 +85,15 @@ class TontineInvitation {
 }
 
 class TontineInvitationService {
-  final SupabaseClient _client;
+  final FirebaseFirestore _firestore;
 
   // Durée de validité d'une invitation (7 jours)
   static const int invitationExpiryDays = 7;
 
-  TontineInvitationService() : _client = Supabase.instance.client;
+  TontineInvitationService() : _firestore = FirebaseFirestore.instance;
+
+  CollectionReference<Map<String, dynamic>> get _collection => 
+      _firestore.collection('tontine_invitations');
 
   // ============ ENVOI D'INVITATION (TOUT MEMBRE) ============
 
@@ -105,15 +109,14 @@ class TontineInvitationService {
   }) async {
     try {
       // Vérifier si une invitation existe déjà pour ce numéro
-      final existing = await _client
-          .from('tontine_invitations')
-          .select()
-          .eq('tontine_id', tontineId)
-          .eq('invitee_phone', inviteePhone)
-          .inFilter('status', ['pending', 'approved'])
-          .maybeSingle();
+      final existingSnapshot = await _collection
+          .where('tontine_id', isEqualTo: tontineId)
+          .where('invitee_phone', isEqualTo: inviteePhone)
+          .where('status', whereIn: ['pending', 'approved'])
+          .limit(1)
+          .get();
 
-      if (existing != null) {
+      if (existingSnapshot.docs.isNotEmpty) {
         return InvitationResult(
           success: false,
           message: 'Une invitation est déjà en cours pour ce numéro.',
@@ -135,7 +138,7 @@ class TontineInvitationService {
         expiresAt: now.add(Duration(days: invitationExpiryDays)),
       );
 
-      await _client.from('tontine_invitations').insert(invitation.toJson());
+      await _collection.doc(invitation.id).set(invitation.toJson());
 
       debugPrint('[INVITATION] $inviterName invited $inviteePhone to $tontineName (pending validation)');
 
@@ -157,15 +160,14 @@ class TontineInvitationService {
 
   /// Récupérer les invitations en attente pour une tontine (créateur uniquement)
   Future<List<TontineInvitation>> getPendingInvitations(String tontineId) async {
-    final response = await _client
-        .from('tontine_invitations')
-        .select()
-        .eq('tontine_id', tontineId)
-        .eq('status', TontineInvitationStatus.pending.name)
-        .order('created_at', ascending: false);
+    final snapshot = await _collection
+        .where('tontine_id', isEqualTo: tontineId)
+        .where('status', isEqualTo: TontineInvitationStatus.pending.name)
+        .orderBy('created_at', descending: true)
+        .get();
 
-    return (response as List)
-        .map((json) => TontineInvitation.fromJson(json))
+    return snapshot.docs
+        .map((doc) => TontineInvitation.fromJson(doc.data()))
         .toList();
   }
 
@@ -183,9 +185,9 @@ class TontineInvitationService {
       );
     }
 
-    await _client.from('tontine_invitations').update({
+    await _collection.doc(invitationId).update({
       'status': TontineInvitationStatus.approved.name,
-    }).eq('id', invitationId);
+    });
 
     debugPrint('[INVITATION] Invitation $invitationId approved');
 
@@ -210,10 +212,10 @@ class TontineInvitationService {
       );
     }
 
-    await _client.from('tontine_invitations').update({
+    await _collection.doc(invitationId).update({
       'status': TontineInvitationStatus.rejected.name,
       'creator_note': reason,
-    }).eq('id', invitationId);
+    });
 
     debugPrint('[INVITATION] Invitation $invitationId rejected: $reason');
 
@@ -227,15 +229,14 @@ class TontineInvitationService {
 
   /// Récupérer les invitations reçues par un utilisateur
   Future<List<TontineInvitation>> getReceivedInvitations(String userPhone) async {
-    final response = await _client
-        .from('tontine_invitations')
-        .select()
-        .eq('invitee_phone', userPhone)
-        .eq('status', TontineInvitationStatus.approved.name)
-        .order('created_at', ascending: false);
+    final snapshot = await _collection
+        .where('invitee_phone', isEqualTo: userPhone)
+        .where('status', isEqualTo: TontineInvitationStatus.approved.name)
+        .orderBy('created_at', descending: true)
+        .get();
 
-    return (response as List)
-        .map((json) => TontineInvitation.fromJson(json))
+    return snapshot.docs
+        .map((doc) => TontineInvitation.fromJson(doc.data()))
         .toList();
   }
 
@@ -245,24 +246,26 @@ class TontineInvitationService {
   Future<void> expireOldInvitations() async {
     final now = DateTime.now();
     
-    await _client.from('tontine_invitations').update({
-      'status': TontineInvitationStatus.expired.name,
-    })
-    .eq('status', TontineInvitationStatus.pending.name)
-    .lt('expires_at', now.toIso8601String());
+    final snapshot = await _collection
+        .where('status', isEqualTo: TontineInvitationStatus.pending.name)
+        .where('expires_at', isLessThan: now.toIso8601String())
+        .get();
 
-    debugPrint('[INVITATION] Expired old pending invitations');
+    for (var doc in snapshot.docs) {
+      await doc.reference.update({'status': TontineInvitationStatus.expired.name});
+    }
+
+    debugPrint('[INVITATION] Expired ${snapshot.docs.length} old pending invitations');
   }
 
   // ============ STATS ============
 
   Future<InvitationStats> getStats(String tontineId) async {
-    final all = await _client
-        .from('tontine_invitations')
-        .select()
-        .eq('tontine_id', tontineId);
+    final snapshot = await _collection
+        .where('tontine_id', isEqualTo: tontineId)
+        .get();
 
-    final list = all as List;
+    final list = snapshot.docs.map((d) => d.data()).toList();
     
     return InvitationStats(
       total: list.length,

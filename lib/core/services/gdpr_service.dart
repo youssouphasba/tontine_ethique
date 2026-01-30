@@ -130,7 +130,7 @@ class GDPRService {
     _ref.read(userProvider.notifier).anonymize(anonymousId);
     
     // Clear local circles (but keep in audit with anonymous ID)
-    // Note: In real implementation, this would also clean Supabase
+    // Note: In real implementation, this would also clean Firestore
     
     // Log final deletion
     debugPrint('[RGPD] GDPR_DELETION_EXECUTED - User: $anonymousId - Compte supprimé et anonymisé');

@@ -1,7 +1,7 @@
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 // V16: Tontine Rule History Service
 // Trace les changements de configuration des cercles
@@ -11,6 +11,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 /// - Change tracking with reason
 /// - Rule comparison between versions
 /// - Legal export for disputes
+/// - MIGRATED TO FIRESTORE (Jan 2026)
 
 class TontineRuleVersion {
   final String id;
@@ -69,9 +70,12 @@ class RuleDifference {
 }
 
 class TontineRuleHistoryService {
-  final SupabaseClient _client;
+  final FirebaseFirestore _firestore;
 
-  TontineRuleHistoryService() : _client = Supabase.instance.client;
+  TontineRuleHistoryService() : _firestore = FirebaseFirestore.instance;
+
+  CollectionReference<Map<String, dynamic>> get _collection => 
+      _firestore.collection('tontine_rule_history');
 
   /// Record a new rule version
   Future<TontineRuleVersion> recordRuleChange({
@@ -100,7 +104,7 @@ class TontineRuleHistoryService {
       hash: hash,
     );
 
-    await _client.from('tontine_rule_history').insert(ruleVersion.toJson());
+    await _collection.doc(id).set(ruleVersion.toJson());
 
     debugPrint('[RULE-HISTORY] Circle $circleId: v$newVersion saved - $reason');
 
@@ -109,45 +113,42 @@ class TontineRuleHistoryService {
 
   /// Get latest rule version for a circle
   Future<TontineRuleVersion?> getLatestVersion(String circleId) async {
-    final response = await _client
-        .from('tontine_rule_history')
-        .select()
-        .eq('circle_id', circleId)
-        .order('version', ascending: false)
+    final snapshot = await _collection
+        .where('circle_id', isEqualTo: circleId)
+        .orderBy('version', descending: true)
         .limit(1)
-        .maybeSingle();
+        .get();
 
-    if (response == null) return null;
-    return TontineRuleVersion.fromJson(response);
+    if (snapshot.docs.isEmpty) return null;
+    return TontineRuleVersion.fromJson(snapshot.docs.first.data());
   }
 
   /// Get all versions for a circle
   Future<List<TontineRuleVersion>> getAllVersions(String circleId) async {
-    final response = await _client
-        .from('tontine_rule_history')
-        .select()
-        .eq('circle_id', circleId)
-        .order('version', ascending: false);
+    final snapshot = await _collection
+        .where('circle_id', isEqualTo: circleId)
+        .orderBy('version', descending: true)
+        .get();
 
-    return (response as List)
-        .map((e) => TontineRuleVersion.fromJson(e))
+    return snapshot.docs
+        .map((e) => TontineRuleVersion.fromJson(e.data()))
         .toList();
   }
 
   /// Get a specific version
   Future<TontineRuleVersion?> getVersion(String circleId, int version) async {
-    final response = await _client
-        .from('tontine_rule_history')
-        .select()
-        .eq('circle_id', circleId)
-        .eq('version', version)
-        .maybeSingle();
+    final snapshot = await _collection
+        .where('circle_id', isEqualTo: circleId)
+        .where('version', isEqualTo: version)
+        .limit(1)
+        .get();
 
-    if (response == null) return null;
-    return TontineRuleVersion.fromJson(response);
+    if (snapshot.docs.isEmpty) return null;
+    return TontineRuleVersion.fromJson(snapshot.docs.first.data());
   }
 
   /// Compare two versions and return differences
+  // Logic remains same as localized comparison
   List<RuleDifference> compareVersions(
     TontineRuleVersion older,
     TontineRuleVersion newer,
@@ -184,8 +185,6 @@ class TontineRuleHistoryService {
 
   /// Check if rules can still be modified (before activation)
   Future<bool> canModifyRules(String circleId) async {
-    // In a real implementation, check circle status
-    // For now, return true if no active transactions
     final latest = await getLatestVersion(circleId);
     if (latest == null) return true;
 

@@ -1,7 +1,6 @@
-
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:tontetic/core/services/persistent_audit_service.dart';
 
 /// V16: Wallet Reconciliation Service
@@ -12,6 +11,7 @@ import 'package:tontetic/core/services/persistent_audit_service.dart';
 /// - Discrepancy detection and alerting
 /// - Automatic correction from PSP
 /// - Audit trail for all reconciliations
+/// - MIGRATED TO FIRESTORE
 
 enum ReconciliationStatus {
   synced,       // Balances match
@@ -52,12 +52,18 @@ class ReconciliationResult {
 
 class WalletReconciliationService {
   final Ref _ref;
-  final SupabaseClient _client;
+  final FirebaseFirestore _firestore;
   
   // Threshold for discrepancy alerts (in cents/centimes)
   static const double _discrepancyThreshold = 1.0; // 1 centime/FCFA
 
-  WalletReconciliationService(this._ref) : _client = Supabase.instance.client;
+  WalletReconciliationService(this._ref) : _firestore = FirebaseFirestore.instance;
+
+  CollectionReference<Map<String, dynamic>> get _walletCollection => 
+      _firestore.collection('wallet_cache');
+
+  CollectionReference<Map<String, dynamic>> get _pspCollection => 
+      _firestore.collection('psp_balances');
 
   /// Reconcile a user's wallet with PSP
   Future<ReconciliationResult> reconcile(String userId) async {
@@ -131,13 +137,10 @@ class WalletReconciliationService {
   /// Get local balance (from app state or cache)
   Future<double> _getLocalBalance(String userId) async {
     // In production: read from walletProvider or local cache
-    final response = await _client
-        .from('wallet_cache')
-        .select('balance')
-        .eq('user_id', userId)
-        .maybeSingle();
+    final snapshot = await _walletCollection.doc(userId).get();
     
-    return (response?['balance'] as num?)?.toDouble() ?? 0.0;
+    if (!snapshot.exists) return 0.0;
+    return (snapshot.data()?['balance'] as num?)?.toDouble() ?? 0.0;
   }
 
   /// Get balance from PSP (Stripe/Wave)
@@ -147,24 +150,21 @@ class WalletReconciliationService {
     // For Wave: await wave.getAccountBalance(userId)
     
     // Mock implementation - in real app, call actual PSP
-    final response = await _client
-        .from('psp_balances')
-        .select('balance')
-        .eq('user_id', userId)
-        .maybeSingle();
+    final snapshot = await _pspCollection.doc(userId).get();
     
-    return (response?['balance'] as num?)?.toDouble() ?? 0.0;
+    if (!snapshot.exists) return 0.0;
+    return (snapshot.data()?['balance'] as num?)?.toDouble() ?? 0.0;
   }
 
   /// Sync wallet from PSP (PSP is source of truth)
   Future<void> _syncFromPSP(String userId, double pspBalance) async {
     // Update local cache with PSP value
-    await _client.from('wallet_cache').upsert({
+    await _walletCollection.doc(userId).set({
       'user_id': userId,
       'balance': pspBalance,
       'last_synced': DateTime.now().toIso8601String(),
       'sync_source': 'psp_reconciliation',
-    });
+    }, SetOptions(merge: true));
     
     // Log the correction
     await _ref.read(persistentAuditServiceProvider).log(
@@ -180,13 +180,10 @@ class WalletReconciliationService {
     final results = <String, ReconciliationResult>{};
     
     // Get all users with wallets
-    final users = await _client
-        .from('wallet_cache')
-        .select('user_id')
-        .limit(1000); // Batch processing
+    final snapshot = await _walletCollection.limit(1000).get(); // Batch processing
     
-    for (final user in users as List) {
-      final userId = user['user_id'] as String;
+    for (final doc in snapshot.docs) {
+      final userId = doc.id; // Assuming doc ID is userId, or check data['user_id']
       results[userId] = await reconcile(userId);
     }
     
@@ -199,15 +196,14 @@ class WalletReconciliationService {
 
   /// Get reconciliation history for a user
   Future<List<Map<String, dynamic>>> getHistory(String userId, {int limit = 20}) async {
-    final response = await _client
-        .from('audit_logs')
-        .select()
-        .or('action.eq.BALANCE_DISCREPANCY,action.eq.BALANCE_SYNCED_FROM_PSP')
-        .eq('user_id_hash', userId.hashCode.toString()) // Note: should use proper hash
-        .order('timestamp', ascending: false)
-        .limit(limit);
+    final snapshot = await _firestore.collection('audit_logs')
+        .where('user_id_hash', isEqualTo: userId.hashCode.toString()) // Should match hashing strategy in AuditService
+        .where('action', whereIn: ['BALANCE_DISCREPANCY', 'BALANCE_SYNCED_FROM_PSP'])
+        .orderBy('timestamp', descending: true)
+        .limit(limit)
+        .get();
     
-    return List<Map<String, dynamic>>.from(response);
+    return snapshot.docs.map((d) => d.data()).toList();
   }
 }
 

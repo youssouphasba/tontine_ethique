@@ -212,7 +212,7 @@ class OfflineModeService {
 
   /// Sync a queued message
   Future<void> _syncMessage(Map<String, dynamic> data) async {
-    // In production: send to Supabase
+    // In production: send to Firestore
     debugPrint('[OFFLINE] Syncing message: ${data['content']?.substring(0, 20)}...');
     // Sync Message (Direct)
 

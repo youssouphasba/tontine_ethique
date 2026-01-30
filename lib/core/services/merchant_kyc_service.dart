@@ -1,6 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 /// V16: Merchant KYC Service
 /// Handles Know Your Customer verification for marketplace sellers
@@ -9,11 +9,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 /// - basic: Charter signed only (default)
 /// - verified: Documents submitted and approved
 /// - premium: Full business verification
-/// 
-/// Required documents:
-/// - ID document (passport, CNI, permis)
-/// - Selfie with ID
-/// - Business registration (SIRET/NINEA) for pros
+/// - MIGRATED TO FIRESTORE
 
 enum MerchantKYCStatus {
   notStarted,       // No documents submitted
@@ -118,9 +114,15 @@ class MerchantKYCApplication {
 }
 
 class MerchantKYCService {
-  final SupabaseClient _client;
+  final FirebaseFirestore _firestore;
 
-  MerchantKYCService() : _client = Supabase.instance.client;
+  MerchantKYCService() : _firestore = FirebaseFirestore.instance;
+
+  CollectionReference<Map<String, dynamic>> get _kycCollection => 
+      _firestore.collection('merchant_kyc');
+      
+  CollectionReference<Map<String, dynamic>> get _docsCollection => 
+      _firestore.collection('merchant_kyc_documents');
 
   /// Check if merchant can publish products
   Future<bool> canPublishProducts(String merchantId) async {
@@ -140,16 +142,14 @@ class MerchantKYCService {
 
   /// Get merchant's KYC application
   Future<MerchantKYCApplication?> getApplication(String merchantId) async {
-    final response = await _client
-        .from('merchant_kyc')
-        .select()
-        .eq('merchant_id', merchantId)
-        .order('submitted_at', ascending: false)
+    final snapshot = await _kycCollection
+        .where('merchant_id', isEqualTo: merchantId)
+        .orderBy('submitted_at', descending: true)
         .limit(1)
-        .maybeSingle();
+        .get();
 
-    if (response == null) return null;
-    return MerchantKYCApplication.fromJson(response);
+    if (snapshot.docs.isEmpty) return null;
+    return MerchantKYCApplication.fromJson(snapshot.docs.first.data());
   }
 
   /// Submit KYC documents
@@ -163,7 +163,7 @@ class MerchantKYCService {
     final applicationId = 'kyc_${merchantId}_${now.millisecondsSinceEpoch}';
 
     // Create application
-    await _client.from('merchant_kyc').insert({
+    await _kycCollection.doc(applicationId).set({
       'id': applicationId,
       'merchant_id': merchantId,
       'status': MerchantKYCStatus.documentsSubmitted.name,
@@ -184,8 +184,9 @@ class MerchantKYCService {
     }
 
     for (final doc in documents) {
-      await _client.from('merchant_kyc_documents').insert({
-        'id': '${applicationId}_${doc['type']}',
+      final docId = '${applicationId}_${doc['type']}';
+      await _docsCollection.doc(docId).set({
+        'id': docId,
         'merchant_id': merchantId,
         'application_id': applicationId,
         'type': doc['type'],
@@ -195,8 +196,8 @@ class MerchantKYCService {
       });
     }
 
-    // Create admin notification
-    await _client.from('support_tickets').insert({
+    // Create admin notification (Support Ticket)
+    await _firestore.collection('support_tickets').doc('ticket_kyc_$applicationId').set({
       'id': 'ticket_kyc_$applicationId',
       'user_id': merchantId,
       'category': 'kyc',
@@ -216,17 +217,24 @@ class MerchantKYCService {
     required String reviewerId,
     String? notes,
   }) async {
-    await _client.from('merchant_kyc').update({
+    await _kycCollection.doc(applicationId).update({
       'status': MerchantKYCStatus.verified.name,
       'reviewed_at': DateTime.now().toIso8601String(),
       'reviewed_by': reviewerId,
-    }).eq('id', applicationId);
+    });
 
     // Approve all documents
-    await _client.from('merchant_kyc_documents').update({
-      'is_approved': true,
-      'review_notes': notes,
-    }).eq('application_id', applicationId);
+    // Note: requires batch update or multiple writes
+    final docsSnapshot = await _docsCollection.where('application_id', isEqualTo: applicationId).get();
+    final batch = _firestore.batch();
+    
+    for (var doc in docsSnapshot.docs) {
+      batch.update(doc.reference, {
+        'is_approved': true,
+        'review_notes': notes,
+      });
+    }
+    await batch.commit();
 
     debugPrint('[KYC] Application $applicationId approved by $reviewerId');
     return true;
@@ -238,12 +246,12 @@ class MerchantKYCService {
     required String reviewerId,
     required String reason,
   }) async {
-    await _client.from('merchant_kyc').update({
+    await _kycCollection.doc(applicationId).update({
       'status': MerchantKYCStatus.rejected.name,
       'reviewed_at': DateTime.now().toIso8601String(),
       'reviewed_by': reviewerId,
       'rejection_reason': reason,
-    }).eq('id', applicationId);
+    });
 
     debugPrint('[KYC] Application $applicationId rejected: $reason');
     return true;
@@ -251,25 +259,22 @@ class MerchantKYCService {
 
   /// Get pending applications (admin)
   Future<List<MerchantKYCApplication>> getPendingApplications() async {
-    final response = await _client
-        .from('merchant_kyc')
-        .select()
-        .inFilter('status', [
+    final snapshot = await _kycCollection
+        .where('status', whereIn: [
           MerchantKYCStatus.documentsSubmitted.name,
           MerchantKYCStatus.underReview.name,
         ])
-        .order('submitted_at', ascending: true);
+        .orderBy('submitted_at', descending: false)
+        .get();
 
-    return (response as List)
-        .map((e) => MerchantKYCApplication.fromJson(e))
+    return snapshot.docs
+        .map((e) => MerchantKYCApplication.fromJson(e.data()))
         .toList();
   }
 
   /// Get KYC statistics (admin dashboard)
   Future<Map<String, int>> getStatistics() async {
-    final response = await _client
-        .from('merchant_kyc')
-        .select('status');
+    final snapshot = await _kycCollection.get();
 
     final stats = <String, int>{
       'total': 0,
@@ -278,9 +283,10 @@ class MerchantKYCService {
       'rejected': 0,
     };
 
-    for (final row in response as List) {
+    for (final doc in snapshot.docs) {
+      final data = doc.data();
       stats['total'] = (stats['total'] ?? 0) + 1;
-      final status = row['status'] as String;
+      final status = data['status'] as String;
       if (status == MerchantKYCStatus.documentsSubmitted.name || 
           status == MerchantKYCStatus.underReview.name) {
         stats['pending'] = (stats['pending'] ?? 0) + 1;

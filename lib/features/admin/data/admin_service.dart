@@ -33,11 +33,15 @@ class AdminService {
           .count()
           .get();
 
+      // Calculate total volume using Firestore Aggregation
+      final volumeSnapshot = await _firestore.collection('transactions').aggregate(sum('amount')).get();
+      final totalVolume = volumeSnapshot.getAggregation<num>(sum('amount'))?.toDouble() ?? 0.0;
+
       return AdminDashboardStats(
         totalUsers: usersCount.count ?? 0,
         activeTontines: tontinesCount.count ?? 0,
         pendingTickets: ticketsCount.count ?? 0,
-        totalVolumeCents: 0, // Placeholder: Nécessite Cloud Function 'aggregateStats' pour calculer le volume réel
+        totalVolumeCents: totalVolume,
       );
     } catch (e) {
       debugPrint('Admin Stats Error: $e');

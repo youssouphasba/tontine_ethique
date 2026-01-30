@@ -1,18 +1,11 @@
 /// V17: Launch Promotion Service - Modèle Créateurs + Invitations
 /// Offre de Lancement Exclusive Tontetic
-/// 
-/// RÈGLES:
-/// 1. Les 20 PREMIERS créateurs de tontine → 3 mois Starter GRATUIT
-/// 2. Chaque créateur peut inviter 9 personnes → 3 mois Starter GRATUIT chacun
-/// 3. Maximum = 20 × (1 + 9) = 200 utilisateurs
-/// 4. Après 3 mois → le plan Starter devient PAYANT (3,99€/mois)
-/// 5. Dès qu'une tontine COMMENCE → IMPOSSIBLE d'annuler l'abonnement
-/// 6. Personnes déjà engagées par l'offre → ne peuvent pas annuler
+/// - MIGRATED TO FIRESTORE
 library;
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 enum LaunchPromoStatus {
   available,      // Places disponibles
@@ -102,7 +95,7 @@ class LaunchPromoUser {
 }
 
 class LaunchPromotionService {
-  final SupabaseClient _client;
+  final FirebaseFirestore _firestore;
   
   // ============ CONFIGURATION OFFRE ============
   // 20 créateurs × (1 + 9 invités) = 200 utilisateurs max
@@ -113,7 +106,10 @@ class LaunchPromotionService {
   static const double priceAfterEuro = 3.99;  // Prix Starter après 3 mois
   static const int priceAfterFcfa = 2500;     // Prix Starter en FCFA
 
-  LaunchPromotionService() : _client = Supabase.instance.client;
+  LaunchPromotionService() : _firestore = FirebaseFirestore.instance;
+
+  CollectionReference<Map<String, dynamic>> get _collection => 
+      _firestore.collection('launch_promotions');
 
   // ============ VÉRIFICATIONS ============
 
@@ -131,14 +127,13 @@ class LaunchPromotionService {
 
   /// Vérifie si un utilisateur a déjà réclamé l'offre
   Future<LaunchPromoUser?> getUserPromo(String oderId) async {
-    final response = await _client
-        .from('launch_promotions')
-        .select()
-        .eq('user_id', oderId)
-        .maybeSingle();
+    final snapshot = await _collection
+        .where('user_id', isEqualTo: oderId)
+        .limit(1)
+        .get();
 
-    if (response == null) return null;
-    return LaunchPromoUser.fromJson(response);
+    if (snapshot.docs.isEmpty) return null;
+    return LaunchPromoUser.fromJson(snapshot.docs.first.data());
   }
 
   /// Vérifie si un utilisateur peut annuler son abonnement
@@ -194,7 +189,7 @@ class LaunchPromotionService {
       status: LaunchPromoStatus.active,
     );
 
-    await _client.from('launch_promotions').insert(promo.toJson());
+    await _collection.doc(promo.id).set(promo.toJson());
 
     debugPrint('[PROMO] Creator slot claimed by $userId');
 
@@ -250,12 +245,18 @@ class LaunchPromotionService {
       status: LaunchPromoStatus.active,
     );
 
-    await _client.from('launch_promotions').insert(inviteePromo.toJson());
-
-    // Mettre à jour le compteur du créateur
-    await _client.from('launch_promotions').update({
-      'invites_sent': creatorPromo.invitesSent + 1,
-    }).eq('id', creatorPromo.id);
+    // Transaction pour l'atomicité
+    await _firestore.runTransaction((transaction) async {
+        transaction.set(_collection.doc(inviteePromo.id), inviteePromo.toJson());
+        
+        // Update creator invites sent. IMPORTANT: Need doc reference, assuming generic query logic
+        // For simplicity using update directly here without transaction context if we don't have docRef handy
+        // But better is to get docRef first.
+        final creatorDocRef = _collection.doc(creatorPromo.id);
+        transaction.update(creatorDocRef, {
+            'invites_sent': creatorPromo.invitesSent + 1,
+        });
+    });
 
     debugPrint('[PROMO] $creatorId invited $inviteeId (${creatorPromo.invitesSent + 1}/$maxInvitesPerCreator)');
 
@@ -271,13 +272,13 @@ class LaunchPromotionService {
   /// Verrouiller l'abonnement quand une tontine démarre
   /// APPELER CETTE MÉTHODE QUAND UNE TONTINE PASSE EN STATUT "ACTIVE"
   Future<void> lockSubscriptionOnTontineStart(String userId) async {
-    final promo = await getUserPromo(userId);
-    if (promo == null) return;
+    final snapshot = await _collection.where('user_id', isEqualTo: userId).limit(1).get();
+    if (snapshot.docs.isEmpty) return;
 
-    await _client.from('launch_promotions').update({
+    await snapshot.docs.first.reference.update({
       'tontine_started': true,
       'status': LaunchPromoStatus.locked.name,
-    }).eq('user_id', userId);
+    });
 
     debugPrint('[PROMO] Subscription LOCKED for $userId - Tontine started');
   }
@@ -289,37 +290,45 @@ class LaunchPromotionService {
   Future<void> checkExpirations() async {
     final now = DateTime.now();
     
-    final expired = await _client
-        .from('launch_promotions')
-        .select()
-        .eq('status', LaunchPromoStatus.active.name)
-        .lt('expires_at', now.toIso8601String());
+    final snapshot = await _collection
+        .where('status', isEqualTo: LaunchPromoStatus.active.name)
+        .where('expires_at', isLessThan: now.toIso8601String())
+        .get();
 
-    for (final row in expired as List) {
-      await _client.from('launch_promotions').update({
+    for (final doc in snapshot.docs) {
+      await doc.reference.update({
         'status': LaunchPromoStatus.expired.name,
-      }).eq('id', row['id']);
-      
-      debugPrint('[PROMO] Promo expired for ${row['user_id']} - Now $priceAfterEuro€/mois');
+      });
+      debugPrint('[PROMO] Promo expired for ${doc.data()['user_id']} - Now $priceAfterEuro€/mois');
     }
   }
 
   // ============ HELPERS PRIVÉS ============
 
   Future<int> _getCreatorCount() async {
-    final response = await _client
-        .from('launch_promotions')
-        .select('id')
-        .eq('type', PromoType.creator.name);
-    
-    return (response as List).length;
+    final snapshot = await _collection.where('type', isEqualTo: PromoType.creator.name).count().get();
+    return snapshot.count ?? 0;
+  }
+
+  /// Recherche un créateur par le début de son ID (pour les codes d'invitation)
+  Future<String?> findCreatorByIdPrefix(String prefix) async {
+    // Firestore range query for prefix
+    final snapshot = await _collection
+        .where('type', isEqualTo: PromoType.creator.name)
+        .where('user_id', isGreaterThanOrEqualTo: prefix)
+        .where('user_id', isLessThan: '$prefix\uf8ff')
+        .limit(1)
+        .get();
+
+    if (snapshot.docs.isEmpty) return null;
+    return snapshot.docs.first.data()['user_id'] as String?;
   }
 
   // ============ STATS ADMIN ============
 
   Future<PromoStats> getStats() async {
-    final all = await _client.from('launch_promotions').select();
-    final list = all as List;
+    final snapshot = await _collection.get();
+    final list = snapshot.docs.map((d) => d.data()).toList();
 
     final creators = list.where((p) => p['type'] == PromoType.creator.name).length;
     final invited = list.where((p) => p['type'] == PromoType.invited.name).length;
@@ -389,4 +398,3 @@ class PromoStats {
 final launchPromotionServiceProvider = Provider<LaunchPromotionService>((ref) {
   return LaunchPromotionService();
 });
-

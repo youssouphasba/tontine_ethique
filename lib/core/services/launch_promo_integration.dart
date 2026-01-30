@@ -118,10 +118,7 @@ class LaunchPromoIntegration {
 
   /// Recherche le créateur par préfixe d'ID
   Future<String?> _findCreatorByPrefix(String prefix) async {
-    // TODO: Implémenter la recherche Supabase
-    // SELECT user_id FROM launch_promotions 
-    // WHERE type = 'creator' AND LOWER(user_id) LIKE 'prefix%'
-    return null; // Placeholder
+    return _promoService.findCreatorByIdPrefix(prefix);
   }
 
   /// Vérifier le statut promo pour affichage UI
