@@ -16,7 +16,11 @@ class StripeService {
   // Format: https://us-central1-PROJECT_ID.cloudfunctions.net
   static const String _functionsBaseUrl = 
       'https://europe-west1-tontetic-admin.cloudfunctions.net';
-  
+
+  static bool _isInitialized = false;
+
+  static Future<void> initialize() async {
+    try {
       // Prioritize key from .env
       final envKey = dotenv.env['STRIPE_PUBLIC_KEY'];
       
@@ -30,7 +34,7 @@ class StripeService {
       await Stripe.instance.applySettings();
       
       _isInitialized = true;
-      debugPrint('[STRIPE] ✅ Initialisé (Mode: ${envKey?.startsWith('pk_live') == true ? 'PROD' : 'TEST'})');
+      debugPrint('[STRIPE] ✅ Initialisé (Mode: ${envKey.startsWith('pk_live') == true ? 'PROD' : 'TEST'})');
     } catch (e, stack) {
       debugPrint('[STRIPE] ❌ Erreur initialisation: $e');
       rethrow;
@@ -335,12 +339,14 @@ class StripeService {
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({
           'accountId': accountId,
+          // Mobile: Use direct App Scheme (tontetic://)
+          // Web: Use https wrapper
           'refreshUrl': refreshUrl ?? (kIsWeb 
               ? 'https://tontetic-app.web.app/redirect.html?target=connect/refresh&error=true'
-              : 'https://tontetic-app.web.app/redirect.html?target=tontetic://connect/refresh'),
+              : 'tontetic://connect/refresh'),
           'returnUrl': returnUrl ?? (kIsWeb 
               ? 'https://tontetic-app.web.app/redirect.html?target=connect/success'
-              : 'https://tontetic-app.web.app/redirect.html?target=tontetic://connect/success'),
+              : 'tontetic://connect/success'),
         }),
       );
 

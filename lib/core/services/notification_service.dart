@@ -74,6 +74,25 @@ class NotificationService {
     // In a real app: Trigger local notification or FCM push
   }
 
+  /// V16: Sends a notification to the creator when a new join request is received
+  static void sendJoinRequestNotification({
+    required String creatorId,
+    required String requesterName,
+    required String circleName,
+  }) {
+    debugPrint('[NOTIFICATION] Nouvelle demande pour "$circleName" de $requesterName (Creator: $creatorId)');
+    // In production: use FCM to send a push to creatorId
+  }
+
+  /// V16: Sends a notification to the requester when their join request is approved
+  static void sendJoinApprovalNotification({
+    required String requesterId,
+    required String circleName,
+  }) {
+    debugPrint('[NOTIFICATION] Demande APPROUVÉE pour "$circleName" (User: $requesterId)');
+    // In production: use FCM to send a push to requesterId
+  }
+
   // ============================================================
   // V18: Pot-specific Notifications
   // ============================================================

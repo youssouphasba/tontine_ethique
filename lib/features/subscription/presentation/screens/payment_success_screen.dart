@@ -7,6 +7,8 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:tontetic/core/theme/app_theme.dart';
 import 'package:tontetic/core/providers/user_provider.dart';
 import 'package:tontetic/core/providers/plans_provider.dart';
+import 'package:tontetic/core/providers/merchant_account_provider.dart';
+import 'package:tontetic/features/merchant/presentation/screens/merchant_dashboard_screen.dart';
 
 /// Payment Success Screen
 /// 
@@ -17,8 +19,10 @@ import 'package:tontetic/core/providers/plans_provider.dart';
 class PaymentSuccessScreen extends ConsumerStatefulWidget {
   final String? returnUrl;
   final String? planId; // Plan to apply after successful payment
+  final String? type;   // 'merchant' or 'subscription'
+  final String? shopId; // For merchant activation
   
-  const PaymentSuccessScreen({super.key, this.returnUrl, this.planId});
+  const PaymentSuccessScreen({super.key, this.returnUrl, this.planId, this.type, this.shopId});
 
   @override
   ConsumerState<PaymentSuccessScreen> createState() => _PaymentSuccessScreenState();
@@ -38,6 +42,13 @@ class _PaymentSuccessScreenState extends ConsumerState<PaymentSuccessScreen> {
   }
 
   void _startListeningForPlanUpdate() async {
+    // 0. Check for Merchant Activation FIRST
+    await _checkAndApplyMerchantActivation();
+    if (widget.type == 'merchant' || Uri.base.queryParameters['type'] == 'merchant') {
+       // Stop here, don't listen for plan update (it's a shop update)
+       return;
+    }
+
     final uid = FirebaseAuth.instance.currentUser?.uid;
     if (uid == null) {
       _redirectToDestination();
@@ -130,6 +141,33 @@ class _PaymentSuccessScreenState extends ConsumerState<PaymentSuccessScreen> {
     }
   }
 
+  Future<void> _checkAndApplyMerchantActivation() async {
+    // Check if this is a merchant payment
+    String? type = widget.type;
+    String? shopId = widget.shopId;
+    
+    // Fallback URL params
+    if (type == null) {
+       final uri = Uri.base;
+       type = uri.queryParameters['type'];
+       shopId = uri.queryParameters['shopId'];
+    }
+
+    if (type == 'merchant' && shopId != null && shopId.isNotEmpty) {
+      debugPrint('[PAYMENT_SUCCESS] Activating Shop: $shopId');
+      try {
+        await ref.read(merchantAccountProvider.notifier).activateShop(shopId);
+        
+        setState(() {
+          _planUpdated = true;
+          // Use a special sentinel or just rely on manual text override in build
+        });
+      } catch (e) {
+        debugPrint("Error activating shop: $e");
+      }
+    }
+  }
+
   void _redirectToDestination({bool showDelayMessage = false}) {
     _timer?.cancel();
     _subscription?.cancel();
@@ -219,7 +257,9 @@ class _PaymentSuccessScreenState extends ConsumerState<PaymentSuccessScreen> {
                 ),
                 const SizedBox(height: 8),
                 Text(
-                  _getPlanDisplayName(_newPlanId),
+                  widget.type == 'merchant' || Uri.base.queryParameters['type'] == 'merchant' 
+                      ? 'Compte Marchand Activé' 
+                      : _getPlanDisplayName(_newPlanId),
                   style: TextStyle(
                     fontSize: 24,
                     fontWeight: FontWeight.bold,
@@ -299,7 +339,12 @@ class _PaymentSuccessScreenState extends ConsumerState<PaymentSuccessScreen> {
                   width: double.infinity,
                   child: ElevatedButton.icon(
                     onPressed: () {
-                      context.go('/'); // Redirect to Dashboard
+                      if (widget.type == 'merchant' || Uri.base.queryParameters['type'] == 'merchant') {
+                         ref.read(merchantAccountProvider.notifier).switchToMerchant();
+                         Navigator.of(context).pushReplacement(MaterialPageRoute(builder: (_) => const MerchantDashboardScreen()));
+                      } else {
+                         context.go('/'); // Redirect to Dashboard
+                      }
                     },
                     icon: const Icon(Icons.home),
                     label: const Text('Retour à l\'accueil'),

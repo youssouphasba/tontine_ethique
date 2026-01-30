@@ -466,7 +466,7 @@ class _UsersSection extends StatelessWidget {
                     ),
                     child: const Row(
                       children: [
-                        Expanded(flex: 2, child: Text('Utilisateur', style: TextStyle(fontWeight: FontWeight.bold))),
+                        Expanded(flex: 2, child: Text('Membre', style: TextStyle(fontWeight: FontWeight.bold))),
                         Expanded(child: Text('Statut', style: TextStyle(fontWeight: FontWeight.bold))),
                         Expanded(child: Text('Score', style: TextStyle(fontWeight: FontWeight.bold))),
                         Expanded(child: Text('Cercles', style: TextStyle(fontWeight: FontWeight.bold))),

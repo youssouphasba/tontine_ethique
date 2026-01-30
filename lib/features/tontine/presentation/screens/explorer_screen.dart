@@ -7,6 +7,7 @@ import 'package:tontetic/core/theme/app_theme.dart';
 import 'package:tontetic/core/providers/localization_provider.dart';
 import 'package:tontetic/core/services/security_service.dart';
 import 'package:tontetic/features/social/data/social_provider.dart';
+import 'package:tontetic/features/social/data/suggestion_service.dart';
 import 'package:tontetic/features/social/presentation/screens/profile_screen.dart';
 import 'package:tontetic/features/tontine/presentation/screens/circle_details_screen.dart';
 
@@ -21,6 +22,8 @@ class _ExplorerScreenState extends ConsumerState<ExplorerScreen> with SingleTick
   late TabController _tabController;
   String _selectedObjective = 'Pour vous';
   final List<String> _filters = ['Pour vous', 'Proximité', '🏠 Maison', '🚗 Transport', '📦 Business'];
+  final Set<String> _hiddenUserIds = {};
+  Future<List<SuggestionResult>>? _suggestionsFuture;
 
   String _searchQuery = '';
   
@@ -32,7 +35,19 @@ class _ExplorerScreenState extends ConsumerState<ExplorerScreen> with SingleTick
     _tabController = TabController(length: 2, vsync: this);
     
     // Legal Gatekeeper: Check on first load
-    WidgetsBinding.instance.addPostFrameCallback((_) => _showLegalWarning());
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _showLegalWarning();
+      _loadSuggestions();
+    });
+  }
+
+  void _loadSuggestions() {
+    final user = ref.read(userProvider);
+    if (user.uid.isNotEmpty) {
+      setState(() {
+        _suggestionsFuture = ref.read(suggestionServiceProvider).getSuggestions(user.uid);
+      });
+    }
   }
 
   void _showLegalWarning() {
@@ -282,6 +297,12 @@ class _ExplorerScreenState extends ConsumerState<ExplorerScreen> with SingleTick
         var feedItems = docs.map((doc) {
           final data = doc.data() as Map<String, dynamic>;
           data['id'] = doc.id;
+          // BUGFIX: Use correct Firestore fields
+          data['members'] = (data['memberIds'] as List?)?.length ?? 0;
+          data['maxMembers'] = data['maxParticipants'] ?? 12;
+          data['location'] = data['location'] ?? 'Universel';
+          data['currency'] = data['currency'] ?? 'FCFA';
+
           // Ensure imageUrl defaults if missing
           if (data['imageUrl'] == null || data['imageUrl'].isEmpty) {
              data['imageUrl'] = 'https://images.unsplash.com/photo-1573164713714-d95e436ab8d6?q=80&w=1000';
@@ -292,6 +313,11 @@ class _ExplorerScreenState extends ConsumerState<ExplorerScreen> with SingleTick
           }
           return data;
         }).where((data) {
+           final user = ref.read(userProvider);
+           // V16: Exclude my own circles and circles I already joined
+           if (data['creatorId'] == user.uid) return false;
+           if ((data['memberIds'] as List).contains(user.uid)) return false;
+           
            // 1. Search Filter
            if (_searchQuery.isNotEmpty) {
              final name = data['name'].toString().toLowerCase();
@@ -363,277 +389,172 @@ class _ExplorerScreenState extends ConsumerState<ExplorerScreen> with SingleTick
   }
 
   Widget _buildCommunityTab() {
-    final social = ref.watch(socialProvider);
     final user = ref.watch(userProvider);
+    // Refresh suggestions if user changed and future is null (or mismatch?) 
+    // For now, rely on initial load and manual refresh.
     
-    return StreamBuilder<QuerySnapshot>(
-      // Query all users, we'll filter client-side for better reliability
-      stream: FirebaseFirestore.instance.collection('users').limit(50).snapshots(),
-      builder: (context, snapshot) {
-        if (snapshot.hasError) {
-          return Center(child: Text('Erreur: ${snapshot.error}'));
-        }
+    if (_suggestionsFuture == null && user.uid.isNotEmpty) {
+       // Trigger load if missing
+       Future.microtask(() => _loadSuggestions());
+    }
 
+    return FutureBuilder<List<SuggestionResult>>(
+      future: _suggestionsFuture,
+      builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Center(child: CircularProgressIndicator());
         }
 
-        // Filter: exclude current user and users without valid/complete profile
-        final allDocs = snapshot.data?.docs ?? [];
-        debugPrint('[COMMUNITY] Total users in Firestore: ${allDocs.length}');
-        
-        final users = allDocs.where((doc) {
-          final docId = doc.id;
-          final data = doc.data() as Map<String, dynamic>;
-          
-          // Try to get name from various possible fields
-          final fullName = data['fullName'] as String?;
-          final displayNameRaw = data['displayName'] as String?;
-          final name = data['name'] as String?;
-          final encryptedName = data['encryptedName'] as String?;
-          
-          // Try all possible name sources
-          String? resolvedName;
-          if (fullName != null && fullName.isNotEmpty) {
-            resolvedName = fullName;
-          } else if (displayNameRaw != null && displayNameRaw.isNotEmpty) {
-            resolvedName = displayNameRaw;
-          } else if (name != null && name.isNotEmpty) {
-            resolvedName = name;
-          } else if (encryptedName != null && encryptedName.isNotEmpty) {
-            resolvedName = SecurityService.decryptData(encryptedName);
-          }
-          
-          // Skip current user (by document ID)
-          if (docId == user.uid) return false;
-          
-          // Skip users without a valid name
-          if (resolvedName == null || resolvedName.isEmpty || 
-              resolvedName == 'Utilisateur' || 
-              resolvedName == 'Utilisateur Inconnu' ||
-              resolvedName.toLowerCase().startsWith('user')) {
-            debugPrint('[COMMUNITY] Skipping user $docId - no valid name. Fields: fullName=$fullName, displayName=$displayNameRaw, name=$name');
-            return false;
-          }
-          
-          return true;
-        }).toList();
-        
-        debugPrint('[COMMUNITY] Valid users after filter: ${users.length}');
+        if (snapshot.hasError) {
+          return Center(child: Text('Erreur: ${snapshot.error}'));
+        }
 
-        if (users.isEmpty) {
-          return const Center(
+        final suggestions = snapshot.data ?? [];
+        final visibleSuggestions = suggestions.where((s) => !_hiddenUserIds.contains(s.userId)).toList();
+
+        if (visibleSuggestions.isEmpty) {
+          return Center(
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Icon(Icons.group_off, size: 64, color: Colors.grey),
-                SizedBox(height: 16),
-                Text('Aucun membre trouvé', style: TextStyle(color: Colors.grey)),
-                SizedBox(height: 8),
-                Text('Soyez le premier à compléter votre profil !', style: TextStyle(color: Colors.grey, fontSize: 12)),
+                const Icon(Icons.people_outline, size: 64, color: Colors.grey),
+                const SizedBox(height: 16),
+                const Text('Aucune suggestion pour le moment', style: TextStyle(color: Colors.grey)),
+                const SizedBox(height: 8),
+                TextButton(
+                  onPressed: _loadSuggestions,
+                  child: const Text('Actualiser'),
+                ),
               ],
             ),
           );
         }
 
-        return ListView.builder(
-          padding: const EdgeInsets.all(16),
-          itemCount: users.length,
-          itemBuilder: (context, index) {
-            final userData = users[index].data() as Map<String, dynamic>;
-            final userId = users[index].id; // Use document ID, not field
-            
-            // Get name from fullName, displayName, name, or decrypted encryptedName
-            final fullName = userData['fullName'] as String?;
-            final displayNameRaw = userData['displayName'] as String?;
-            final nameField = userData['name'] as String?;
-            final encryptedName = userData['encryptedName'] as String?;
-            
-            String name;
-            if (fullName != null && fullName.trim().isNotEmpty) {
-              name = fullName;
-            } else if (displayNameRaw != null && displayNameRaw.trim().isNotEmpty) {
-              name = displayNameRaw;
-            } else if (nameField != null && nameField.trim().isNotEmpty) {
-              name = nameField;
-            } else if (encryptedName != null && encryptedName.isNotEmpty) {
-              try {
-                name = SecurityService.decryptData(encryptedName);
-              } catch (_) {
-                name = 'Membre Tontetic';
-              }
-            } else {
-              name = 'Membre Tontetic';
-            }
-            
-            // Final fallback check
-            if (name == 'Utilisateur' || name.isEmpty) name = 'Membre Tontetic';
-            
-            final avatar = name.isNotEmpty ? name[0].toUpperCase() : '?';
-            final job = userData['job'] ?? userData['jobTitle'] ?? 'Membre Tontetic';
-            final location = userData['location'] ?? '';
-            final circlesCount = userData['activeCirclesCount'] ?? 0;
-            final followersCount = userData['followersCount'] ?? 0;
-            final honorScore = userData['honorScore'] ?? 100;
-
-            final isFollowing = social.following.contains(userId);
-            
-            return Container(
-              margin: const EdgeInsets.only(bottom: 12),
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: Theme.of(context).brightness == Brightness.dark ? const Color(0xFF1A1A2E) : Colors.white,
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: Theme.of(context).brightness == Brightness.dark ? Colors.white12 : Colors.grey.shade200),
-                boxShadow: Theme.of(context).brightness == Brightness.dark 
-                    ? null 
-                    : [BoxShadow(color: Colors.black.withValues(alpha: 0.05), blurRadius: 10, offset: const Offset(0, 4))],
+        return CustomScrollView(
+          slivers: [
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsets.all(16.0),
+                child: Text(
+                  'Connaissez-vous ?',
+                  style: TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                    color: Theme.of(context).brightness == Brightness.dark ? AppTheme.gold : AppTheme.marineBlue,
+                  ),
+                ),
               ),
-              child: Row(
-                children: [
-                  // Avatar
-                  Container(
-                    width: 56,
-                    height: 56,
-                    decoration: BoxDecoration(
-                      color: AppTheme.marineBlue.withAlpha(80),
-                      borderRadius: BorderRadius.circular(28),
-                    ),
-                    child: Center(
-                      child: Text(
-                        avatar,
-                        style: const TextStyle(fontSize: 28),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  
-                  // Info
-                  Expanded(
-                    child: GestureDetector(
-                      onTap: () => Navigator.push(
-                        context, 
-                        MaterialPageRoute(builder: (_) => ProfileScreen(userName: name))
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
-                            children: [
-                              Expanded(
-                                child: Text(
-                                  name,
-                                  style: TextStyle(
-                                    color: Theme.of(context).brightness == Brightness.dark ? Colors.white : Colors.black87,
-                                    fontWeight: FontWeight.bold,
-                                    fontSize: 16,
-                                  ),
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                              ),
-                              const SizedBox(width: 8),
-                              // Honor Score Badge
-                              Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                                decoration: BoxDecoration(
-                                  color: _getScoreColor(honorScore).withAlpha(40),
-                                  borderRadius: BorderRadius.circular(8),
-                                ),
-                                child: Row(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    Icon(Icons.star, size: 12, color: _getScoreColor(honorScore)),
-                                    const SizedBox(width: 2),
-                                    Text(
-                                      '$honorScore',
-                                      style: TextStyle(
-                                        color: _getScoreColor(honorScore),
-                                        fontSize: 11,
-                                        fontWeight: FontWeight.bold,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            '$job • $location',
-                            style: TextStyle(color: Theme.of(context).brightness == Brightness.dark ? Colors.white54 : Colors.black54, fontSize: 13),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                          const SizedBox(height: 4),
-                          Row(
-                            children: [
-                              Icon(Icons.groups, size: 14, color: Theme.of(context).brightness == Brightness.dark ? Colors.white38 : Colors.grey),
-                              const SizedBox(width: 4),
-                              Text(
-                                '$circlesCount ${ref.watch(localizationProvider).translate('members_count')}',
-                                style: TextStyle(color: Theme.of(context).brightness == Brightness.dark ? Colors.white38 : Colors.grey, fontSize: 11),
-                              ),
-                              const SizedBox(width: 12),
-                              Icon(Icons.people, size: 14, color: Theme.of(context).brightness == Brightness.dark ? Colors.white38 : Colors.grey),
-                              const SizedBox(width: 4),
-                              Text(
-                                '$followersCount ${ref.watch(localizationProvider).translate('followers_count')}',
-                                style: TextStyle(color: Theme.of(context).brightness == Brightness.dark ? Colors.white38 : Colors.grey, fontSize: 11),
-                              ),
-                            ],
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                  
-                  // Follow Button
-                  ElevatedButton(
-                    onPressed: () {
-                      if (user.uid.isEmpty) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
-                            content: const Text('Veuillez vous connecter pour suivre des membres.'),
-                            action: SnackBarAction(
-                              label: 'OK', 
-                              textColor: AppTheme.gold,
-                              onPressed: () => context.go('/auth'),
-                            ),
-                          ),
-                        );
-                        return;
-                      }
-                      ref.read(socialProvider.notifier).toggleFollow(userId);
-                    },
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: isFollowing ? Colors.grey.shade700 : AppTheme.marineBlue,
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-                      minimumSize: const Size(0, 36),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(isFollowing ? Icons.check : Icons.person_add, size: 16),
-                        const SizedBox(width: 4),
-                        Text(
-                          isFollowing 
-                            ? ref.watch(localizationProvider).translate('following') 
-                            : ref.watch(localizationProvider).translate('follow'), 
-                          style: const TextStyle(fontSize: 12),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
+            ),
+            SliverList(
+              delegate: SliverChildBuilderDelegate(
+                (context, index) {
+                  final person = visibleSuggestions[index];
+                  return _buildSuggestionCard(context, person);
+                },
+                childCount: visibleSuggestions.length,
               ),
-            );
-          },
+            ),
+          ],
         );
-      }
+      },
     );
   }
+
+  Widget _buildSuggestionCard(BuildContext context, SuggestionResult person) {
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Theme.of(context).cardColor,
+        borderRadius: BorderRadius.circular(12),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.05),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          CircleAvatar(
+            radius: 28,
+            backgroundImage: person.userAvatar != null && person.userAvatar!.isNotEmpty
+                ? NetworkImage(person.userAvatar!)
+                : null,
+            backgroundColor: AppTheme.marineBlue.withAlpha(30),
+            child: person.userAvatar == null || person.userAvatar!.isEmpty
+                ? Text(person.userName.isNotEmpty ? person.userName[0].toUpperCase() : '?', style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: AppTheme.marineBlue))
+                : null,
+          ),
+          const SizedBox(width: 16),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  person.userName,
+                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                ),
+                const SizedBox(height: 4),
+                // Social Proof / Reason
+                Row(
+                  children: [
+                    const Icon(Icons.group, size: 14, color: Colors.grey),
+                    const SizedBox(width: 4),
+                    Expanded(
+                      child: Text(
+                        person.reason,
+                        style: const TextStyle(color: Colors.grey, fontSize: 12),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                  ],
+                ),
+                if (person.jobTitle != null && person.jobTitle!.isNotEmpty)
+                   Text(
+                    person.jobTitle!,
+                    style: const TextStyle(color: Colors.grey, fontSize: 11),
+                  ),
+              ],
+            ),
+          ),
+          // Action Buttons
+          Column(
+            children: [
+              ElevatedButton(
+                onPressed: () {
+                   ref.read(socialProvider.notifier).toggleFollow(person.userId);
+                   ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Invitation envoyée !')));
+                   setState(() {});
+                },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppTheme.marineBlue,
+                  foregroundColor: Colors.white,
+                  minimumSize: const Size(80, 32),
+                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                ),
+                child: const Text('Ajouter', style: TextStyle(fontSize: 12)),
+              ),
+              const SizedBox(height: 4),
+              InkWell(
+                onTap: () {
+                   setState(() {
+                     _hiddenUserIds.add(person.userId);
+                   });
+                },
+                child: const Padding(
+                  padding: EdgeInsets.all(4.0),
+                  child: Text('Retirer', style: TextStyle(fontSize: 11, color: Colors.grey)),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
 
   Color _getScoreColor(int score) {
     if (score >= 90) return Colors.green;
@@ -701,18 +622,32 @@ class _ExplorerScreenState extends ConsumerState<ExplorerScreen> with SingleTick
                 color: AppTheme.marineBlue,
                 child: Text('Cercle Tontine', style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold)),
               ),
-              const SizedBox(height: 8),
-              Text(circle['name'], style: const TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.bold)),
-              const SizedBox(height: 4),
-               Row(
-                 children: [
-                   const Icon(Icons.location_on, color: Colors.white70, size: 14),
-                   Text(circle['location'], style: const TextStyle(color: Colors.white70)),
-                   const SizedBox(width: 16),
-                   const Icon(Icons.group, color: Colors.white70, size: 14),
-                   Text('${circle['members']}/${circle['maxMembers']} Membres', style: const TextStyle(color: Colors.white70)),
-                 ],
-               ),
+                const SizedBox(height: 8),
+                InkWell(
+                  onTap: () => Navigator.push(
+                    context, 
+                    MaterialPageRoute(
+                      builder: (ctx) => CircleDetailsScreen(
+                        circleId: circle['id'],
+                        circleName: circle['name'],
+                        isJoined: false, 
+                      ),
+                    ),
+                  ),
+                  child: Text(circle['name'], style: const TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.bold)),
+                ),
+                const SizedBox(height: 4),
+                 Row(
+                   children: [
+                     const Icon(Icons.location_on, color: Colors.white70, size: 14),
+                     const SizedBox(width: 4),
+                     Text(circle['location'], style: const TextStyle(color: Colors.white70)),
+                     const SizedBox(width: 16),
+                     const Icon(Icons.group, color: Colors.white70, size: 14),
+                     const SizedBox(width: 4),
+                     Text('${circle['members']}/${circle['maxMembers']} places', style: const TextStyle(color: Colors.white70)),
+                   ],
+                 ),
                 const SizedBox(height: 16),
                Text('${circle['amount']} ${circle['currency'] ?? 'FCFA'} / mois', style: const TextStyle(color: AppTheme.gold, fontSize: 20, fontWeight: FontWeight.bold)),
             ],

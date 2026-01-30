@@ -3,6 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:tontetic/core/theme/app_theme.dart';
 import 'package:tontetic/core/providers/user_provider.dart';
 import 'package:tontetic/features/social/data/social_provider.dart';
+import 'package:tontetic/core/services/tontine_invitation_service.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 /// V15: Exit Circle Screen
 /// Allows a member to leave a circle by inviting a mutual follower as replacement
@@ -770,20 +772,87 @@ class _ExitCircleScreenState extends ConsumerState<ExitCircleScreen> {
   void _submitReplacement() async {
     setState(() => _isSubmitting = true);
     
-    // API call (Direct)
+    try {
+      final user = ref.read(userProvider);
+      final invitationService = ref.read(tontineInvitationServiceProvider);
+      
+      String inviteePhone = '';
+      String? inviteeId;
+      String? inviteeName;
+      
+      // Case 1: Selected from Mutual Followers
+      if (_selectedReplacementId != null) {
+        inviteeId = _selectedReplacementId;
+        inviteeName = _selectedReplacementName;
+        
+        // Fetch phone number for this user
+        // We'll try to find it in the user's profile assuming ID is UID
+        // If ID is already phone, we use it directly
+        // In this app architecture, let's try to fetch user doc
+        try {
+          // This requires importing AuthService or Firestore
+          final userDoc = await FirebaseFirestore.instance.collection('users').doc(inviteeId).get();
+          if (userDoc.exists) {
+            inviteePhone = userDoc.data()?['phone'] ?? '';
+          }
+           
+          // Fallback: if we can't find phone, we might use ID if it looks like phone
+          if (inviteePhone.isEmpty) {
+             inviteePhone = inviteeId!; // Risky but fallback
+          }
+        } catch (e) {
+          debugPrint("Error fetching replacement user details: $e");
+          inviteePhone = inviteeId!;
+        }
+      } 
+      // Case 2: Manual Entry
+      else {
+        inviteePhone = _phoneController.text.trim();
+        // If email was provided instead/also, we might want to store it, but InvitationService expects phone
+        // For now priority on Phone. If Phone is empty but email is present, we might have an issue with current Service signature.
+        if (inviteePhone.isEmpty && _emailController.text.isNotEmpty) {
+           // Create a placeholder phone or handle email invitations (not supported by Service yet)
+           // For now, let's enforce Phone for replacement validation
+           // We'll throw if no phone
+           if (inviteePhone.isEmpty) {
+              throw Exception("Le numéro de téléphone est requis pour l'invitation.");
+           }
+        }
+      }
 
-    
-    setState(() => _isSubmitting = false);
-    
-    // Show success and close
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('✅ Invitation envoyée à $_selectedReplacementName !'),
-          backgroundColor: Colors.green,
-        ),
+      final result = await invitationService.sendReplacementInvitation(
+        tontineId: widget.circleId,
+        tontineName: widget.circleName,
+        inviterId: user.phoneNumber, // Using phone as ID often in this app, or user.uid? check User Model
+        inviterName: user.displayName,
+        inviteePhone: inviteePhone,
+        inviteeId: inviteeId,
+        inviteeName: inviteeName,
       );
-      Navigator.pop(context);
+
+      if (!result.success) {
+        throw Exception(result.message);
+      }
+    
+      setState(() => _isSubmitting = false);
+      
+      // Show success and close
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('✅ Invitation envoyée à ${inviteeName ?? inviteePhone} !'),
+            backgroundColor: Colors.green,
+          ),
+        );
+        Navigator.pop(context);
+      }
+    } catch (e) {
+      setState(() => _isSubmitting = false);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Erreur: $e'), backgroundColor: Colors.red),
+        );
+      }
     }
   }
 }

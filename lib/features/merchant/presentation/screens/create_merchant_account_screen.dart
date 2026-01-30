@@ -3,13 +3,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:tontetic/core/theme/app_theme.dart';
 import 'package:tontetic/core/providers/merchant_account_provider.dart';
 import 'package:tontetic/core/providers/user_provider.dart';
-
-/// Merchant Account Creation Screen
-/// Allows users to create a merchant account from their existing profile
-/// 
-/// Required info: Shop name, category, address
-/// Optional: Professional email, description
-/// PSP connection: External redirect to Stripe/Wave
+import 'package:tontetic/core/services/stripe_service.dart';
+import 'package:url_launcher/url_launcher.dart';
+import 'package:flutter/foundation.dart'; // for kIsWeb
 
 class CreateMerchantAccountScreen extends ConsumerStatefulWidget {
   const CreateMerchantAccountScreen({super.key});
@@ -33,10 +29,6 @@ class _CreateMerchantAccountScreenState extends ConsumerState<CreateMerchantAcco
   // Step 2: Legal acceptance
   bool _cguAccepted = false;
   bool _noFundsAccepted = false;
-
-  // Step 3: PSP
-  bool _pspConnected = false;
-  String? _selectedPsp;
 
   @override
   void dispose() {
@@ -80,7 +72,7 @@ class _CreateMerchantAccountScreenState extends ConsumerState<CreateMerchantAcco
           if (_isLoading)
             Container(
               color: Colors.black54,
-              child: const Center(child: CircularProgressIndicator()),
+              child: const Center(child: CircularProgressIndicator(color: Colors.white)),
             ),
         ],
       ),
@@ -118,8 +110,8 @@ class _CreateMerchantAccountScreenState extends ConsumerState<CreateMerchantAcco
   Widget _buildCurrentStep() {
     switch (_currentStep) {
       case 0: return _buildStep1();
-      case 1: return _buildStep2();
-      case 2: return _buildStep3();
+      case 1: return _buildStep2(); // Legal Step
+      case 2: return _buildPaymentStep(); // Payment Step
       default: return const SizedBox.shrink();
     }
   }
@@ -245,7 +237,6 @@ class _CreateMerchantAccountScreenState extends ConsumerState<CreateMerchantAcco
       case ProductCategory.other: return '📦 Autre';
     }
   }
-
   // =============== STEP 2: LEGAL ===============
   Widget _buildStep2() {
     final allAccepted = _cguAccepted && _noFundsAccepted;
@@ -351,199 +342,127 @@ class _CreateMerchantAccountScreenState extends ConsumerState<CreateMerchantAcco
       ),
     );
   }
-
-  // =============== STEP 3: PSP CONNECTION ===============
-  Widget _buildStep3() {
+  
+  // =============== STEP 3: PAYMENT ===============
+  Widget _buildPaymentStep() {
+    // HARDCODED PRICE ID from User request
+    const priceId = 'price_1SvMLDCpguZvNb1ULfsoGWof';
+    
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text('Recevoir les paiements', style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Colors.deepPurple)),
-        const SizedBox(height: 8),
-        const Text('Connectez votre compte de paiement pour recevoir l\'argent de vos ventes.', style: TextStyle(color: Colors.grey)),
-        const SizedBox(height: 24),
-
-        // PSP Options
-        _buildPspOption('Stripe', Icons.credit_card, Colors.purple, 'Cartes bancaires, SEPA'),
-        const SizedBox(height: 12),
-        _buildPspOption('PayPal', Icons.account_balance_wallet, Colors.blue, 'PayPal Business'),
-        const SizedBox(height: 12),
-        _buildPspOption('Wave', Icons.waves, Colors.lightBlue, 'Mobile Money'),
-        const SizedBox(height: 24),
-
-        // Alternative: Manual links
+        const Text('Frais d\'inscription', style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Colors.deepPurple)),
+        const SizedBox(height: 16),
+        
         Container(
-          padding: const EdgeInsets.all(12),
-          decoration: BoxDecoration(
-            color: Colors.grey.withValues(alpha: 0.1),
-            borderRadius: BorderRadius.circular(8),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text('Alternative : Liens de paiement', style: TextStyle(fontWeight: FontWeight.bold)),
-              const SizedBox(height: 8),
-              const Text('Vous pouvez aussi utiliser vos propres liens de paiement (PayPal.me, Lydia, etc.) sans connecter de PSP.', style: TextStyle(fontSize: 12)),
-              const SizedBox(height: 8),
-              TextButton(
-                onPressed: () => _skipPspConnection(),
-                child: const Text('Passer cette étape →'),
-              ),
-            ],
-          ),
+           padding: const EdgeInsets.all(24),
+           width: double.infinity,
+           decoration: BoxDecoration(
+             color: Colors.white,
+             borderRadius: BorderRadius.circular(16),
+             boxShadow: [
+               BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10, offset: const Offset(0, 4)),
+             ],
+             border: Border.all(color: Colors.deepPurple.withOpacity(0.1)),
+           ),
+           child: Column(
+             children: [
+               const Icon(Icons.workspace_premium, size: 48, color: Colors.deepPurple),
+               const SizedBox(height: 16),
+               const Text('Compte Marchand', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+               const SizedBox(height: 8),
+               const Text('Accès illimité à la création de boutique', style: TextStyle(color: Colors.grey)),
+               const SizedBox(height: 24),
+               const Text('9.99 €', style: TextStyle(fontSize: 32, fontWeight: FontWeight.bold, color: Colors.deepPurple)),
+               const Text('/ mois', style: TextStyle(color: Colors.grey)),
+               const SizedBox(height: 32),
+               
+               SizedBox(
+                 width: double.infinity,
+                 child: ElevatedButton(
+                   onPressed: () => _payAndCreateShop(priceId),
+                   style: ElevatedButton.styleFrom(
+                     backgroundColor: Colors.deepPurple,
+                     foregroundColor: Colors.white,
+                     padding: const EdgeInsets.symmetric(vertical: 16),
+                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                   ),
+                   child: const Row(
+                     mainAxisAlignment: MainAxisAlignment.center,
+                     children: [
+                       Icon(Icons.payment),
+                       SizedBox(width: 8),
+                       Text('Payer l\'inscription'),
+                     ],
+                   ),
+                 ),
+               ),
+               const SizedBox(height: 16),
+               const Text('Paiement sécurisé par Stripe', style: TextStyle(fontSize: 10, color: Colors.grey)),
+             ],
+           ),
         ),
-        const SizedBox(height: 24),
-
-        if (_pspConnected)
-          Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: Colors.green.withValues(alpha: 0.1),
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: Colors.green),
-            ),
-            child: Column(
-              children: [
-                const Icon(Icons.check_circle, color: Colors.green, size: 48),
-                const SizedBox(height: 8),
-                const Text('Boutique créée avec succès !', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: Colors.green)),
-                const SizedBox(height: 16),
-                ElevatedButton(
-                  onPressed: _goToMerchantDashboard,
-                  style: ElevatedButton.styleFrom(backgroundColor: Colors.green),
-                  child: const Text('Accéder au Dashboard Marchand', style: TextStyle(color: Colors.white)),
-                ),
-              ],
-            ),
-          ),
       ],
     );
   }
 
-  Widget _buildPspOption(String name, IconData icon, Color color, String description) {
-    final isSelected = _selectedPsp == name;
-    return Card(
-      elevation: isSelected ? 4 : 1,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
-        side: BorderSide(color: isSelected ? color : Colors.grey[300]!, width: isSelected ? 2 : 1),
-      ),
-      child: InkWell(
-        onTap: () => _connectPsp(name),
-        borderRadius: BorderRadius.circular(12),
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(color: color.withValues(alpha: 0.1), shape: BoxShape.circle),
-                child: Icon(icon, color: color),
-              ),
-              const SizedBox(width: 16),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(name, style: TextStyle(fontWeight: FontWeight.bold, color: color)),
-                    Text(description, style: const TextStyle(fontSize: 12, color: Colors.grey)),
-                  ],
-                ),
-              ),
-              Icon(isSelected ? Icons.check_circle : Icons.arrow_forward_ios, color: isSelected ? color : Colors.grey),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  void _connectPsp(String pspName) async {
-    setState(() {
-      _selectedPsp = pspName;
-      _isLoading = true;
-    });
-
-    // Instead of simulation, we show a REAL form to enter bank details
-    final result = await showDialog<Map<String, String>>(
-      context: context,
-      builder: (ctx) {
-        final ibanController = TextEditingController();
-        final bicController = TextEditingController();
-        return AlertDialog(
-          title: Text('Coordonnées Bancaires ($pspName)'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Text('Entrez les coordonnées de votre compte professionnel.', style: TextStyle(fontSize: 12)),
-              const SizedBox(height: 16),
-              TextField(
-                controller: ibanController,
-                decoration: const InputDecoration(labelText: 'IBAN', border: OutlineInputBorder()),
-              ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: bicController,
-                decoration: const InputDecoration(labelText: 'BIC / SWIFT', border: OutlineInputBorder()),
-              ),
-            ],
-          ),
-          actions: [
-            TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Annuler')),
-            ElevatedButton(
-              onPressed: () {
-                if (ibanController.text.isNotEmpty && bicController.text.isNotEmpty) {
-                  Navigator.pop(ctx, {'iban': ibanController.text, 'bic': bicController.text});
-                }
-              },
-              child: const Text('Confirmer'),
-            ),
-          ],
-        );
-      }
-    );
-
-    if (result != null) {
-      _createMerchantAccount('psp_${pspName.toLowerCase()}_${DateTime.now().millisecondsSinceEpoch}');
-    } else {
-      setState(() {
-        _isLoading = false;
-        _selectedPsp = null;
-      });
-    }
-  }
-
-  void _skipPspConnection() {
-    _createMerchantAccount(null);
-  }
-
-  void _createMerchantAccount(String? pspAccountId) {
-    final user = ref.read(userProvider);
+  Future<void> _payAndCreateShop(String priceId) async {
+    setState(() => _isLoading = true);
     
-    // Create shop - IMPORTANT: Use uid to match the provider's listener
-    ref.read(merchantAccountProvider.notifier).createShop(
-      userId: user.uid ?? user.phoneNumber, // Use Firebase UID (matches provider listener)
-      shopName: _shopNameController.text,
-      professionalEmail: _professionalEmailController.text.isNotEmpty ? _professionalEmailController.text : null,
-      category: _selectedCategory,
-      address: _addressController.text,
-      description: _descriptionController.text.isNotEmpty ? _descriptionController.text : null,
-    );
-
-
-    // Activate if PSP connected
-    if (pspAccountId != null) {
-      ref.read(merchantAccountProvider.notifier).activateShop(pspAccountId);
+    try {
+      final user = ref.read(userProvider);
+      
+      // 1. Create Shop (Pending Payment)
+      // This allows us to have a 'shopId' to reference in the payment
+      final shopId = await ref.read(merchantAccountProvider.notifier).createShop(
+        userId: user.uid ?? user.phoneNumber,
+        shopName: _shopNameController.text,
+        professionalEmail: _professionalEmailController.text.isNotEmpty ? _professionalEmailController.text : null,
+        category: _selectedCategory,
+        address: _addressController.text,
+        description: _descriptionController.text.isNotEmpty ? _descriptionController.text : null,
+      );
+      
+      // 2. Prepare Success URL with TYPE=merchant and SHOP_ID
+      // This tells PaymentSuccessScreen to activate this specific shop
+      final successUrl = kIsWeb 
+          ? 'https://tontetic-app.web.app/payment/success?type=merchant&shopId=$shopId'
+          : 'tontetic://payment/success?type=merchant&shopId=$shopId';
+          
+      final cancelUrl = kIsWeb
+          ? 'https://tontetic-app.web.app/payment/cancel' // Just go back to dashboard/cancel
+          : 'tontetic://payment/cancel';
+      
+      // 3. Create Checkout Session
+      final url = await StripeService.createCheckoutSession(
+        priceId: priceId,
+        email: user.email,
+        customerId: user.stripeCustomerId,
+        userId: user.uid,
+        successUrl: successUrl, // Redirect here on success
+        cancelUrl: cancelUrl,
+      );
+      
+      // 4. Launch Payment
+      if (await canLaunchUrl(Uri.parse(url))) {
+        await launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
+      } else {
+        throw Exception("Impossible d'ouvrir le lien de paiement");
+      }
+      
+      // 5. Close this screen (User will return via Deep Link to Success Screen)
+      if (mounted) {
+         Navigator.pop(context); // Close Registration Screen
+      }
+      
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Erreur: $e'), backgroundColor: Colors.red));
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
     }
-
-    setState(() {
-      _isLoading = false;
-      _pspConnected = true;
-    });
-  }
-
-  void _goToMerchantDashboard() {
-    // Switch to merchant mode
-    ref.read(merchantAccountProvider.notifier).switchToMerchant();
-    Navigator.pop(context);
   }
 }

@@ -394,7 +394,7 @@ class SettingsScreen extends ConsumerWidget {
                   children: [
                     Row(
                       children: [
-                        Text(user.displayName.isEmpty ? 'Membre Tontetic' : user.displayName, style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold)),
+                        Text(user.displayName.isEmpty ? 'Mon Profil' : user.displayName, style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold)),
                         const SizedBox(width: 8),
                         if (user.isProfileCertified) const Icon(Icons.verified, color: Colors.blue, size: 20),
                       ],

@@ -470,13 +470,13 @@ class _CreateTontineScreenState extends ConsumerState<CreateTontineScreen> {
       stream: FirebaseFirestore.instance.collection('users').doc(followerId).snapshots(),
       builder: (context, snapshot) {
         final user = ref.read(userProvider);
-        String name = user.displayName.isNotEmpty ? user.displayName : 'Membre Tontetic';
+        String name = user.displayName.isNotEmpty ? user.displayName : 'Organisateur';
         String avatar = '👤';
         int score = 50;
 
         if (snapshot.hasData && snapshot.data!.exists) {
           final data = snapshot.data!.data() as Map<String, dynamic>;
-          name = data['fullName'] ?? 'Membre Tontetic';
+          name = data['fullName'] ?? data['displayName'] ?? 'Membre';
           if (data['encryptedName'] != null) {
             try {
               name = SecurityService.decryptData(data['encryptedName']);

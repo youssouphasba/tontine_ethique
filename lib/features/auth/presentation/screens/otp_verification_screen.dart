@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:tontetic/core/theme/app_theme.dart';
 import 'package:tontetic/core/providers/auth_provider.dart';
+import 'package:go_router/go_router.dart';
 import 'package:tontetic/features/auth/presentation/screens/pending_approval_screen.dart';
 import 'dart:async';
 
@@ -54,11 +55,9 @@ class _OtpVerificationScreenState extends ConsumerState<OtpVerificationScreen> {
       final result = await authService.validateOtp(code);
       
       if (result.success && mounted) {
-        Navigator.pushAndRemoveUntil(
-          context, 
-          MaterialPageRoute(builder: (_) => const PendingApprovalScreen()), 
-          (route) => false
-        );
+        // Use GoRouter to navigate to pending approval
+        // This avoids race conditions with Auth State changes since we whitelisted the route
+        GoRouter.of(context).go('/pending-approval');
       } else if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text(result.error ?? 'Code invalide'), backgroundColor: Colors.red)

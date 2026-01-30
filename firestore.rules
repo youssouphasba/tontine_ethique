@@ -15,15 +15,16 @@ service cloud.firestore {
     function isMember(resourceData) {
       return isSignedIn() && (
         resourceData.creatorId == request.auth.uid || 
-        request.auth.uid in resourceData.members
+        request.auth.uid in resourceData.memberIds
       );
     }
 
     function isAdmin() {
       // Check for Firebase Custom Claims (request.auth.token.admin)
       // This is the most secure and performant way to handle admin rights.
+      // Also allowing @tontetic.com emails as a fallback/initial setup.
       return isSignedIn() && 
-        (request.auth.token.admin == true || request.auth.token.super_admin == true);
+        (request.auth.token.admin == true || request.auth.token.super_admin == true || request.auth.token.email.matches('.*@tontetic[.]com'));
     }
     
     // --- COLLECTIONS ---
@@ -103,9 +104,13 @@ service cloud.firestore {
       // limit checks removed here (moved to Cloud Function/App logic) to prevent Rule complexity errors
       allow create: if isSignedIn();
 
-      // Update: Members/Creator Only
-      // Detailed validation (e.g. locking fields) should be done via Cloud Functions for sensitive updates
-      allow update: if isMember(resource.data) || isAdmin();
+      // Update: Members/Creator Only OR Approved user finalizing membership
+      allow update: if isMember(resource.data) || isAdmin() || (
+        isSignedIn() && 
+        request.auth.uid in resource.data.pendingSignatureIds &&
+        request.resource.data.memberIds.hasAll(resource.data.memberIds.concat([request.auth.uid])) &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['memberIds', 'pendingSignatureIds'])
+      );
       
       // Delete: Only Creator (and maybe only if empty/pending)
       allow delete: if isSignedIn() && request.auth.uid == resource.data.creatorId;
@@ -152,14 +157,14 @@ service cloud.firestore {
 
     // ================= JOIN REQUESTS =================
     match /join_requests/{requestId} {
-      allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
+      allow create: if isSignedIn() && request.resource.data.requesterId == request.auth.uid;
       allow read: if isSignedIn() && (
-        resource.data.userId == request.auth.uid || 
+        resource.data.requesterId == request.auth.uid || 
         isAdmin() ||
         get(/databases/$(database)/documents/tontines/$(resource.data.circleId)).data.creatorId == request.auth.uid
       );
       allow update, delete: if isSignedIn() && (
-        resource.data.userId == request.auth.uid || 
+        resource.data.requesterId == request.auth.uid || 
         isAdmin() ||
         get(/databases/$(database)/documents/tontines/$(resource.data.circleId)).data.creatorId == request.auth.uid
       );

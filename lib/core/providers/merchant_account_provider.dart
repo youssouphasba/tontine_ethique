@@ -1,6 +1,7 @@
 import 'package:tontetic/core/providers/user_provider.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter/foundation.dart';
 import 'dart:async';
 
 // =============== ENUMS ===============
@@ -332,7 +333,7 @@ class MerchantAccountNotifier extends StateNotifier<MerchantAccountState> {
   }
 
   // ===== SHOP MANAGEMENT =====
-  Future<void> createShop({
+  Future<String> createShop({
     required String userId,
     required String shopName,
     String? professionalEmail,
@@ -349,18 +350,32 @@ class MerchantAccountNotifier extends StateNotifier<MerchantAccountState> {
       'category': category.toString().split('.').last,
       'address': address,
       'description': description,
-      'status': 'pending',
+      'status': 'pending_payment', // Waiting for Stripe Subscription
       'createdAt': FieldValue.serverTimestamp(),
     };
     await doc.set(shopData);
+    return doc.id;
   }
 
-  Future<void> activateShop(String pspAccountId) async {
-    if (state.shop == null) return;
-    await FirebaseFirestore.instance.collection('shops').doc(state.shop!.id).update({
+  Future<void> activateShop(String shopId) async {
+    // If shopId is provided, use it directly (useful for payment callback)
+    // Otherwise use current state shop
+    final targetId = shopId.isNotEmpty ? shopId : state.shop?.id;
+    
+    if (targetId == null) {
+        debugPrint("Error: activateShop called with no shopId and no state shop");
+        return;
+    }
+
+    await FirebaseFirestore.instance.collection('shops').doc(targetId).update({
       'status': 'active',
-      'pspAccountId': pspAccountId,
+      // 'pspAccountId': ... // No longer required for simple merchant sub
     });
+    
+    // Refresh local state if needed
+    if (state.shop?.id == targetId) {
+        // Optimistic update or wait for stream
+    }
   }
 
   Future<void> updateShop({

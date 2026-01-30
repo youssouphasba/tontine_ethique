@@ -33,6 +33,8 @@ class TontineInvitation {
   final DateTime createdAt;
   final DateTime expiresAt;
   final String? creatorNote;     // Note du créateur si refusé
+  final String type;             // 'join' or 'replacement'
+  final String? replacementForId; // ID of the member being replaced
 
   TontineInvitation({
     required this.id,
@@ -47,6 +49,8 @@ class TontineInvitation {
     required this.createdAt,
     required this.expiresAt,
     this.creatorNote,
+    this.type = 'join',
+    this.replacementForId,
   });
 
   bool get isPending => status == TontineInvitationStatus.pending;
@@ -66,6 +70,8 @@ class TontineInvitation {
     'created_at': createdAt.toIso8601String(),
     'expires_at': expiresAt.toIso8601String(),
     'creator_note': creatorNote,
+    'type': type,
+    'replacement_for_id': replacementForId,
   };
 
   factory TontineInvitation.fromJson(Map<String, dynamic> json) => TontineInvitation(
@@ -81,6 +87,8 @@ class TontineInvitation {
     createdAt: DateTime.parse(json['created_at']),
     expiresAt: DateTime.parse(json['expires_at']),
     creatorNote: json['creator_note'],
+    type: json['type'] ?? 'join',
+    replacementForId: json['replacement_for_id'],
   );
 }
 
@@ -136,6 +144,7 @@ class TontineInvitationService {
         status: TontineInvitationStatus.pending,
         createdAt: now,
         expiresAt: now.add(Duration(days: invitationExpiryDays)),
+        type: 'join',
       );
 
       await _collection.doc(invitation.id).set(invitation.toJson());
@@ -153,6 +162,48 @@ class TontineInvitationService {
         success: false,
         message: 'Erreur lors de l\'envoi de l\'invitation.',
       );
+    }
+  }
+
+  /// Envoyer une invitation de REMPLACEMENT
+  Future<InvitationResult> sendReplacementInvitation({
+    required String tontineId,
+    required String tontineName,
+    required String inviterId,
+    required String inviterName,
+    required String inviteePhone,
+    String? inviteeId, // Optional if known (mutual follower)
+    String? inviteeName,
+  }) async {
+    try {
+      final now = DateTime.now();
+      final invitation = TontineInvitation(
+        id: 'rep_${now.millisecondsSinceEpoch}',
+        tontineId: tontineId,
+        tontineName: tontineName,
+        inviterId: inviterId,
+        inviterName: inviterName,
+        inviteePhone: inviteePhone,
+        inviteeId: inviteeId,
+        inviteeName: inviteeName,
+        status: TontineInvitationStatus.pending, // Needs creator approval? Usually yes for replacement
+        createdAt: now,
+        expiresAt: now.add(Duration(days: invitationExpiryDays)),
+        type: 'replacement',
+        replacementForId: inviterId,
+      );
+
+      await _collection.doc(invitation.id).set(invitation.toJson());
+      
+      // Also potentially notify the CREATOR here if we had a NotificationService handy
+
+      return InvitationResult(
+        success: true,
+        message: 'Invitation de remplacement envoyée !',
+        invitation: invitation,
+      );
+    } catch (e) {
+       return InvitationResult(success: false, message: 'Erreur technique: $e');
     }
   }
 

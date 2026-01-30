@@ -22,6 +22,7 @@ import '../../features/auth/presentation/screens/type_selection_screen.dart';
 import '../../features/auth/presentation/screens/auth_screen.dart';
 import '../../features/auth/presentation/screens/individual_registration_screen.dart';
 import '../../features/auth/presentation/screens/company_registration_screen.dart';
+import '../../features/auth/presentation/screens/pending_approval_screen.dart';
 import '../../features/social/presentation/screens/direct_chat_screen.dart';
 import '../presentation/auth_wrapper.dart';
 import '../presentation/main_shell.dart';
@@ -67,6 +68,7 @@ final routerProvider = Provider<GoRouter>((ref) {
       final isPublicRoute = path == '/onboarding' || 
                            path == '/auth' || 
                            path == '/type-selection' ||
+                           path == '/pending-approval' ||
                            path.startsWith('/register') ||
                            path.startsWith('/join');
 
@@ -132,6 +134,10 @@ final routerProvider = Provider<GoRouter>((ref) {
         path: '/register-company',
         builder: (context, state) => CompanyRegistrationScreen(),
       ),
+      GoRoute(
+        path: '/pending-approval',
+        builder: (context, state) => const PendingApprovalScreen(),
+      ),
       
       // Invitation links - redirect to circle details with isJoined=false
       GoRoute(
@@ -155,12 +161,22 @@ final routerProvider = Provider<GoRouter>((ref) {
         builder: (context, state) {
           final returnUrl = state.uri.queryParameters['returnUrl'];
           final planId = state.uri.queryParameters['planId'];
-          return PaymentSuccessScreen(returnUrl: returnUrl, planId: planId);
+          final type = state.uri.queryParameters['type'];
+          final shopId = state.uri.queryParameters['shopId'];
+          return PaymentSuccessScreen(returnUrl: returnUrl, planId: planId, type: type, shopId: shopId);
         },
       ),
       GoRoute(
         path: '/connect/success',
         builder: (context, state) => const ConnectSuccessScreen(),
+      ),
+      GoRoute(
+        path: '/connect/refresh',
+        redirect: (context, state) {
+           // If connect flow expired or failed, go back to settings/dashboard
+           // Ideally we should show a snackbar, but for now just redirect
+           return '/settings';
+        },
       ),
       GoRoute(
         path: '/payment/cancel',
@@ -221,7 +237,7 @@ final routerProvider = Provider<GoRouter>((ref) {
             path: '/profile',
             builder: (context, state) {
               final isMe = state.uri.queryParameters['isMe'] == 'true';
-              return ProfileScreen(userName: state.uri.queryParameters['name'] ?? 'Utilisateur', isMe: isMe);
+              return ProfileScreen(userName: state.uri.queryParameters['name'] ?? 'Membre', isMe: isMe);
             },
           ),
           GoRoute(

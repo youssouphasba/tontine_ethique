@@ -37,14 +37,42 @@ class ProfileScreen extends ConsumerWidget {
            zone: UserZone.zoneEuro,
            status: AccountStatus.guest,
            encryptedName: SecurityService.encryptData(userName),
-           bio: 'Membre Tontetic',
+           bio: 'Membre Passionné',
            jobTitle: 'Membre',
         );
 
         if (snapshot.hasData && snapshot.data!.exists) {
            final data = snapshot.data!.data() as Map<String, dynamic>;
+           
+           // Improved name detection
+           String? detectedName;
+           final fullName = data['fullName'] as String?;
+           final dispName = data['displayName'] as String?;
+           final pseudo = data['pseudo'] as String?;
+           final email = data['email'] as String?;
+           final encrypted = data['encryptedName'] as String?;
+
+           if (fullName != null && fullName.isNotEmpty && !fullName.contains('Utilisateur')) {
+             detectedName = fullName;
+           } else if (dispName != null && dispName.isNotEmpty && !dispName.contains('Utilisateur')) {
+             detectedName = dispName;
+           } else if (pseudo != null && pseudo.isNotEmpty) {
+             detectedName = pseudo;
+           } else if (encrypted != null && encrypted.isNotEmpty) {
+             try {
+               final decrypted = SecurityService.decryptData(encrypted);
+               if (decrypted.isNotEmpty && !decrypted.contains('Utilisateur')) {
+                 detectedName = decrypted;
+               }
+             } catch (_) {}
+           }
+
+           if (detectedName == null && email != null && email.contains('@')) {
+             detectedName = email.split('@').first;
+           }
+           
            otherUser = otherUser.copyWith(
-             encryptedName: SecurityService.encryptData(data['fullName'] ?? userName),
+             encryptedName: SecurityService.encryptData(detectedName ?? userName),
              photoUrl: data['photoUrl'],
              bio: data['bio'],
              jobTitle: data['jobTitle'],
@@ -62,8 +90,8 @@ class ProfileScreen extends ConsumerWidget {
     final social = ref.watch(socialProvider);
     final displayName = user.displayName.isEmpty ? userName : user.displayName;
     final photoUrl = user.photoUrl; // REAL: No more pravatar fallback
-    final bio = user.bio.isNotEmpty ? user.bio : 'Membre Tontetic';
-    final jobTitle = user.jobTitle.isNotEmpty ? user.jobTitle : 'Membre';
+    final bio = (user.bio.isNotEmpty && user.bio != 'Membre Tontetic') ? user.bio : 'Membre Passionné';
+    final jobTitle = (user.jobTitle.isNotEmpty && user.jobTitle != 'Membre') ? user.jobTitle : 'Contributeur';
     final honorScore = user.honorScore;
 
     final followers = social.getFollowers(user.uid);
@@ -301,21 +329,22 @@ class ProfileScreen extends ConsumerWidget {
                       final data = docs[index].data() as Map<String, dynamic>;
                       final targetUserId = docs[index].id;
                       final String? fullName = data['fullName'];
-                      final String? displayNameRaw = data['displayName'];
-                      final String? nameField = data['name'];
+                      final String? dispName = data['displayName'];
+                      final String? pseudo = data['pseudo'];
+                      final String? email = data['email'];
                       
-                      String targetName;
-                      if (fullName != null && fullName.isNotEmpty) {
+                      String targetName = '';
+                      if (fullName != null && fullName.isNotEmpty && !fullName.contains('Utilisateur')) {
                         targetName = fullName;
-                      } else if (displayNameRaw != null && displayNameRaw.isNotEmpty) {
-                        targetName = displayNameRaw;
-                      } else if (nameField != null && nameField.isNotEmpty) {
-                        targetName = nameField;
+                      } else if (dispName != null && dispName.isNotEmpty && !dispName.contains('Utilisateur')) {
+                        targetName = dispName;
+                      } else if (pseudo != null && pseudo.isNotEmpty) {
+                        targetName = pseudo;
+                      } else if (email != null && email.contains('@')) {
+                        targetName = email.split('@').first;
                       } else {
-                        targetName = 'Membre Tontetic';
+                        targetName = 'Memb-${targetUserId.substring(0, 4)}';
                       }
-                      
-                      if (targetName == 'Utilisateur') targetName = 'Membre Tontetic';
                       
                       return ListTile(
                         leading: CircleAvatar(

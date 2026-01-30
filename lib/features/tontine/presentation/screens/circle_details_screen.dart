@@ -11,6 +11,8 @@ import 'package:tontetic/core/presentation/widgets/speaker_icon.dart';
 import 'package:tontetic/features/tontine/presentation/screens/circle_chat_screen.dart';
 import 'package:tontetic/features/tontine/presentation/screens/exit_circle_screen.dart';
 import 'package:tontetic/core/providers/auth_provider.dart';
+import 'package:tontetic/features/tontine/presentation/screens/legal_commitment_screen.dart';
+import 'package:tontetic/core/services/notification_service.dart';
 
 class CircleDetailsScreen extends ConsumerWidget {
   final String circleName;
@@ -107,38 +109,126 @@ class CircleDetailsScreen extends ConsumerWidget {
                 _buildInviteButton(context),
                 const SizedBox(height: 12),
                 if (isAdmin) _buildPendingRequests(context, ref),
-                if (isJoined)
-                  StreamBuilder<List<Map<String, dynamic>>>(
-                    stream: circleService.getCircleMembers(circleId, user.uid),
-                    builder: (context, snapshot) {
-                      if (snapshot.connectionState == ConnectionState.waiting) {
-                        return const Center(child: CircularProgressIndicator());
-                      }
-                      if (snapshot.hasError) {
-                        return Text('Erreur chargement membres: ${snapshot.error}', style: const TextStyle(color: Colors.red));
-                      }
-                      
-                      final members = snapshot.data ?? [];
-                      if (members.isEmpty) {
-                        return const Padding(
-                          padding: EdgeInsets.all(16.0),
-                          child: Text('Aucun membre trouvé (ou chargement...)', style: TextStyle(fontStyle: FontStyle.italic, color: Colors.grey)),
-                        );
-                      }
-    
-                      return Column(
-                        children: members.map((m) => _buildMemberTile(context, m, circle)).toList(), 
-                      );
-                    },
-                  )
-                else
-                  _buildJoinSection(context, ref, circle),
+                
+                // V16: Always show members (Public View)
+                const Padding(
+                  padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  child: Text('Participants', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                ),
+                StreamBuilder<List<Map<String, dynamic>>>(
+                  stream: circleService.getCircleMembers(circleId, user.uid),
+                  builder: (context, snapshot) {
+                     if (snapshot.connectionState == ConnectionState.waiting) {
+                       return const Center(child: CircularProgressIndicator());
+                     }
+                     final members = snapshot.data ?? [];
+                     if (members.isEmpty) {
+                       return const Padding(
+                         padding: EdgeInsets.all(16.0),
+                         child: Text('Aucun participant pour le moment.', style: TextStyle(fontStyle: FontStyle.italic, color: Colors.grey)),
+                       );
+                     }
+                     return Column(
+                       children: members.map((m) => _buildMemberTile(context, m, circle)).toList(), 
+                     );
+                  },
+                ),
+                
+                const SizedBox(height: 24),
+
+                // Join / Sign Actions
+                if (!isJoined) ...[
+                  if (circle.pendingSignatureIds.contains(user.uid))
+                     _buildFinalizeMembershipSection(context, ref, circle)
+                  else
+                    _buildJoinSection(context, ref, circle),
+                ] else
+                   const Center(child: Text('Vous êtes membre de ce cercle.', style: TextStyle(color: Colors.green, fontWeight: FontWeight.bold))),
+
+                // V16: Creator Management Section (Join Requests)
+                if (circle.creatorId == user.uid) ...[
+                  const SizedBox(height: 24),
+                  _buildJoinRequestsSection(context, ref, circle),
+                ],
+
+                const SizedBox(height: 48),
               ],
             ),
           ),
         );
       },
     );
+  }
+
+  Widget _buildFinalizeMembershipSection(BuildContext context, WidgetRef ref, TontineCircle circle) {
+    return Container(
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        color: Colors.green.shade50,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.green),
+      ),
+      child: Column(
+        children: [
+          const Icon(Icons.check_circle_outline, size: 48, color: Colors.green),
+          const SizedBox(height: 16),
+          const Text(
+            'Demande Approuvée !',
+            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: Colors.green),
+          ),
+          const SizedBox(height: 8),
+          const Text(
+            'L\'administrateur a validé votre demande. Il ne vous reste plus qu\'à signer la charte pour entrer.',
+            textAlign: TextAlign.center,
+            style: TextStyle(fontSize: 13),
+          ),
+          const SizedBox(height: 24),
+          SizedBox(
+            width: double.infinity,
+            height: 50,
+            child: ElevatedButton(
+              onPressed: () => _showLegalCommitment(context, ref, circle),
+              style: ElevatedButton.styleFrom(backgroundColor: Colors.green, foregroundColor: Colors.white),
+              child: const Text('SIGNER ET ENTRER'),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showLegalCommitment(BuildContext context, WidgetRef ref, TontineCircle circle) {
+    Navigator.of(context).push(MaterialPageRoute(builder: (_) => 
+      LegalCommitmentScreen(
+        amount: circle.amount,
+        onAccepted: () async {
+          final user = ref.read(userProvider);
+          final String circleId = circle.id;
+          
+          Navigator.pop(context); // Close Legal Screen
+
+          try {
+            await ref.read(circleProvider.notifier).finalizeMembership(circleId, user.uid);
+            
+            if (context.mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Bienvenue ! Vous êtes maintenant membre.')));
+              // Force refresh/rebuild will check "isJoined" next time
+            }
+            
+            // Notification
+            NotificationService.showNewMemberAlert(
+                memberName: user.displayName, 
+                circleName: circle.name,
+            );
+
+          } catch (e) {
+             if (context.mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Erreur: $e'), backgroundColor: Colors.red));
+             }
+          }
+        },
+      )
+    ));
   }
 
   Widget _buildJoinSection(BuildContext context, WidgetRef ref, TontineCircle? circle) {
@@ -489,6 +579,77 @@ class CircleDetailsScreen extends ConsumerWidget {
         ),
       ],
     );
+  }
+
+  Widget _buildJoinRequestsSection(BuildContext context, WidgetRef ref, TontineCircle circle) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Padding(
+          padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          child: Text('Demandes d\'adhésion', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+        ),
+        StreamBuilder<List<JoinRequest>>(
+          stream: ref.read(circleServiceProvider).getJoinRequestsForCircle(circle.id),
+          builder: (context, snapshot) {
+            if (snapshot.connectionState == ConnectionState.waiting) {
+              return const Center(child: Padding(
+                padding: EdgeInsets.all(8.0),
+                child: CircularProgressIndicator(),
+              ));
+            }
+            
+            final requests = snapshot.data ?? [];
+            if (requests.isEmpty) {
+              return const Padding(
+                padding: EdgeInsets.all(16.0),
+                child: Text('Aucune demande en attente.', style: TextStyle(fontStyle: FontStyle.italic, color: Colors.grey)),
+              );
+            }
+
+            return Column(
+              children: requests.map((req) => Card(
+                margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                child: ListTile(
+                  leading: const CircleAvatar(child: Icon(Icons.person)),
+                  title: Text(req.requesterName),
+                  subtitle: Text(req.message != null && req.message!.isNotEmpty ? req.message! : 'Souhaite rejoindre le cercle'),
+                  trailing: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      IconButton(
+                        icon: const Icon(Icons.check_circle, color: Colors.green),
+                        onPressed: () => _approveRequest(context, ref, req, circle),
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.cancel, color: Colors.red),
+                        onPressed: () {
+                          // TODO: Implement reject logic in CircleService
+                          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Rejet non encore implémenté')));
+                        },
+                      ),
+                    ],
+                  ),
+                ),
+              )).toList(),
+            );
+          },
+        ),
+      ],
+    );
+  }
+
+  void _approveRequest(BuildContext context, WidgetRef ref, JoinRequest request, TontineCircle circle) async {
+    try {
+      await ref.read(circleProvider.notifier).approveJoinRequest(request.id, circle.id, request.requesterId);
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Demande de ${request.requesterName} approuvée !')));
+      }
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Erreur: $e'), backgroundColor: Colors.red));
+      }
+    }
   }
 
   Widget _buildMemberTile(BuildContext context, Map<String, dynamic> member, TontineCircle circle) {

@@ -115,7 +115,7 @@ class _LegalCommitmentScreenState extends ConsumerState<LegalCommitmentScreen> {
       if (connectAccountId == null) {
         final displayName = user.displayName.isNotEmpty 
             ? user.displayName 
-            : ref.read(userProvider).displayName.isNotEmpty ? ref.read(userProvider).displayName : 'Membre Tontetic';
+            : ref.read(userProvider).displayName.isNotEmpty ? ref.read(userProvider).displayName : 'Membre';
             
         connectAccountId = await StripeService.createConnectAccount(
           email: email,

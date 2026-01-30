@@ -2,6 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
 import 'package:tontetic/core/providers/circle_provider.dart';
 import 'package:tontetic/core/services/security_service.dart';
+import 'package:tontetic/core/services/notification_service.dart';
 
 /// Service pour gérer les cercles de tontine dans Firestore
 class CircleService {
@@ -102,7 +103,7 @@ class CircleService {
                final userData = userDoc.data()!;
                
                // Decrypt Name
-               String name = userData['fullName'] ?? 'Membre Tontetic';
+               String name = userData['fullName'] ?? userData['displayName'] ?? userData['pseudo'] ?? 'Membre';
                if (userData['encryptedName'] != null) {
                  try {
                     name = SecurityService.decryptData(userData['encryptedName']);
@@ -141,6 +142,52 @@ class CircleService {
       rethrow;
     }
   }
+  
+  /// Get requests sent by me
+  Stream<List<JoinRequest>> getMyJoinRequests(String userId) {
+    return _db
+        .collection('join_requests')
+        .where('requesterId', isEqualTo: userId)
+        .snapshots()
+        .map((snapshot) => snapshot.docs.map((doc) {
+          final data = doc.data();
+          return JoinRequest(
+            id: doc.id,
+            circleId: data['circleId'] ?? '',
+            circleName: data['circleName'] ?? '',
+            requesterId: data['requesterId'] ?? '',
+            requesterName: data['requesterName'] ?? '',
+            requestedAt: (data['requestedAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
+            status: JoinRequestStatus.values.firstWhere(
+              (e) => e.name == (data['status'] ?? 'pending'),
+              orElse: () => JoinRequestStatus.pending,
+            ),
+            message: data['message'],
+          );
+        }).toList());
+  }
+
+  /// Get pending requests for a specific circle (for Creator)
+  Stream<List<JoinRequest>> getJoinRequestsForCircle(String circleId) {
+    return _db
+        .collection('join_requests')
+        .where('circleId', isEqualTo: circleId)
+        .where('status', isEqualTo: 'pending')
+        .snapshots()
+        .map((snapshot) => snapshot.docs.map((doc) {
+          final data = doc.data();
+          return JoinRequest(
+            id: doc.id,
+            circleId: data['circleId'] ?? '',
+            circleName: data['circleName'] ?? '',
+            requesterId: data['requesterId'] ?? '',
+            requesterName: data['requesterName'] ?? '',
+            requestedAt: (data['requestedAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
+            status: JoinRequestStatus.pending,
+            message: data['message'],
+          );
+        }).toList());
+  }
 
   /// Envoyer une demande d'adhésion
   Future<void> requestToJoin({
@@ -151,6 +198,18 @@ class CircleService {
     String? message,
   }) async {
     try {
+      // 1. Check if a request already exists to avoid duplicates
+      final existing = await _db.collection('join_requests')
+          .where('circleId', isEqualTo: circleId)
+          .where('requesterId', isEqualTo: requesterId)
+          .where('status', isEqualTo: 'pending')
+          .get();
+          
+      if (existing.docs.isNotEmpty) {
+        throw Exception("Une demande est déjà en attente pour ce cercle.");
+      }
+
+      // 2. Add the request
       await _db.collection('join_requests').add({
         'circleId': circleId,
         'circleName': circleName,
@@ -160,21 +219,90 @@ class CircleService {
         'status': 'pending',
         'message': message,
       });
+
+      // 3. Trigger notification for creator
+      final circleDoc = await _db.collection('tontines').doc(circleId).get();
+      if (circleDoc.exists) {
+        final creatorId = circleDoc.data()?['creatorId'];
+        if (creatorId != null) {
+          // Persist in Firestore
+          await _db.collection('users').doc(creatorId).collection('notifications').add({
+            'title': 'Nouvelle demande ! 👤',
+            'message': '$requesterName souhaite rejoindre "$circleName".',
+            'circleId': circleId,
+            'requesterId': requesterId,
+            'type': 'join_request',
+            'timestamp': FieldValue.serverTimestamp(),
+            'read': false,
+          });
+
+          // External alert
+          NotificationService.sendJoinRequestNotification(
+            creatorId: creatorId,
+            requesterName: requesterName,
+            circleName: circleName,
+          );
+        }
+      }
     } catch (e) {
       debugPrint('❌ Erreur demande adhésion: $e');
       rethrow;
     }
   }
 
-  /// Approuver une demande
+  /// Approuver une demande (V16: Passage en "Pending Signature")
   Future<void> approveRequest(String requestId, String circleId, String userId) async {
+    try {
+      // 1. Get request details to get the circle name
+      final requestDoc = await _db.collection('join_requests').doc(requestId).get();
+      if (!requestDoc.exists) throw Exception("Demande introuvable.");
+      final requestData = requestDoc.data()!;
+      final circleName = requestData['circleName'] ?? 'Cercle';
+
+      final batch = _db.batch();
+      
+      // 2. Update request status
+      batch.update(_db.collection('join_requests').doc(requestId), {
+        'status': 'approved',
+      });
+      
+      // 3. Add to pendingSignatureIds in Tontine
+      batch.update(_db.collection('tontines').doc(circleId), {
+        'pendingSignatureIds': FieldValue.arrayUnion([userId]),
+      });
+
+      // 4. Create a REAL in-app notification document for the user
+      final notifRef = _db.collection('users').doc(userId).collection('notifications').doc();
+      batch.set(notifRef, {
+        'id': notifRef.id,
+        'title': 'Demande Approuvée ! 🎉',
+        'message': 'Votre demande pour rejoindre "$circleName" a été acceptée. Veuillez signer la charte pour finaliser.',
+        'circleId': circleId,
+        'type': 'join_approval',
+        'timestamp': FieldValue.serverTimestamp(),
+        'read': false,
+      });
+      
+      await batch.commit();
+
+      // 5. Trigger external alert (Debug/Simulation context for SMS/Mail)
+      NotificationService.sendJoinApprovalNotification(
+        requesterId: userId,
+        circleName: circleName,
+      );
+    } catch (e) {
+      debugPrint('❌ Erreur approbation demande: $e');
+      rethrow;
+    }
+  }
+
+  /// Finaliser l'adhésion après signature légale
+  Future<void> finalizeMembership(String circleId, String userId) async {
     final batch = _db.batch();
     
-    batch.update(_db.collection('join_requests').doc(requestId), {
-      'status': 'approved',
-    });
-    
+    // Move from pendingSignature to memberIds
     batch.update(_db.collection('tontines').doc(circleId), {
+      'pendingSignatureIds': FieldValue.arrayRemove([userId]),
       'memberIds': FieldValue.arrayUnion([userId]),
     });
     
@@ -202,6 +330,7 @@ class CircleService {
       createdAt: (data['createdAt'] as Timestamp).toDate(),
       memberIds: List<String>.from(data['memberIds'] ?? []),
       currentCycle: data['currentCycle'] ?? 1,
+      pendingSignatureIds: List<String>.from(data['pendingSignatureIds'] ?? []),
     );
   }
 

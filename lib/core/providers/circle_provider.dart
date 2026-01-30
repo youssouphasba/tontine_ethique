@@ -66,7 +66,8 @@ class TontineCircle {
   final List<String> memberIds;
   final int currentCycle;
   final String currency; // V15: Dynamic Currency Support
-  final List<JoinRequest> joinRequests; // V15: Pending join requests
+  final List<JoinRequest> joinRequests; // V16: Requests to join
+  final List<String> pendingSignatureIds; // V16: Approved but not signed yet
 
   TontineCircle({
     required this.id,
@@ -87,6 +88,7 @@ class TontineCircle {
     this.currency = 'FCFA',
     this.currentCycle = 1,
     this.joinRequests = const [],
+    this.pendingSignatureIds = const [],
   });
 
   TontineCircle copyWith({
@@ -95,6 +97,7 @@ class TontineCircle {
     String? currency,
     List<String>? memberIds,
     List<JoinRequest>? joinRequests,
+    List<String>? pendingSignatureIds,
   }) {
     return TontineCircle(
       id: id ?? this.id,
@@ -115,6 +118,7 @@ class TontineCircle {
       currency: currency ?? this.currency,
       currentCycle: currentCycle ?? this.currentCycle,
       joinRequests: joinRequests ?? this.joinRequests,
+      pendingSignatureIds: pendingSignatureIds ?? this.pendingSignatureIds,
     );
   }
 
@@ -164,6 +168,7 @@ class CircleNotifier extends StateNotifier<CircleState> {
   final Ref ref;
   StreamSubscription? _myCirclesSub;
   StreamSubscription? _explorerCirclesSub;
+  StreamSubscription? _myRequestsSub;
 
   CircleNotifier(this.ref) : super(CircleState()) {
     _initListeners();
@@ -190,9 +195,18 @@ class CircleNotifier extends StateNotifier<CircleState> {
             state = state.copyWith(myCircles: circles);
           }
         });
+        
+        // V16: Listen to my requests
+        _myRequestsSub?.cancel();
+        _myRequestsSub = circleService.getMyJoinRequests(user.uid).listen((requests) {
+          if (mounted) {
+            state = state.copyWith(myJoinRequests: requests);
+          }
+        });
       } else {
         _myCirclesSub?.cancel();
-        state = state.copyWith(myCircles: []);
+        _myRequestsSub?.cancel();
+        state = state.copyWith(myCircles: [], myJoinRequests: []);
       }
     });
   }
@@ -263,6 +277,10 @@ class CircleNotifier extends StateNotifier<CircleState> {
 
   Future<void> approveJoinRequest(String requestId, String circleId, String userId) async {
     await ref.read(circleServiceProvider).approveRequest(requestId, circleId, userId);
+  }
+
+  Future<void> finalizeMembership(String circleId, String userId) async {
+    await ref.read(circleServiceProvider).finalizeMembership(circleId, userId);
   }
 
   // Debug/Sandbox methods

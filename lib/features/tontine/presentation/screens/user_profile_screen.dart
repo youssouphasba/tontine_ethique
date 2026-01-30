@@ -10,7 +10,9 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:tontetic/core/providers/user_provider.dart';
 import 'package:tontetic/core/theme/app_theme.dart';
 import 'package:tontetic/core/providers/localization_provider.dart';
-import 'package:tontetic/features/advertising/presentation/screens/merchant_dashboard_screen.dart';
+import 'package:tontetic/features/merchant/presentation/screens/merchant_dashboard_screen.dart';
+import 'package:tontetic/features/merchant/presentation/screens/create_merchant_account_screen.dart';
+import 'package:tontetic/core/providers/merchant_account_provider.dart';
 
 /// Privacy levels for profile fields
 /// - public: Visible to everyone
@@ -336,27 +338,62 @@ class _UserProfileScreenState extends ConsumerState<UserProfileScreen> {
               ),
             ),
 
-            // Merchant Mode (for business accounts)
-            if (user.userType == UserType.company) ...[
-              const SizedBox(height: 24),
-              ListTile(
-                contentPadding: EdgeInsets.zero,
-                leading: Container(
-                  padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    color: isDark ? Colors.purple.withValues(alpha: 0.2) : Colors.purple.shade50, 
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: const Icon(Icons.storefront, color: Colors.purple),
-                ),
-                title: Text(l10n.translate('tab_merchant'), style: const TextStyle(fontWeight: FontWeight.bold)),
-                subtitle: const Text('Gérez vos campagnes de publicité'),
-                trailing: const Icon(Icons.arrow_forward_ios, size: 16),
-                onTap: () {
-                   Navigator.of(context).push(MaterialPageRoute(builder: (_) => const MerchantDashboardScreen()));
-                },
-              ),
-            ],
+            // Merchant Entry Point (For ALL users)
+            const SizedBox(height: 24),
+            Consumer(
+              builder: (context, ref, child) {
+                final hasShop = ref.watch(hasMerchantAccountProvider);
+                final isMerchantMode = ref.watch(isMerchantModeProvider);
+                
+                // If user is ALREADY a company type, they might be using Corporate features
+                // But if they also want to sell, or if they are Individual...
+                
+                if (hasShop) {
+                  return ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    leading: Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: isDark ? Colors.purple.withValues(alpha: 0.2) : Colors.purple.shade50, 
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: const Icon(Icons.store, color: Colors.purple),
+                    ),
+                    title: Text(isMerchantMode ? 'Dashboard Marchand' : 'Accéder à ma boutique', style: const TextStyle(fontWeight: FontWeight.bold)),
+                    subtitle: const Text('Gérez vos produits et commandes'),
+                    trailing: const Icon(Icons.arrow_forward_ios, size: 16),
+                    onTap: () {
+                       ref.read(merchantAccountProvider.notifier).switchToMerchant();
+                       Navigator.of(context).push(MaterialPageRoute(builder: (_) => const MerchantDashboardScreen()));
+                    },
+                  );
+                } else if (user.userType == UserType.individual) {
+                  // Allow individuals to become merchants
+                  return ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    leading: Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: isDark ? Colors.orange.withValues(alpha: 0.2) : Colors.orange.shade50, 
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: const Icon(Icons.storefront, color: Colors.orange),
+                    ),
+                    title: const Text('Devenir Marchand', style: TextStyle(fontWeight: FontWeight.bold)),
+                    subtitle: const Text('Créez votre boutique et commencez à vendre'),
+                    trailing: const Icon(Icons.arrow_forward_ios, size: 16),
+                    onTap: () {
+                       // Lazy import to avoid circular dependencies if possible, but here we need direct route
+                       Navigator.of(context).push(MaterialPageRoute(builder: (_) => const CreateMerchantAccountScreen()));
+                    },
+                  );
+                }
+                
+                // For Corporate users who don't have a shop yet, we might restrict them or allow them too?
+                // For now, let's keep Corporate focused on Tontines, unless they explicitly ask.
+                return const SizedBox.shrink();
+              },
+            ),
                
             const SizedBox(height: 32),
             

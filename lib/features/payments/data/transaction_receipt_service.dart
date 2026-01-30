@@ -47,7 +47,7 @@ class TransactionReceiptService {
               _buildDetailRow('Date', dateFormat.format(log.timestamp)),
               _buildDetailRow('Méthode', log.provider.name.toUpperCase()),
               _buildDetailRow('Transaction ID', log.transactionId ?? 'N/A'),
-              _buildDetailRow('Utilisateur', log.userId ?? 'N/A'),
+              _buildDetailRow('Membre', log.userId ?? 'N/A'),
               
               pw.SizedBox(height: 15),
               

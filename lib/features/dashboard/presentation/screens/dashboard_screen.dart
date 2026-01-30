@@ -174,7 +174,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> with SingleTi
           ),
           IconButton(
             icon: const Icon(Icons.notifications_none, color: Colors.white),
-            onPressed: () => ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('🔔 Notifications bientôt disponibles !'))),
+            onPressed: () => _showNotifications(context, ref),
           ),
           CircleAvatar(
             radius: 16,
@@ -1189,6 +1189,142 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> with SingleTi
               child: const Text('Créer un compte maintenant'),
             ),
           ],
+        ),
+      ),
+    );
+  }
+
+  void _showNotifications(BuildContext context, WidgetRef ref) {
+    final user = ref.read(authStateProvider).value;
+    if (user == null) return;
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => DraggableScrollableSheet(
+        initialChildSize: 0.6,
+        minChildSize: 0.4,
+        maxChildSize: 0.9,
+        builder: (_, scrollController) => Container(
+          decoration: BoxDecoration(
+            color: Theme.of(context).scaffoldBackgroundColor,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+          ),
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            children: [
+              Container(
+                width: 40,
+                height: 4,
+                margin: const EdgeInsets.bottom(16),
+                decoration: BoxDecoration(color: Colors.grey[300], borderRadius: BorderRadius.circular(2)),
+              ),
+              const Text('Centre de Notifications', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+              const SizedBox(height: 16),
+              Expanded(
+                child: StreamBuilder<QuerySnapshot>(
+                  stream: FirebaseFirestore.instance
+                      .collection('users')
+                      .doc(user.uid)
+                      .collection('notifications')
+                      .orderBy('timestamp', descending: true)
+                      .snapshots(),
+                  builder: (context, snapshot) {
+                    if (snapshot.hasError) return Center(child: Text('Erreur: ${snapshot.error}'));
+                    if (snapshot.connectionState == ConnectionState.waiting) return const Center(child: CircularProgressIndicator());
+
+                    final notes = snapshot.data?.docs ?? [];
+                    if (notes.isEmpty) {
+                      return const Center(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(Icons.notifications_off_outlined, size: 64, color: Colors.grey),
+                            SizedBox(height: 16),
+                            Text('Aucune notification pour le moment.', style: TextStyle(color: Colors.grey)),
+                          ],
+                        ),
+                      );
+                    }
+
+                    return ListView.builder(
+                      controller: scrollController,
+                      itemCount: notes.length,
+                      itemBuilder: (ctx, i) {
+                        final doc = notes[i];
+                        final n = doc.data() as Map<String, dynamic>;
+                        final type = n['type'] ?? 'info';
+                        final isRead = n['read'] ?? false;
+                        
+                        IconData iconData = Icons.info_outline;
+                        Color iconColor = Colors.blue;
+                        
+                        if (type == 'join_approval') {
+                          iconData = Icons.check_circle_outline;
+                          iconColor = Colors.green;
+                        } else if (type == 'join_request') {
+                          iconData = Icons.person_add_outlined;
+                          iconColor = Colors.orange;
+                        }
+
+                        return Card(
+                          elevation: isRead ? 0 : 2,
+                          color: isRead ? Colors.transparent : (Theme.of(context).brightness == Brightness.dark ? Colors.grey[900] : Colors.white),
+                          margin: const EdgeInsets.only(bottom: 8),
+                          child: ListTile(
+                            leading: CircleAvatar(
+                              backgroundColor: iconColor.withValues(alpha: 0.1),
+                              child: Icon(iconData, color: iconColor),
+                            ),
+                            title: Text(n['title'] ?? 'Notification', style: TextStyle(fontWeight: isRead ? FontWeight.normal : FontWeight.bold)),
+                            subtitle: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(n['message'] ?? ''),
+                                if (n['timestamp'] != null)
+                                  Padding(
+                                    padding: const EdgeInsets.only(top: 4),
+                                    child: Text(
+                                      DateFormat('dd/MM HH:mm').format((n['timestamp'] as Timestamp).toDate()),
+                                      style: const TextStyle(fontSize: 10, color: Colors.grey),
+                                    ),
+                                  ),
+                              ],
+                            ),
+                            trailing: IconButton(
+                              icon: const Icon(Icons.close, size: 18),
+                              onPressed: () => FirebaseFirestore.instance
+                                  .collection('users')
+                                  .doc(user.uid)
+                                  .collection('notifications')
+                                  .doc(doc.id)
+                                  .delete(),
+                            ),
+                            onTap: () {
+                              // Mark as read
+                              FirebaseFirestore.instance
+                                  .collection('users')
+                                  .doc(user.uid)
+                                  .collection('notifications')
+                                  .doc(doc.id)
+                                  .update({'read': true});
+                              
+                              // Logic based on type
+                              if (type == 'join_approval' && n['circleId'] != null) {
+                                Navigator.pop(ctx);
+                                context.push('/circle-details/${n['circleId']}');
+                              }
+                            },
+                          ),
+                        );
+                      },
+                    );
+                  },
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );

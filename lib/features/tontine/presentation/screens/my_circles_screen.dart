@@ -16,7 +16,8 @@ import 'package:tontetic/features/tontine/presentation/screens/qr_scanner_screen
 import 'package:tontetic/core/providers/localization_provider.dart';
 import 'package:tontetic/core/providers/circle_provider.dart';
 import 'package:tontetic/core/providers/auth_provider.dart';
-import 'package:tontetic/features/tontine/presentation/screens/circle_details_screen.dart';
+import 'package:tontetic/features/tontine/presentation/screens/circle_chat_screen.dart';
+import 'package:tontetic/features/tontine/presentation/screens/circle_details_screen.dart'; // V16 Import
 import 'package:go_router/go_router.dart';
 import 'package:tontetic/core/models/plan_model.dart';
 import 'package:tontetic/core/providers/plans_provider.dart';
@@ -222,8 +223,6 @@ class _MyTontinesTab extends ConsumerWidget {
                 // Règle 6: Dashboard utilisateur
                 _buildUserDashboardCard(context, ref),
                 
-                // V4.0 Social Feed - responsive height
-                _buildActivityFeed(context, ref, activityFeedHeight),
                 
                 // Circles list
                 if (circleState.myCircles.isEmpty)
@@ -516,89 +515,6 @@ class _MyTontinesTab extends ConsumerWidget {
     );
   }
 
-  Widget _buildActivityFeed(BuildContext context, WidgetRef ref, double height) {
-    final activities = ref.watch(socialProvider).activities;
-
-    return Container(
-      height: height,
-      width: double.infinity,
-      color: Theme.of(context).brightness == Brightness.dark ? const Color(0xFF1E1E1E) : Colors.white,
-      padding: const EdgeInsets.symmetric(vertical: 8),
-      margin: const EdgeInsets.only(bottom: 8),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                const Text('Activités des Amis ⚡', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
-                TextButton.icon(
-                  onPressed: () {
-                     // Invite generic friend
-                     Share.share('Rejoignez la communauté Tontetic et gérez vos tontines en toute sécurité !\nhttps://tontetic-app.web.app');
-                  },
-                  icon: const Icon(Icons.share, size: 16),
-                  label: const Text('Inviter contacts', style: TextStyle(fontSize: 12)),
-                ),
-              ],
-            ),
-          ),
-          Expanded(
-            child: ListView.separated(
-              scrollDirection: Axis.horizontal,
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              itemCount: activities.length,
-              separatorBuilder: (_, _) => const SizedBox(width: 12),
-              itemBuilder: (context, index) {
-                final act = activities[index];
-                return Container(
-                  width: 200,
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: Theme.of(context).brightness == Brightness.dark ? const Color(0xFF2C2C2C) : Colors.grey[50],
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: Theme.of(context).brightness == Brightness.dark ? Colors.grey[700]! : Colors.grey[200]!),
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          CircleAvatar(
-                            radius: 12, 
-                            backgroundColor: Colors.blue[100], 
-                            backgroundImage: act.userAvatar.isNotEmpty ? NetworkImage(act.userAvatar) : null,
-                            child: act.userAvatar.isEmpty ? Text(act.userName[0]) : null,
-                          ),
-                          const SizedBox(width: 8),
-                          Text(act.userName, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
-                        ],
-                      ),
-                      const SizedBox(height: 8),
-                      Text(act.description, style: TextStyle(fontSize: 11, color: Theme.of(context).brightness == Brightness.dark ? Colors.white70 : Colors.black87), maxLines: 2, overflow: TextOverflow.ellipsis),
-                      const Spacer(),
-                      // Action - ex: Rejoindre si c'est une création
-                      if (act.actionLabel.isNotEmpty)
-                        SizedBox(
-                          height: 24,
-                          child: OutlinedButton(
-                            onPressed: () => context.push('/explorer'),
-                            style: OutlinedButton.styleFrom(padding: EdgeInsets.zero),
-                            child: Text(act.actionLabel, style: const TextStyle(fontSize: 10)),
-                          ),
-                        )
-                    ],
-                  ),
-                );
-              },
-            ),
-          ),
-        ],
-      ),
-    );
-  }
 
   }
 
@@ -614,29 +530,30 @@ class _ExploreTabState extends ConsumerState<_ExploreTab> {
   String _selectedAmount = 'Tous';
   String _selectedLocation = 'Tous';
   
-  final List<String> _amountFilters = ['Tous', '< 50k', '50k - 100k', '> 100k'];
+  List<String> get _amountFilters {
+    final user = ref.read(userProvider);
+    final isEuro = user.currencySymbol == '€';
+    
+    if (isEuro) {
+      return ['Tous', '50-100€', '100-300€', '300-500€', '+500€'];
+    } else {
+      // FCFA Defaults
+      return ['Tous', '10k-50k', '50k-100k', '100k-200k', '+200k'];
+    }
+  }
+
   final List<String> _locationFilters = ['Tous', 'Dakar', 'Paris', 'Universel'];
 
   @override
   Widget build(BuildContext context) {
-
-    
-    // V17: Fetch Plan dynamically for limits - UNUSED
-    /* final plans = ref.watch(activePlansProvider).valueOrNull ?? [];
-    Plan currentPlan;
-    try {
-      currentPlan = plans.firstWhere((p) => p.code == user.planId);
-    } catch (_) {
-      currentPlan = Plan.free();
-    } */
-    
-
+    // Determine currency symbol for display consistency
+    final user = ref.watch(userProvider);
+    final isEuro = user.currencySymbol == '€';
 
     return Column(
       children: [
         // V15: Enhanced User Dashboard (Point 6)
         _buildUserDashboardCard(context, ref),
-
 
         // Filtres
         Container(
@@ -684,21 +601,41 @@ class _ExploreTabState extends ConsumerState<_ExploreTab> {
               final circles = docs.map((doc) {
                 final data = doc.data() as Map<String, dynamic>;
                 data['id'] = doc.id;
-                // Add default values if missing to prevent crashes
-                data['members'] = (data['participants'] as List?)?.length ?? 0;
+                // BUGFIX: Use memberIds length instead of participants
+                data['members'] = (data['memberIds'] as List?)?.length ?? 0;
                 data['maxMembers'] = data['maxParticipants'] ?? 12;
                 data['tags'] = data['tags'] ?? ['Tontine'];
                 data['trustScoreRequired'] = data['trustScoreRequired'] ?? 0;
                 data['location'] = data['location'] ?? 'Universel';
                 return data;
               }).where((circle) {
-                 // Amount Filter
+                 final user = ref.read(userProvider);
+                 
+                 // V16: Exclude my own circles and circles I already joined
+                 if (circle['creatorId'] == user.uid) return false;
+                 if ((circle['memberIds'] as List).contains(user.uid)) return false;
+
+                 final isEuro = user.currencySymbol == '€';
+                 
+                 // Amount Filter Logic (Ranges)
                  if (_selectedAmount != 'Tous') {
                    final amount = (circle['amount'] as num).toDouble();
-                   if (_selectedAmount == '< 50k' && amount >= 50000) return false;
-                   if (_selectedAmount == '50k - 100k' && (amount < 50000 || amount > 100000)) return false;
-                   if (_selectedAmount == '> 100k' && amount <= 100000) return false;
+                   
+                   if (isEuro) {
+                     if (_selectedAmount == '50-100€') return amount >= 50 && amount <= 100;
+                     if (_selectedAmount == '100-300€') return amount > 100 && amount <= 300;
+                     if (_selectedAmount == '300-500€') return amount > 300 && amount <= 500;
+                     if (_selectedAmount == '+500€') return amount > 500;
+                   } else {
+                     // FCFA
+                     if (_selectedAmount == '10k-50k') return amount >= 10000 && amount <= 50000;
+                     if (_selectedAmount == '50k-100k') return amount > 50000 && amount <= 100000;
+                     if (_selectedAmount == '100k-200k') return amount > 100000 && amount <= 200000;
+                     if (_selectedAmount == '+200k') return amount > 200000;
+                   }
+                   return true; 
                  }
+                 
                  // Location Filter
                  if (_selectedLocation != 'Tous') {
                     // Simple string match, ideally normalized
@@ -761,6 +698,10 @@ class _ExploreTabState extends ConsumerState<_ExploreTab> {
 
     final bool canJoin = currentMembers < maxMembers;
     final bool trustOk = true; 
+    
+    // Check if I have a pending request
+    final myRequests = ref.watch(circleProvider).myJoinRequests;
+    final hasPendingRequest = myRequests.any((r) => r.circleId == circle['id'] && r.status == JoinRequestStatus.pending); 
 
     return Card(
       margin: isHorizontal ? const EdgeInsets.only(right: 8, bottom: 4, left: 4) : const EdgeInsets.only(bottom: 16),
@@ -792,7 +733,16 @@ class _ExploreTabState extends ConsumerState<_ExploreTab> {
             ),
             const SizedBox(height: 12),
             InkWell(
-              onTap: () => Navigator.push(context, MaterialPageRoute(builder: (ctx) => ProfileScreen(userName: adminName))),
+              onTap: () => Navigator.push(
+                context, 
+                MaterialPageRoute(
+                  builder: (ctx) => CircleDetailsScreen(
+                    circleId: circle['id'],
+                    circleName: name, 
+                    isJoined: false, // Explorer view is always false initially
+                  ),
+                ),
+              ),
               child: Text(
                 name,
                 style: TextStyle(fontSize: isHorizontal ? 16 : 18, fontWeight: FontWeight.bold, color: Theme.of(context).brightness == Brightness.dark ? AppTheme.gold : AppTheme.marineBlue),
@@ -802,15 +752,9 @@ class _ExploreTabState extends ConsumerState<_ExploreTab> {
             const SizedBox(height: 4),
             Row(
               children: [
-                Icon(Icons.location_on, size: 14, color: Colors.grey[600]),
-                const SizedBox(width: 4),
-                Text(location, style: TextStyle(color: Colors.grey[600], fontSize: 13)),
-                const SizedBox(width: 16),
                 Icon(Icons.refresh, size: 14, color: Colors.grey[600]),
                 const SizedBox(width: 4),
                 Text(frequency, style: TextStyle(color: Colors.grey[600], fontSize: 13)),
-                const Spacer(),
-                _buildFollowButton(adminName),
               ],
             ),
             const Padding(
@@ -830,16 +774,28 @@ class _ExploreTabState extends ConsumerState<_ExploreTab> {
                     ),
                   ],
                 ),
-                ElevatedButton(
-                  onPressed: canJoin && trustOk ? () => _joinTontine(circle) : null,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppTheme.marineBlue,
-                    foregroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                    padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
+                if (hasPendingRequest)
+                  ElevatedButton(
+                    onPressed: null,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.grey[300],
+                      foregroundColor: Colors.grey[700],
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
+                    ),
+                    child: const Text('En attente...', style: TextStyle(fontSize: 12)),
+                  )
+                else
+                  ElevatedButton(
+                    onPressed: canJoin && trustOk ? () => _joinTontine(circle) : null,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppTheme.marineBlue,
+                      foregroundColor: Colors.white,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
+                    ),
+                    child: Text(canJoin ? 'Rejoindre' : 'Complet', style: const TextStyle(fontSize: 12)),
                   ),
-                  child: Text(canJoin ? 'Rejoindre' : 'Complet', style: const TextStyle(fontSize: 12)),
-                ),
               ],
             ),
           ],
@@ -848,51 +804,7 @@ class _ExploreTabState extends ConsumerState<_ExploreTab> {
     );
   }
 
-  Widget _buildFollowButton(String adminName) {
-    // V3.8: Social Layer - Follow Logic
-    final social = ref.watch(socialProvider);
-    final isFollowing = social.following.contains(adminName);
 
-    return InkWell(
-      onTap: () {
-        ref.read(socialProvider.notifier).toggleFollow(adminName);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(isFollowing ? 'Désabonné de $adminName' : 'Vous suivez maintenant $adminName !'),
-            duration: const Duration(seconds: 1),
-            behavior: SnackBarBehavior.floating,
-          ),
-        );
-      },
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-        decoration: BoxDecoration(
-          color: isFollowing ? Colors.grey[200] : AppTheme.gold.withValues(alpha: 0.1),
-          borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: isFollowing ? Colors.grey : AppTheme.gold, width: 1),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              isFollowing ? Icons.check : Icons.add,
-              size: 14,
-              color: isFollowing ? Colors.grey[700] : AppTheme.gold,
-            ),
-            const SizedBox(width: 4),
-            Text(
-              isFollowing ? 'Suivi' : 'Suivre',
-              style: TextStyle(
-                fontSize: 10,
-                fontWeight: FontWeight.bold,
-                color: isFollowing ? Colors.grey[700] : AppTheme.gold,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
 
   void _joinTontine(Map<String, dynamic> circle) {
     final user = ref.read(userProvider);
@@ -945,36 +857,78 @@ class _ExploreTabState extends ConsumerState<_ExploreTab> {
       return;
     }
 
-    // Pass data to commitment screen
-    Navigator.of(context).push(MaterialPageRoute(builder: (_) => 
-      LegalCommitmentScreen(
-        amount: (circle['amount'] as num).toDouble(),
-        onAccepted: () async {
-          final user = ref.read(userProvider);
-          final String circleId = circle['id'] ?? 'circle_001';
-          
-          // V15: Persist join request to Firestore
-          await ref.read(circleProvider.notifier).requestToJoin(
-            circleId: circleId,
-            circleName: circle['name'] ?? 'Tontine',
-            requesterId: user.uid,
-            requesterName: user.displayName,
-            message: 'Signature légale effectuée.',
-          );
+    // V16: New Flow - Request First, Sign Later (Approval Phase)
+    _showJoinRequestDialog(context, circle);
+  }
 
-          if (!context.mounted) return;
-          Navigator.pop(context); // Close Legal
-          
-          // V10.1: Trigger Notification on Join Success
-          NotificationService.showNewMemberAlert(
-            memberName: 'Vous', 
-            circleName: circle['name'] ?? 'Tontine',
-          );
-          
-          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Demande envoyée ! En attente validation.')));
-        },
-      )
-    ));
+  void _showJoinRequestDialog(BuildContext context, Map<String, dynamic> circle) {
+    final messageController = TextEditingController();
+    final String circleId = circle['id'];
+    final String circleName = circle['name'];
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Row(
+          children: [
+            Icon(Icons.person_add, color: AppTheme.marineBlue),
+            SizedBox(width: 12),
+            Text('Demande d\'adhésion'),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Theme.of(context).brightness == Brightness.dark ? Colors.blue.withValues(alpha: 0.2) : Colors.blue.shade50,
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: const Text(
+                'Le créateur du cercle doit approuver votre demande. Une fois approuvé, vous devrez signer la charte pour finaliser.',
+                style: TextStyle(fontSize: 12),
+              ),
+            ),
+            const SizedBox(height: 16),
+            TextField(
+              controller: messageController,
+              maxLines: 3,
+              decoration: InputDecoration(
+                hintText: 'Message au créateur (optionnel)...',
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Annuler'),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+               final user = ref.read(userProvider);
+               Navigator.pop(context);
+               
+               await ref.read(circleProvider.notifier).requestToJoin(
+                circleId: circleId,
+                circleName: circleName,
+                requesterId: user.uid,
+                requesterName: user.displayName,
+                message: messageController.text,
+              );
+
+              if (context.mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Demande envoyée !')));
+              }
+            }, 
+            child: const Text('ENVOYER')
+          ),
+        ],
+      ),
+    );
   }
 }
 
@@ -1029,15 +983,15 @@ class _CommunityTab extends ConsumerWidget {
               try {
                 userName = SecurityService.decryptData(encryptedName);
               } catch (_) {
-                userName = 'Membre Tontetic';
+                userName = 'Membre';
               }
             } else {
-              userName = 'Membre Tontetic';
+              userName = 'Membre';
             }
 
             // Final fallback check
             if (userName == 'Utilisateur' || userName.isEmpty) {
-              userName = 'Membre Tontetic';
+              userName = 'Membre';
             }
 
             final int honorScore = userData['honorScore'] ?? 0;

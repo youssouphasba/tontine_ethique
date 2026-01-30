@@ -1,4 +1,19 @@
 {
-    "indexes": [],
+    "indexes": [
+        {
+            "collectionGroup": "join_requests",
+            "queryScope": "COLLECTION",
+            "fields": [
+                {
+                    "fieldPath": "circleId",
+                    "order": "ASCENDING"
+                },
+                {
+                    "fieldPath": "status",
+                    "order": "ASCENDING"
+                }
+            ]
+        }
+    ],
     "fieldOverrides": []
 }

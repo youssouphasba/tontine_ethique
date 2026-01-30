@@ -337,7 +337,7 @@ class _AdminUsersViewState extends ConsumerState<_AdminUsersView> {
                     DataColumn(label: Text('Actions')),
                   ],
                   rows: users.map((user) {
-                     final String name = user['fullName'] ?? user['email'] ?? 'Utilisateur';
+                     final String name = user['fullName'] ?? user['email'] ?? 'Membre';
                      final String role = user['role'] ?? 'Membre';
                      final String status = user['status'] ?? 'Actif'; // Or read from DB
                      final String idShort = (user['id'] as String).substring(0, 5);
@@ -662,7 +662,7 @@ class _AdminCommViewState extends State<_AdminCommView> {
                 return ListTile(
                   leading: Icon(Icons.mail, color: data['status'] == 'open' ? Colors.red : Colors.grey),
                   title: Text(data['subject'] ?? 'Sans objet'),
-                  subtitle: Text('${data['userName'] ?? 'Utilisateur'} • ${(data['createdAt'] as Timestamp?)?.toDate().toString().substring(0, 16) ?? ''}'),
+                  subtitle: Text('${data['userName'] ?? 'Membre'} • ${(data['createdAt'] as Timestamp?)?.toDate().toString().substring(0, 16) ?? ''}'),
                   trailing: Chip(
                     label: Text(data['status'] ?? 'Nouveau'), 
                     backgroundColor: data['status'] == 'open' ? Colors.blue.withValues(alpha: 0.2) : Colors.green.withValues(alpha: 0.2)
@@ -700,7 +700,7 @@ class _AdminFinanceView extends ConsumerWidget {
                 scrollDirection: Axis.horizontal,
                 child: DataTable(
                   headingRowColor: WidgetStateProperty.all(Colors.grey[200]),
-                  columns: const [DataColumn(label: Text('ID Transaction')), DataColumn(label: Text('Date')), DataColumn(label: Text('Type')), DataColumn(label: Text('Montant')), DataColumn(label: Text('Utilisateur'))],
+                  columns: const [DataColumn(label: Text('ID Transaction')), DataColumn(label: Text('Date')), DataColumn(label: Text('Type')), DataColumn(label: Text('Montant')), DataColumn(label: Text('Membre'))],
                   rows: transactions.map((t) {
                     final amount = t['amount']?.toString() ?? '0';
                     final type = t['type'] ?? 'Transaction';

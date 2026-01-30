@@ -66,7 +66,7 @@ class _SupportChatScreenState extends ConsumerState<SupportChatScreen> {
       if (_activeTicketId == null) {
         final docRef = await FirebaseFirestore.instance.collection('support_tickets').add({
           'userId': user.uid,
-          'userName': user.displayName.isEmpty ? 'Utilisateur' : user.displayName,
+          'userName': user.displayName.isEmpty ? 'Membre' : user.displayName,
           'userEmail': user.email,
           'subject': text.length > 30 ? '${text.substring(0, 30)}...' : text,
           'status': 'open',

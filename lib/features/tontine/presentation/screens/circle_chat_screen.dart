@@ -170,7 +170,7 @@ class _CircleChatScreenState extends ConsumerState<CircleChatScreen> {
                      final msgMap = {
                        'id': docs[index].id,
                        'senderId': data['senderId'],
-                       'senderName': data['senderName'] ?? 'Utilisateur',
+                       'senderName': data['senderName'] ?? 'Membre',
                        'text': data['text'] ?? '',
                        'type': data['type'] ?? 'text',
                        'url': data['url'],

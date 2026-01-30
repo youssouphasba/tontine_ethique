@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta charset="utf-8">
+    <title>Redirection Tontetic...</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+            background-color: #f5f5f5;
+        }
+
+        .container {
+            text-align: center;
+            background: white;
+            padding: 2rem;
+            border-radius: 12px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+
+        .spinner {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #3498db;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 1rem;
+        }
+
+        @keyframes spin {
+            0% {
+                transform: rotate(0deg);
+            }
+
+            100% {
+                transform: rotate(360deg);
+            }
+        }
+
+        .btn {
+            display: inline-block;
+            margin-top: 1rem;
+            padding: 10px 20px;
+            background-color: #3498db;
+            color: white;
+            text-decoration: none;
+            border-radius: 6px;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <div class="spinner"></div>
+        <p>Redirection vers l'application Tontetic...</p>
+        <a id="manual-link" href="#" class="btn">Ouvrir manuellement</a>
+    </div>
+
+    <script>
+        // Get target from query param: ?target=tontetic://connect/success
+        const params = new URLSearchParams(window.location.search);
+        const target = params.get('target');
+        const error = params.get('error');
+
+        if (error) {
+            document.querySelector('p').textContent = "Une erreur est survenue lors de la connexion Stripe.";
+            document.querySelector('.spinner').style.borderTopColor = 'red';
+        } else if (target) {
+            // Decode if encoded
+            const decodedTarget = decodeURIComponent(target);
+
+            // Update manual link
+            document.getElementById('manual-link').href = decodedTarget;
+
+            // Attempt auto-redirect
+            window.location.href = decodedTarget;
+
+            // Fallback message
+            setTimeout(() => {
+                document.querySelector('p').textContent = "Si l'application ne s'ouvre pas, cliquez sur le bouton ci-dessous.";
+            }, 2000);
+        } else {
+            document.querySelector('p').textContent = "Lien invalide. Aucun paramètre 'target' trouvé.";
+        }
+    </script>
+</body>
+
+</html>
