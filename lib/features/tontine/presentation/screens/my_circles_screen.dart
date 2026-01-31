@@ -6,6 +6,8 @@ import 'package:tontetic/core/theme/app_theme.dart';
 import 'package:tontetic/core/providers/user_provider.dart';
 
 import 'package:tontetic/features/social/data/social_provider.dart';
+import 'package:tontetic/features/social/data/contact_service.dart';
+import 'package:tontetic/features/social/data/suggestion_service.dart';
 import 'package:tontetic/features/social/presentation/screens/profile_screen.dart';
 import 'package:tontetic/features/social/presentation/screens/conversations_list_screen.dart';
 import 'package:tontetic/core/business/subscription_service.dart';
@@ -932,154 +934,235 @@ class _ExploreTabState extends ConsumerState<_ExploreTab> {
   }
 }
 
-class _CommunityTab extends ConsumerWidget {
+class _CommunityTab extends ConsumerStatefulWidget {
   const _CommunityTab();
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final social = ref.watch(socialProvider);
-    final currentUser = ref.watch(userProvider);
-    
-    return StreamBuilder<QuerySnapshot>(
-      stream: FirebaseFirestore.instance
-          .collection('users')
-          .where('status', isEqualTo: 'verified') // V15: Only show verified members
-          .limit(30)
-          .snapshots(),
+  ConsumerState<_CommunityTab> createState() => _CommunityTabState();
+}
+
+class _CommunityTabState extends ConsumerState<_CommunityTab> {
+  Future<List<SuggestionResult>>? _suggestionsFuture;
+  final Set<String> _hiddenUserIds = {};
+  bool _isSyncingContacts = false;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _loadSuggestions();
+    });
+  }
+
+  void _loadSuggestions() {
+    final user = ref.read(userProvider);
+    if (user.uid.isNotEmpty) {
+      setState(() {
+        _suggestionsFuture = ref.read(suggestionServiceProvider).getSuggestions(user.uid);
+      });
+    }
+  }
+
+  Future<void> _syncContacts() async {
+    setState(() => _isSyncingContacts = true);
+    try {
+      final contactService = ref.read(contactServiceProvider);
+      final matches = await contactService.findRegisteredContacts();
+      
+      if (matches.isEmpty) {
+        if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Aucun contact trouvé sur Tontetic.')));
+      } else {
+        final newSuggestions = matches.map((m) => SuggestionResult(
+          userId: m.userId,
+          userName: m.userData['fullName'] ?? m.userData['pseudo'] ?? m.contactName,
+          userAvatar: m.userData['photoUrl'],
+          reason: 'Contact: ${m.contactName}',
+          mutualFriendsCount: 0,
+        )).toList();
+
+        final currentSuggestions = await _suggestionsFuture ?? [];
+        final uniqueNew = newSuggestions.where((n) => !currentSuggestions.any((c) => c.userId == n.userId)).toList();
+        final List<SuggestionResult> merged = [...uniqueNew, ...currentSuggestions];
+        
+        setState(() {
+          _suggestionsFuture = Future.value(merged);
+        });
+
+        if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('${uniqueNew.length} contacts trouvés !')));
+      }
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Erreur synchro: $e')));
+    } finally {
+      if (mounted) setState(() => _isSyncingContacts = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return FutureBuilder<List<SuggestionResult>>(
+      future: _suggestionsFuture,
       builder: (context, snapshot) {
-        if (snapshot.hasError) return const Center(child: Text('Erreur de chargement de la communauté'));
-        if (snapshot.connectionState == ConnectionState.waiting) return const Center(child: CircularProgressIndicator());
-
-        final docs = snapshot.data?.docs ?? [];
-        // Filtre : Exclure soi-même
-        final otherUsers = docs.where((doc) => doc.id != currentUser.uid).toList();
-
-        if (otherUsers.isEmpty) {
-          return const Center(child: Text('Aucun membre trouvé'));
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Center(child: CircularProgressIndicator());
         }
 
-        return ListView.builder(
-          padding: const EdgeInsets.all(16),
-          itemCount: otherUsers.length,
-          itemBuilder: (context, index) {
-            final doc = otherUsers[index];
-            final userData = doc.data() as Map<String, dynamic>;
-            final String userId = doc.id;
-            
-            // NEW ROBUST NAME RESOLUTION (Sync with ExplorerScreen)
-            final String? fullName = userData['fullName'];
-            final String? displayNameRaw = userData['displayName'];
-            final String? nameField = userData['name'];
-            final String? encryptedName = userData['encryptedName'];
-            
-            String userName;
-            if (fullName != null && fullName.trim().isNotEmpty) {
-              userName = fullName;
-            } else if (displayNameRaw != null && displayNameRaw.trim().isNotEmpty) {
-              userName = displayNameRaw;
-            } else if (nameField != null && nameField.trim().isNotEmpty) {
-              userName = nameField;
-            } else if (encryptedName != null && encryptedName.isNotEmpty) {
-              try {
-                userName = SecurityService.decryptData(encryptedName);
-              } catch (_) {
-                userName = 'Membre';
-              }
-            } else {
-              userName = 'Membre';
-            }
+        if (snapshot.hasError) {
+          return Center(child: Text('Erreur: ${snapshot.error}'));
+        }
 
-            // Final fallback check
-            if (userName == 'Utilisateur' || userName.isEmpty) {
-              userName = 'Membre';
-            }
+        final suggestions = snapshot.data ?? [];
+        final visibleSuggestions = suggestions.where((s) => !_hiddenUserIds.contains(s.userId)).toList();
 
-            final int honorScore = userData['honorScore'] ?? 0;
-            final String? photoUrl = userData['photoUrl'] ?? userData['photoURL'];
-            
-            final bool isFollowing = social.following.contains(userId);
-            final bool isFollower = social.followers.contains(userId);
-            final bool isMutual = isFollowing && isFollower;
-            
-            return Card(
-              margin: const EdgeInsets.only(bottom: 12),
-              elevation: 0,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(16),
-                side: BorderSide(color: Colors.grey.shade200),
-              ),
+        if (visibleSuggestions.isEmpty) {
+          return Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Icon(Icons.people_outline, size: 64, color: Colors.grey),
+                const SizedBox(height: 16),
+                const Text('Aucune suggestion pour le moment', style: TextStyle(color: Colors.grey)),
+                const SizedBox(height: 8),
+                TextButton(
+                  onPressed: _loadSuggestions,
+                  child: const Text('Actualiser'),
+                ),
+              ],
+            ),
+          );
+        }
+
+        return CustomScrollView(
+          slivers: [
+            SliverToBoxAdapter(
               child: Padding(
-                padding: const EdgeInsets.all(12),
+                padding: const EdgeInsets.all(16.0),
                 child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    CircleAvatar(
-                      radius: 24,
-                      backgroundColor: AppTheme.marineBlue.withValues(alpha: 0.1),
-                      backgroundImage: photoUrl != null && photoUrl.isNotEmpty ? NetworkImage(photoUrl) : null,
-                      child: (photoUrl == null || photoUrl.isEmpty) 
-                        ? Text(userName.isNotEmpty ? userName[0].toUpperCase() : '?', 
-                            style: const TextStyle(color: AppTheme.marineBlue, fontWeight: FontWeight.bold))
-                        : null,
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
-                            children: [
-                              Text(userName, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
-                              if (isMutual) ...[
-                                const SizedBox(width: 6),
-                                Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                                  decoration: BoxDecoration(
-                                    color: Colors.green.withValues(alpha: 0.1),
-                                    borderRadius: BorderRadius.circular(4),
-                                  ),
-                                  child: const Text('AMI', style: TextStyle(color: Colors.green, fontSize: 9, fontWeight: FontWeight.bold)),
-                                ),
-                              ],
-                            ],
-                          ),
-                          const SizedBox(height: 2),
-                          Row(
-                            children: [
-                              const Icon(Icons.verified_user, size: 12, color: AppTheme.gold),
-                              const SizedBox(width: 4),
-                              Text('Confiance : $honorScore', style: TextStyle(fontSize: 12, color: Colors.grey[600])),
-                            ],
-                          ),
-                        ],
+                    Text(
+                      'Connaissez-vous ?',
+                      style: TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                        color: Theme.of(context).brightness == Brightness.dark ? AppTheme.gold : AppTheme.marineBlue,
                       ),
                     ),
-                    ElevatedButton(
-                      onPressed: () {
-                        // V15: Auth Guard for social actions
-                        if (currentUser.status == AccountStatus.guest) {
-                          _showAuthRequiredDialog(context);
-                          return;
-                        }
-                        ref.read(socialProvider.notifier).toggleFollow(userId);
-                      },
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: isFollowing ? Colors.white : AppTheme.marineBlue,
-                        foregroundColor: isFollowing ? AppTheme.marineBlue : Colors.white,
-                        elevation: 0,
-                        side: isFollowing ? const BorderSide(color: AppTheme.marineBlue) : null,
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 0),
-                        minimumSize: const Size(90, 32),
+                    if (_isSyncingContacts)
+                      const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))
+                    else
+                      IconButton(
+                        icon: const Icon(Icons.sync, color: AppTheme.marineBlue),
+                        tooltip: 'Synchroniser contacts',
+                        onPressed: _syncContacts,
                       ),
-                      child: Text(isFollowing ? 'Suivi' : 'Suivre', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
-                    ),
                   ],
                 ),
               ),
-            );
-          },
+            ),
+            SliverList(
+              delegate: SliverChildBuilderDelegate(
+                (context, index) {
+                  final person = visibleSuggestions[index];
+                  return _buildSuggestionCard(context, person);
+                },
+                childCount: visibleSuggestions.length,
+              ),
+            ),
+          ],
         );
       },
+    );
+  }
+
+  Widget _buildSuggestionCard(BuildContext context, SuggestionResult person) {
+    final social = ref.watch(socialProvider);
+    final isFollowing = social.following.contains(person.userId);
+
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Theme.of(context).cardColor,
+        borderRadius: BorderRadius.circular(12),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.05),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          CircleAvatar(
+            radius: 28,
+            backgroundImage: person.userAvatar != null && person.userAvatar!.isNotEmpty
+                ? NetworkImage(person.userAvatar!)
+                : null,
+            backgroundColor: AppTheme.marineBlue.withAlpha(30),
+            child: person.userAvatar == null || person.userAvatar!.isEmpty
+                ? Text(person.userName.isNotEmpty ? person.userName[0].toUpperCase() : '?', style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: AppTheme.marineBlue))
+                : null,
+          ),
+          const SizedBox(width: 16),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  person.userName,
+                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                ),
+                const SizedBox(height: 4),
+                Row(
+                  children: [
+                    const Icon(Icons.group, size: 14, color: Colors.grey),
+                    const SizedBox(width: 4),
+                    Expanded(
+                      child: Text(
+                        person.reason,
+                        style: const TextStyle(color: Colors.grey, fontSize: 12),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+          Column(
+            children: [
+              ElevatedButton(
+                onPressed: () {
+                   ref.read(socialProvider.notifier).toggleFollow(person.userId);
+                   ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(isFollowing ? 'Retiré !' : 'Suggestion ajoutée !')));
+                },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: isFollowing ? Colors.white : AppTheme.marineBlue,
+                  foregroundColor: isFollowing ? AppTheme.marineBlue : Colors.white,
+                  side: isFollowing ? const BorderSide(color: AppTheme.marineBlue) : null,
+                  minimumSize: const Size(80, 32),
+                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                  elevation: 0,
+                ),
+                child: Text(isFollowing ? 'Suivi' : 'Ajouter', style: const TextStyle(fontSize: 12)),
+              ),
+              const SizedBox(height: 4),
+              InkWell(
+                onTap: () {
+                   setState(() {
+                     _hiddenUserIds.add(person.userId);
+                   });
+                },
+                child: const Padding(
+                  padding: EdgeInsets.all(4.0),
+                  child: Text('Retirer', style: TextStyle(fontSize: 11, color: Colors.grey)),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
     );
   }
 }

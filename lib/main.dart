@@ -79,9 +79,7 @@ void main() async {
     }
     debugPrint('Firebase initialized successfully: ${Firebase.app().options.projectId}');
     
-    // Background Sync (One-time) - Populate Enterprise Plans if missing
-    _seedEnterprisePlansInBackground();
-    
+    // Background Sync removed (Moved to Super Admin Panel)
   } catch (e) {
     debugPrint('Firebase initialization failed: $e');
   }
@@ -128,98 +126,6 @@ void main() async {
   runApp(const ProviderScope(child: TonteticApp()));
 }
 
-/// BACKGROUND SYNC: Seeds Enterprise Plans into Firestore if they are missing.
-/// This will be removed after confirmation of success.
-void _seedEnterprisePlansInBackground() async {
-  try {
-    final firestore = FirebaseFirestore.instance;
-    final enterpriseSnapshot = await firestore.collection('plans').where('type', isEqualTo: 'enterprise').limit(1).get();
-    
-    if (enterpriseSnapshot.docs.isNotEmpty) {
-      debugPrint('[SYNC] Enterprise plans already exist. Skipping seed.');
-      return;
-    }
-
-    debugPrint('[SYNC] 🚀 Seeding Enterprise Plans into Firestore...');
-    final plans = [
-      {
-        'code': 'starter_pro',
-        'type': 'enterprise',
-        'name': 'Starter Pro',
-        'prices': {'EUR': 29.99, 'XOF': 19500.0},
-        'limits': {'maxMembers': 24, 'maxCircles': 2},
-        'features': ['24 salariés max', '2 tontines', 'Dashboard complet', 'Messagerie interne', 'Support flexible'],
-        'stripePriceId': 'price_1Suh1rCpguZvNb1UL4HZHv2v',
-        'isRecommended': false,
-        'status': 'active',
-        'sortOrder': 10,
-      },
-      {
-        'code': 'team',
-        'type': 'enterprise',
-        'name': 'Team',
-        'prices': {'EUR': 39.99, 'XOF': 26000.0},
-        'limits': {'maxMembers': 48, 'maxCircles': 4},
-        'features': ['48 salariés max', '4 tontines', 'Dashboard complet', 'Tontines multi-équipes', 'Support flexible'],
-        'stripePriceId': 'price_1Suh3WCpguZvNb1UqkodV50W',
-        'isRecommended': true,
-        'status': 'active',
-        'sortOrder': 20,
-      },
-      {
-        'code': 'team_pro',
-        'type': 'enterprise',
-        'name': 'Team Pro',
-        'prices': {'EUR': 49.99, 'XOF': 32500.0},
-        'limits': {'maxMembers': 60, 'maxCircles': 4},
-        'features': ['60 salariés max', '4 tontines', 'Dashboard complet', 'Tontines multi-services', 'Support prioritaire'],
-        'stripePriceId': 'price_1Suh6tCpguZvNb1Ufn4GQOZd',
-        'isRecommended': false,
-        'status': 'active',
-        'sortOrder': 30,
-      },
-      {
-        'code': 'department',
-        'type': 'enterprise',
-        'name': 'Department',
-        'prices': {'EUR': 69.99, 'XOF': 45500.0},
-        'limits': {'maxMembers': 84, 'maxCircles': 7},
-        'features': ['84 salariés max', '7 tontines', 'Suivi scores par équipe', 'Notifications avancées', 'Support prioritaire'],
-        'stripePriceId': 'price_1Suh9NCpguZvNb1UrPDgTxqe',
-        'isRecommended': false,
-        'status': 'active',
-        'sortOrder': 40,
-      },
-      {
-        'code': 'enterprise',
-        'type': 'enterprise',
-        'name': 'Enterprise',
-        'prices': {'EUR': 89.99, 'XOF': 58500.0},
-        'limits': {'maxMembers': 108, 'maxCircles': 10},
-        'features': ['108 salariés max', '10 tontines', 'Export PDF/CSV', 'Reporting consolidé', 'Support dédié'],
-        'stripePriceId': 'price_1SuhCzCpguZvNb1UrmPmAZVb',
-        'isRecommended': false,
-        'status': 'active',
-        'sortOrder': 50,
-      },
-    ];
-
-    final batch = firestore.batch();
-    for (var planData in plans) {
-      final docRef = firestore.collection('plans').doc(planData['code'] as String);
-      batch.set(docRef, {
-        ...planData,
-        'createdAt': FieldValue.serverTimestamp(),
-        'updatedAt': FieldValue.serverTimestamp(),
-      }, SetOptions(merge: true));
-    }
-    
-    await batch.commit();
-    debugPrint('[SYNC] ✅ Enterprise plans seeded successfully.');
-  } catch (e) {
-    debugPrint('[SYNC] ❌ Error seeding enterprise plans: $e');
-  }
-}
 
 
 class TonteticApp extends ConsumerStatefulWidget {

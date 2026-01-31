@@ -13,6 +13,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 
 import 'package:go_router/go_router.dart';
 import 'package:tontetic/core/services/auth_service.dart';
+import 'package:tontetic/features/auth/presentation/widgets/otp_dialog.dart';
 
 
 /// Company Registration Screen
@@ -489,7 +490,7 @@ class _CompanyRegistrationScreenState extends ConsumerState<CompanyRegistrationS
     setState(() {
       _currentStep = 2;
     });
-    _sendOtp();
+    // No need to call _sendOtp here, Step 3 now has a "Lancer la vérification" button
   }
 
   // =============== STEP 3: VERIFICATION ===============
@@ -527,8 +528,8 @@ class _CompanyRegistrationScreenState extends ConsumerState<CompanyRegistrationS
                 ),
               ),
               TextButton(
-                onPressed: _sendOtp,
-                child: const Text('Renvoyer'),
+                onPressed: _isLoading ? null : _startOtpFlow,
+                child: const Text('Lancer/Renvoyer'),
               ),
             ],
           ),
@@ -569,31 +570,24 @@ class _CompanyRegistrationScreenState extends ConsumerState<CompanyRegistrationS
         SizedBox(
           width: double.infinity,
           child: ElevatedButton(
-            onPressed: _emailVerified ? () => setState(() => _currentStep = 3) : _verifyOtp,
+            onPressed: _emailVerified ? () => setState(() => _currentStep = 3) : _startOtpFlow,
             style: ElevatedButton.styleFrom(backgroundColor: Colors.orange, foregroundColor: Colors.white, padding: const EdgeInsets.symmetric(vertical: 16)),
             child: _isLoading 
               ? const Center(child: CircularProgressIndicator(color: Colors.white))
-              : Text(_emailVerified ? 'Continuer' : 'Vérifier'),
+              : Text(_emailVerified ? 'Continuer' : 'Lancer la vérification'),
           ),
         ),
       ],
     );
   }
 
-  Future<void> _sendOtp() async {
+  Future<void> _startOtpFlow() async {
     final fullPhone = '$_selectedCountryCode${_phoneController.text.trim()}';
+    
+    // 1. Send OTP
     setState(() => _isLoading = true);
-    
-    // Auto-detect zone based on country
-    if (_selectedCountry == 'FR') {
-       // Force update to make sure user provider has correct zone
-       ref.read(userProvider.notifier).setUser(fullPhone, false); 
-       // Note: updateProfile is called later, but zone is needed for some logic
-    }
-    
     final authService = ref.read(authServiceProvider);
     final result = await authService.sendOtp(fullPhone);
-    
     setState(() => _isLoading = false);
 
     if (!result.success) {
@@ -602,40 +596,23 @@ class _CompanyRegistrationScreenState extends ConsumerState<CompanyRegistrationS
           SnackBar(content: Text('Erreur envoi SMS: ${result.error}'), backgroundColor: Colors.red),
         );
       }
-    } else {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Code envoyé !'), backgroundColor: Colors.green),
-        );
-      }
-    }
-  }
-
-  void _verifyOtp() async {
-    if (_otpController.text.length != 6) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Veuillez entrer un code à 6 chiffres')),
-      );
       return;
     }
 
-    setState(() => _isLoading = true);
-    final authService = ref.read(authServiceProvider);
-    final result = await authService.validateOtp(_otpController.text);
-    
-    setState(() => _isLoading = false);
+    if (!mounted) return;
 
-    if (result.success) {
+    // 2. Show Dialog
+    final otpResult = await OtpDialog.show(context, phone: fullPhone);
+    
+    if (otpResult == 'SUCCESS') {
       setState(() {
-        _emailVerified = true; // reusing the variable name for simplicity, but it's now Phone Verified
+        _emailVerified = true;
       });
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('✅ Téléphone vérifié avec succès !'), backgroundColor: Colors.green),
-      );
-    } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Erreur: ${result.error ?? 'Code invalide'}'), backgroundColor: Colors.red),
-      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('✅ Téléphone vérifié !'), backgroundColor: Colors.green),
+        );
+      }
     }
   }
 

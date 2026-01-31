@@ -1217,7 +1217,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> with SingleTi
               Container(
                 width: 40,
                 height: 4,
-                margin: const EdgeInsets.bottom(16),
+                margin: const EdgeInsets.only(bottom: 16),
                 decoration: BoxDecoration(color: Colors.grey[300], borderRadius: BorderRadius.circular(2)),
               ),
               const Text('Centre de Notifications', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
@@ -1266,6 +1266,9 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> with SingleTi
                         } else if (type == 'join_request') {
                           iconData = Icons.person_add_outlined;
                           iconColor = Colors.orange;
+                        } else if (type == 'new_follower') {
+                          iconData = Icons.person_outline;
+                          iconColor = Colors.purple;
                         }
 
                         return Card(
@@ -1314,6 +1317,9 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> with SingleTi
                               if (type == 'join_approval' && n['circleId'] != null) {
                                 Navigator.pop(ctx);
                                 context.push('/circle-details/${n['circleId']}');
+                              } else if (type == 'new_follower' && n['senderId'] != null) {
+                                Navigator.pop(ctx);
+                                context.push('/profile?uid=${n['senderId']}');
                               }
                             },
                           ),

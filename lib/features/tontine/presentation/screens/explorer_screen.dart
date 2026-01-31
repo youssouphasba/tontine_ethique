@@ -28,6 +28,8 @@ class _ExplorerScreenState extends ConsumerState<ExplorerScreen> with SingleTick
   bool _isSyncingContacts = false; // Sync loading state
 
   String _searchQuery = '';
+  List<SuggestionResult> _searchResults = [];
+  bool _isSearching = false;
   
 
 
@@ -74,7 +76,6 @@ class _ExplorerScreenState extends ConsumerState<ExplorerScreen> with SingleTick
           userAvatar: m.userData['photoUrl'], // Assuming photoUrl exists
           reason: 'Contact: ${m.contactName}',
           mutualFriendsCount: 0,
-          score: 100, // High score for contacts
         )).toList();
 
         // We need to merge this with the existing future results.
@@ -84,7 +85,7 @@ class _ExplorerScreenState extends ConsumerState<ExplorerScreen> with SingleTick
         final currentSuggestions = await _suggestionsFuture ?? [];
         final uniqueNew = newSuggestions.where((n) => !currentSuggestions.any((c) => c.userId == n.userId)).toList();
         
-        final merged = [...uniqueNew, ...currentSuggestions];
+        final List<SuggestionResult> merged = [...uniqueNew, ...currentSuggestions];
         
         setState(() {
           _suggestionsFuture = Future.value(merged);
@@ -96,6 +97,15 @@ class _ExplorerScreenState extends ConsumerState<ExplorerScreen> with SingleTick
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Erreur synchro: $e')));
     } finally {
       if (mounted) setState(() => _isSyncingContacts = false);
+    }
+  }
+
+  void _loadSuggestions() {
+    final user = ref.read(userProvider);
+    if (user.uid.isNotEmpty) {
+      setState(() {
+        _suggestionsFuture = ref.read(suggestionServiceProvider).getSuggestions(user.uid);
+      });
     }
   }
 
@@ -216,10 +226,26 @@ class _ExplorerScreenState extends ConsumerState<ExplorerScreen> with SingleTick
     super.dispose();
   }
 
-  void _onSearch(String query) {
+  void _onSearch(String query) async {
     setState(() {
       _searchQuery = query;
     });
+
+    if (_tabController.index == 1 && query.isNotEmpty) {
+      setState(() => _isSearching = true);
+      final results = await ref.read(socialProvider.notifier).searchUsers(query);
+      if (mounted) {
+        setState(() {
+          _searchResults = results;
+          _isSearching = false;
+        });
+      }
+    } else {
+      setState(() {
+        _searchResults = [];
+        _isSearching = false;
+      });
+    }
   }
 
   @override
@@ -459,24 +485,36 @@ class _ExplorerScreenState extends ConsumerState<ExplorerScreen> with SingleTick
         }
 
         final suggestions = snapshot.data ?? [];
-        final visibleSuggestions = suggestions.where((s) => !_hiddenUserIds.contains(s.userId)).toList();
+        final visibleSuggestions = _searchQuery.isEmpty 
+            ? suggestions.where((s) => !_hiddenUserIds.contains(s.userId)).toList()
+            : _searchResults.where((s) => !_hiddenUserIds.contains(s.userId)).toList();
 
         if (visibleSuggestions.isEmpty) {
           return Center(
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                const Icon(Icons.people_outline, size: 64, color: Colors.grey),
+                Icon(_searchQuery.isEmpty ? Icons.people_outline : Icons.search_off, size: 64, color: Colors.grey),
                 const SizedBox(height: 16),
-                const Text('Aucune suggestion pour le moment', style: TextStyle(color: Colors.grey)),
-                const SizedBox(height: 8),
-                TextButton(
-                  onPressed: _loadSuggestions,
-                  child: const Text('Actualiser'),
+                Text(
+                  _searchQuery.isEmpty 
+                      ? 'Aucune suggestion pour le moment' 
+                      : 'Aucun utilisateur trouvé pour "$_searchQuery"', 
+                  style: const TextStyle(color: Colors.grey)
                 ),
+                const SizedBox(height: 8),
+                if (_searchQuery.isEmpty)
+                  TextButton(
+                    onPressed: _loadSuggestions,
+                    child: const Text('Actualiser'),
+                  ),
               ],
             ),
           );
+        }
+
+        if (_isSearching) {
+          return const Center(child: CircularProgressIndicator());
         }
 
         return CustomScrollView(
@@ -488,7 +526,7 @@ class _ExplorerScreenState extends ConsumerState<ExplorerScreen> with SingleTick
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     Text(
-                      'Connaissez-vous ?',
+                      _searchQuery.isEmpty ? 'Connaissez-vous ?' : 'Résultats de recherche',
                       style: TextStyle(
                         fontSize: 20,
                         fontWeight: FontWeight.bold,

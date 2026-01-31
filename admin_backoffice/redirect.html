@@ -1,72 +1,37 @@
 <!DOCTYPE html>
-<html lang="fr">
+<html>
 
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Tontetic - Redirection</title>
+    <meta charset="utf-8">
+    <title>Redirection Tontetic...</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
     <style>
         body {
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
             display: flex;
-            flex-direction: column;
-            align-items: center;
             justify-content: center;
+            align-items: center;
             height: 100vh;
             margin: 0;
-            background-color: #f4f7f9;
-            color: #333;
-            text-align: center;
+            background-color: #f5f5f5;
         }
 
         .container {
-            padding: 2rem;
+            text-align: center;
             background: white;
-            border-radius: 1rem;
+            padding: 2rem;
+            border-radius: 12px;
             box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-            max-width: 90%;
-            width: 400px;
         }
 
-        .icon {
-            font-size: 3rem;
-            margin-bottom: 1rem;
-        }
-
-        h1 {
-            font-size: 1.5rem;
-            margin-bottom: 0.5rem;
-        }
-
-        p {
-            color: #666;
-            margin-bottom: 2rem;
-        }
-
-        .btn {
-            display: inline-block;
-            background-color: #7c3aed;
-            color: white;
-            padding: 0.75rem 1.5rem;
-            border-radius: 0.5rem;
-            text-decoration: none;
-            font-weight: bold;
-            transition: background-color 0.2s;
-        }
-
-        .btn:hover {
-            background-color: #6d28d9;
-        }
-
-        .loader {
-            border: 3px solid #f3f3f3;
-            border-top: 3px solid #7c3aed;
+        .spinner {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #3498db;
             border-radius: 50%;
-            width: 24px;
-            height: 24px;
+            width: 40px;
+            height: 40px;
             animation: spin 1s linear infinite;
-            display: inline-block;
-            margin-right: 10px;
+            margin: 0 auto 1rem;
         }
 
         @keyframes spin {
@@ -75,93 +40,55 @@
             }
 
             100% {
-                transform: rotate(3600deg);
+                transform: rotate(360deg);
             }
+        }
+
+        .btn {
+            display: inline-block;
+            margin-top: 1rem;
+            padding: 10px 20px;
+            background-color: #3498db;
+            color: white;
+            text-decoration: none;
+            border-radius: 6px;
         }
     </style>
 </head>
 
 <body>
     <div class="container">
-        <div id="statusIcon" class="icon">🔄</div>
-        <h1 id="title">Redirection en cours...</h1>
-        <p id="message">Nous vous redirigeons vers l'application Tontetic.</p>
-
-        <div id="actionArea">
-            <div class="loader"></div>
-            <span>Veuillez patienter...</span>
-        </div>
-
-        <div id="manualBtnArea" style="display: none; margin-top: 1rem;">
-            <a href="#" id="manualBtn" class="btn">Ouvrir l'application</a>
-            <p style="font-size: 0.8rem; margin-top: 1rem;">Si l'application ne s'ouvre pas, cliquez sur le bouton
-                ci-dessus.</p>
-        </div>
+        <div class="spinner"></div>
+        <p>Redirection vers l'application Tontetic...</p>
+        <a id="manual-link" href="#" class="btn">Ouvrir manuellement</a>
     </div>
 
     <script>
-        function getQueryParam(name) {
-            const urlParams = new URLSearchParams(window.location.search);
-            return urlParams.get(name);
+        // Get target from query param: ?target=tontetic://connect/success
+        const params = new URLSearchParams(window.location.search);
+        const target = params.get('target');
+        const error = params.get('error');
+
+        if (error) {
+            document.querySelector('p').textContent = "Une erreur est survenue lors de la connexion Stripe.";
+            document.querySelector('.spinner').style.borderTopColor = 'red';
+        } else if (target) {
+            // Decode if encoded
+            const decodedTarget = decodeURIComponent(target);
+
+            // Update manual link
+            document.getElementById('manual-link').href = decodedTarget;
+
+            // Attempt auto-redirect
+            window.location.href = decodedTarget;
+
+            // Fallback message
+            setTimeout(() => {
+                document.querySelector('p').textContent = "Si l'application ne s'ouvre pas, cliquez sur le bouton ci-dessous.";
+            }, 2000);
+        } else {
+            document.querySelector('p').textContent = "Lien invalide. Aucun paramètre 'target' trouvé.";
         }
-
-        const target = getQueryParam('target') || 'dashboard';
-        const isError = getQueryParam('error') === 'true';
-        const source = getQueryParam('source') || 'auto'; // 'web' or 'mobile'
-
-        // Configuration
-        const deepLink = `tontetic://${target}`;
-        // Fallback web link (only used if we are sure we are on web)
-        const webLink = `https://tontetic-app.web.app/${target}`;
-
-        const titleEl = document.getElementById('title');
-        const messageEl = document.getElementById('message');
-        const iconEl = document.getElementById('statusIcon');
-        const actionArea = document.getElementById('actionArea');
-        const manualBtnArea = document.getElementById('manualBtnArea');
-        const manualBtn = document.getElementById('manualBtn');
-
-        // Logic for button and messaging
-        if (isError) {
-            titleEl.textContent = "Une erreur est survenue";
-            messageEl.textContent = "Désolé, l'opération a été interrompue ou a échoué.";
-            iconEl.textContent = "⚠️";
-        } else if (target.includes('success')) {
-            titleEl.textContent = "Opération réussie !";
-            messageEl.textContent = "Retour vers l'application Tontetic...";
-            iconEl.textContent = "✅";
-        }
-
-        function isMobile() {
-            return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
-        }
-
-        function tryRedirect() {
-            console.log("Source: " + source + ", IsMobile: " + isMobile());
-
-            if (source === 'web' || (!isMobile() && source !== 'mobile')) {
-                // Desktop or explicit Web source
-                console.log("Redirection Web vers : " + webLink);
-                window.location.href = webLink;
-            } else {
-                // Mobile target - Always use Custom Scheme for consistency in Debug/Prod
-                console.log("Tentative de redirection Deep Link (Custom Scheme) : " + deepLink);
-                window.location.href = deepLink;
-
-                // Provide a big manual button in case auto-redirect fails (Chrome security)
-                setTimeout(() => {
-                    actionArea.style.display = 'none';
-                    manualBtnArea.style.display = 'block';
-                    manualBtn.href = deepLink;
-                    manualBtn.textContent = "Ouvrir l'application Mobile";
-
-                    document.getElementById('message').textContent = "Si l'application ne s'ouvre pas automatiquement, cliquez ci-dessous.";
-                }, 500);
-            }
-        }
-
-        // Start redirect process
-        setTimeout(tryRedirect, 1000);
     </script>
 </body>
 

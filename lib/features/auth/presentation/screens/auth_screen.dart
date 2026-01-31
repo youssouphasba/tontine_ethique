@@ -8,6 +8,7 @@ import 'package:tontetic/core/providers/auth_provider.dart';
 import 'package:tontetic/features/auth/presentation/screens/type_selection_screen.dart';
 import 'package:tontetic/features/auth/presentation/screens/individual_registration_screen.dart';
 import 'package:tontetic/features/dashboard/presentation/screens/dashboard_screen.dart';
+import 'package:tontetic/features/auth/presentation/widgets/otp_dialog.dart';
 
 class AuthScreen extends ConsumerStatefulWidget {
   const AuthScreen({super.key});
@@ -151,52 +152,34 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
     setState(() => _isLoading = false);
 
     if (result.success) {
-      setState(() => _awaitingOtp = true);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(result.message ?? 'Code envoyé')),
-      );
-    } else {
-      setState(() => _errorMessage = result.error);
-    }
-  }
-
-  Future<void> _verifyOtp() async {
-    final phone = '$_selectedCountryCode${_phoneController.text.trim()}';
-    final otp = _otpController.text.trim();
-
-    if (otp.isEmpty || otp.length < 6) {
-      setState(() => _errorMessage = 'Code invalide');
-      return;
-    }
-
-    setState(() {
-      _isLoading = true;
-      _errorMessage = null;
-    });
-
-    final authService = ref.read(authServiceProvider);
-    final result = await authService.verifyOtp(phone: phone, token: otp);
-
-    if (!mounted) return;
-    setState(() => _isLoading = false);
-
-    if (result.success) {
-      // Set user phone and automatically detect zone
-      ref.read(userProvider.notifier).setUser(phone, false);
-
-      // Navigate to Dashboard and clear all previous routes
-      debugPrint('DEBUG_AUTH: OTP verification successful! Navigating to Dashboard...');
       if (mounted) {
-        if (Navigator.canPop(context)) {
-          Navigator.pop(context, true);
-        } else {
-          context.go('/');
+        // Show OTP Dialog
+        final otpResult = await OtpDialog.show(context, phone: phone);
+        if (otpResult == 'SUCCESS') {
+          _completePhoneLogin(phone);
         }
       }
     } else {
       setState(() => _errorMessage = result.error);
     }
   }
+
+  Future<void> _completePhoneLogin(String phone) async {
+    // Set user phone and automatically detect zone
+    ref.read(userProvider.notifier).setUser(phone, false);
+
+    // Navigate to Dashboard and clear all previous routes
+    debugPrint('DEBUG_AUTH: OTP verification successful! Navigating to Dashboard...');
+    if (mounted) {
+      if (Navigator.canPop(context)) {
+        Navigator.pop(context, true);
+      } else {
+        context.go('/');
+      }
+    }
+  }
+
+  // Removed _verifyOtp as it's replaced by OtpDialog
 
   Future<void> _handleForgotPassword() async {
     final email = _emailController.text.trim();
@@ -362,30 +345,6 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
   }
 
   Widget _buildPhoneForm() {
-    if (_awaitingOtp) {
-      return Column(
-        children: [
-          const Text(
-            'Entrez le code reçu par SMS',
-            style: TextStyle(color: Colors.white70, fontSize: 16),
-          ),
-          const SizedBox(height: 20),
-          _buildTextField(
-            controller: _otpController,
-            label: 'Code à 6 chiffres',
-            icon: Icons.pin,
-            keyboardType: TextInputType.number,
-          ),
-          const SizedBox(height: 32),
-          _buildLoginButton(onPressed: _verifyOtp, label: 'Vérifier'),
-          TextButton(
-            onPressed: () => setState(() => _awaitingOtp = false),
-            child: const Text('Changer de numéro', style: TextStyle(color: Colors.white70)),
-          ),
-        ],
-      );
-    }
-
     return Column(
       children: [
         Row(

@@ -3,6 +3,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:tontetic/core/providers/auth_provider.dart';
+import 'package:tontetic/core/providers/user_provider.dart';
 import 'package:tontetic/core/services/chat_service.dart';
 import 'package:tontetic/features/social/domain/chat_models.dart';
 export 'package:tontetic/features/social/domain/chat_models.dart';
@@ -64,12 +65,15 @@ final chatServiceProvider = Provider<ChatService>((ref) => ChatService());
 class SocialNotifier extends StateNotifier<SocialState> {
   final Ref ref;
   final Map<String, StreamSubscription> _convSubs = {};
+  final Map<String, StreamSubscription> _socialSubs = {};
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
   StreamSubscription? _activitiesSub;
 
   SocialNotifier(this.ref) : super(SocialState(
     friends: [],
+    followers: {},
+    following: {},
     followersCount: {},
   )) {
     _initAuthListener();
@@ -102,8 +106,14 @@ class SocialNotifier extends StateNotifier<SocialState> {
   void _initAuthListener() {
     ref.listen(authStateProvider, (previous, next) {
       next.whenData((user) {
+        // Clear previous subscriptions
+        for (var sub in _socialSubs.values) {
+          sub.cancel();
+        }
+        _socialSubs.clear();
+
         if (user != null) {
-          _loadFollowingFromFirestore();
+          _startSocialListeners(user.uid);
         } else {
           state = SocialState(); // Clear state on logout
           _initActivityStream(); // Re-init activity stream for guests
@@ -114,35 +124,32 @@ class SocialNotifier extends StateNotifier<SocialState> {
     // Initial load if already logged in
     final user = ref.read(authStateProvider).value;
     if (user != null) {
-      _loadFollowingFromFirestore();
+      _startSocialListeners(user.uid);
     }
   }
 
-  /// Load following list from Firestore on init
-  Future<void> _loadFollowingFromFirestore() async {
-    final user = ref.read(authStateProvider).value;
-    if (user == null) return;
+  void _startSocialListeners(String uid) {
+    // 1. Listen to FOLLOWING
+    _socialSubs['following'] = _firestore
+        .collection('users')
+        .doc(uid)
+        .collection('following')
+        .snapshots()
+        .listen((snapshot) {
+      final followingIds = snapshot.docs.map((doc) => doc.id).toSet();
+      state = state.copyWith(following: followingIds);
+    });
 
-    try {
-      final followingSnapshot = await _firestore
-          .collection('users')
-          .doc(user.uid)
-          .collection('following')
-          .get();
-      
-      final followingIds = followingSnapshot.docs.map((doc) => doc.id).toSet();
-      
-      final followersSnapshot = await _firestore
-          .collection('users')
-          .doc(user.uid)
-          .collection('followers')
-          .get();
-      final followersIds = followersSnapshot.docs.map((doc) => doc.id).toSet();
-
-      state = state.copyWith(following: followingIds, followers: followersIds);
-    } catch (e) {
-      // Ignore errors on load
-    }
+    // 2. Listen to FOLLOWERS
+    _socialSubs['followers'] = _firestore
+        .collection('users')
+        .doc(uid)
+        .collection('followers')
+        .snapshots()
+        .listen((snapshot) {
+      final followersIds = snapshot.docs.map((doc) => doc.id).toSet();
+      state = state.copyWith(followers: followersIds);
+    });
   }
 
   /// Démarre l'écoute d'une conversation spécifique
@@ -198,10 +205,12 @@ class SocialNotifier extends StateNotifier<SocialState> {
         newFollowing.remove(entityId);
         newFollowersCount[entityId] = (newFollowersCount[entityId] ?? 1) - 1;
         
-        // Batch update for atomicity
         final batch = _firestore.batch();
         batch.delete(_firestore.collection('users').doc(user.uid).collection('following').doc(entityId));
         batch.delete(_firestore.collection('users').doc(entityId).collection('followers').doc(user.uid));
+        
+        // OPTIONAL: Delete notification? Usually better to keep history or it's too much work to find the doc
+        
         await batch.commit();
       } else {
         // Follow
@@ -217,6 +226,31 @@ class SocialNotifier extends StateNotifier<SocialState> {
           'timestamp': FieldValue.serverTimestamp(),
           'uid': user.uid,
         });
+
+        // 1. ADD IN-APP NOTIFICATION FOR TARGET
+        final myData = ref.read(userProvider);
+        final notifRef = _firestore.collection('users').doc(entityId).collection('notifications').doc();
+        batch.set(notifRef, {
+          'id': notifRef.id,
+          'title': 'Nouveau follower ! 👤',
+          'message': '${myData.displayName} vous suit désormais.',
+          'senderId': user.uid,
+          'type': 'new_follower',
+          'timestamp': FieldValue.serverTimestamp(),
+          'read': false,
+        });
+
+        // 2. ADD GLOBAL ACTIVITY ENTRY
+        final activityRef = _firestore.collection('activities').doc();
+        batch.set(activityRef, {
+          'userName': myData.displayName,
+          'userAvatar': myData.photoUrl ?? '',
+          'description': 'suit désormais un nouveau membre',
+          'actionLabel': 'VOIR',
+          'timestamp': FieldValue.serverTimestamp(),
+          'targetId': entityId, // Can be used to navigate to profile
+        });
+
         await batch.commit();
       }
 
@@ -229,11 +263,72 @@ class SocialNotifier extends StateNotifier<SocialState> {
     }
   }
 
+  /// PERFORMS A REAL-TIME SEARCH FOR USERS
+  Future<List<SuggestionResult>> searchUsers(String query) async {
+    if (query.isEmpty) return [];
+    
+    try {
+      // 1. Search by fullName (Prefix match)
+      final nameQuery = await _firestore
+          .collection('users')
+          .where('fullName', isGreaterThanOrEqualTo: query)
+          .where('fullName', isLessThanOrEqualTo: '$query\uf8ff')
+          .limit(10)
+          .get();
+      
+      // 2. Search by phone (Exact match)
+      final phoneQuery = await _firestore
+          .collection('users')
+          .where('phone', isEqualTo: query)
+          .limit(5)
+          .get();
+
+      final results = <String, SuggestionResult>{};
+
+      for (var doc in nameQuery.docs) {
+        final data = doc.data();
+        results[doc.id] = SuggestionResult(
+          userId: doc.id,
+          userName: data['fullName'] ?? 'Membre',
+          userAvatar: data['photoUrl'] ?? '',
+          reason: 'Utilisateur trouvé',
+          jobTitle: data['jobTitle'],
+        );
+      }
+
+      for (var doc in phoneQuery.docs) {
+        if (!results.containsKey(doc.id)) {
+          final data = doc.data();
+          results[doc.id] = SuggestionResult(
+            userId: doc.id,
+            userName: data['fullName'] ?? 'Membre',
+            userAvatar: data['photoUrl'] ?? '',
+            reason: 'Trouvé par téléphone',
+            jobTitle: data['jobTitle'],
+          );
+        }
+      }
+
+      // Exclude ME from results
+      final currentUid = ref.read(authStateProvider).value?.uid;
+      results.remove(currentUid);
+
+      return results.values.toList();
+    } catch (e) {
+      debugPrint('[SOCIAL_PROVIDER] ❌ Error searching users: $e');
+      return [];
+    }
+  }
+
   @override
   void dispose() {
     for (var sub in _convSubs.values) {
       sub.cancel();
     }
+    for (var sub in _socialSubs.values) {
+      sub.cancel();
+    }
+    _activitiesSub?.cancel();
     super.dispose();
   }
 }

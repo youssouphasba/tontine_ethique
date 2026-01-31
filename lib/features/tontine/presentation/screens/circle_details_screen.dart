@@ -81,6 +81,18 @@ class CircleDetailsScreen extends ConsumerWidget {
                 ),
               ),
               IconButton(
+                icon: const Icon(Icons.share_outlined),
+                tooltip: 'Partager ce cercle',
+                onPressed: () {
+                  Share.share(
+                    'Rejoins ma tontine "$circleName" sur Tontetic ! \n\n'
+                    'Code d\'invitation : $circleId \n\n'
+                    'Lien direct : https://tontetic-app.web.app/join/$circleId',
+                    subject: 'Invitation Tontine'
+                  );
+                },
+              ),
+              IconButton(
                 icon: const Icon(Icons.more_vert), 
                 onPressed: () => _showMoreOptions(context, circle), 
               ),

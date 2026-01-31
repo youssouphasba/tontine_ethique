@@ -146,10 +146,10 @@ class ProfileScreen extends ConsumerWidget {
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                     children: [
-                      _buildStatItem('Honor Score', honorScore.toString(), Icons.verified, null),
+                      _buildStatItem('Honor Score', '$honorScore/5 ⭐', Icons.verified, null),
                       GestureDetector(
                         onTap: () => _showFollowersList(context, ref, displayName, 'followers'),
-                        child: _buildStatItem('Abonnés', followers.toString(), Icons.people, null),
+                        child: _buildStatItem('Abonnés', social.getFollowers(user.uid).toString(), Icons.people, null),
                       ),
                       GestureDetector(
                         onTap: () => _showFollowersList(context, ref, displayName, 'following'),
@@ -158,6 +158,25 @@ class ProfileScreen extends ConsumerWidget {
                       _buildStatItem('Tontines', user.activeCirclesCount.toString(), Icons.account_balance, null),
                     ],
                   ),
+                  if (isMutual) ...[
+                    const SizedBox(height: 16),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                      decoration: BoxDecoration(
+                        color: AppTheme.gold.withValues(alpha: 0.2),
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(color: AppTheme.gold),
+                      ),
+                      child: const Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.handshake, color: AppTheme.gold, size: 16),
+                          SizedBox(width: 8),
+                          Text('Ami Mutuel 🤝', style: TextStyle(color: AppTheme.gold, fontWeight: FontWeight.bold, fontSize: 12)),
+                        ],
+                      ),
+                    ),
+                  ],
                 ],
               ),
             ),
@@ -178,13 +197,14 @@ class ProfileScreen extends ConsumerWidget {
                       height: 1.5,
                     ),
                   ),
-                  const SizedBox(height: 24),
+                  const SizedBox(height: 32),
                   
                   // Mutual Follow Invitation Button (V3.9 Critical logic)
                   if (!isMe) ...[
                     if (isMutual) 
                       SizedBox(
                         width: double.infinity,
+                        height: 56,
                         child: ElevatedButton.icon(
                           onPressed: () => _showInviteDialog(context, ref, userName, user.uid),
                           icon: const Icon(Icons.mail_outline),
@@ -192,29 +212,30 @@ class ProfileScreen extends ConsumerWidget {
                           style: ElevatedButton.styleFrom(
                             backgroundColor: AppTheme.gold,
                             foregroundColor: AppTheme.marineBlue,
-                            padding: const EdgeInsets.symmetric(vertical: 16),
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                            elevation: 4,
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                           ),
                         ),
                       )
                     else 
                       Container(
-                        padding: const EdgeInsets.all(12),
+                        padding: const EdgeInsets.all(16),
                         decoration: BoxDecoration(
-                          color: Theme.of(context).brightness == Brightness.dark ? Colors.white.withValues(alpha: 0.05) : Colors.grey[100],
-                          border: Border.all(color: Theme.of(context).brightness == Brightness.dark ? Colors.white24 : Colors.grey[300]!),
-                          borderRadius: BorderRadius.circular(12),
+                          color: Theme.of(context).brightness == Brightness.dark ? Colors.white.withValues(alpha: 0.05) : Colors.grey[50],
+                          border: Border.all(color: Theme.of(context).brightness == Brightness.dark ? Colors.white10 : Colors.grey[200]!),
+                          borderRadius: BorderRadius.circular(16),
                         ),
                         child: Row(
                           children: [
-                            const Icon(Icons.info_outline, size: 20, color: Colors.grey),
-                            const SizedBox(width: 8),
+                            const Icon(Icons.lock_person_outlined, size: 24, color: AppTheme.gold),
+                            const SizedBox(width: 12),
                             Expanded(
                               child: Text(
-                                'Vous devez vous suivre mutuellement pour envoyer une invitation.',
+                                'Suivez-vous mutuellement pour débloquer les invitations privées.',
                                 style: TextStyle(
-                                  fontSize: 12, 
+                                  fontSize: 13, 
                                   color: Theme.of(context).brightness == Brightness.dark ? Colors.white60 : Colors.grey[600],
+                                  fontWeight: FontWeight.w500,
                                 ),
                               ),
                             ),
@@ -222,31 +243,51 @@ class ProfileScreen extends ConsumerWidget {
                         ),
                       ),
                     
-                    const SizedBox(height: 12),
+                    const SizedBox(height: 20),
                     
-                    // Follow Toggle
-                    SizedBox(
-                      width: double.infinity,
-                      child: OutlinedButton(
-                        onPressed: () => ref.read(socialProvider.notifier).toggleFollow(user.uid),
-                        style: OutlinedButton.styleFrom(
-                          padding: const EdgeInsets.symmetric(vertical: 16),
-                          side: BorderSide(
-                            color: isFollowing 
-                                ? Colors.grey 
-                                : (Theme.of(context).brightness == Brightness.dark ? AppTheme.gold : AppTheme.marineBlue),
+                    // Follow Toggle (Duo Action)
+                    Row(
+                      children: [
+                        Expanded(
+                          child: SizedBox(
+                            height: 56,
+                            child: ElevatedButton(
+                              onPressed: () => ref.read(socialProvider.notifier).toggleFollow(user.uid),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: isFollowing 
+                                    ? (Theme.of(context).brightness == Brightness.dark ? Colors.white12 : Colors.grey[200])
+                                    : AppTheme.marineBlue,
+                                foregroundColor: isFollowing 
+                                    ? (Theme.of(context).brightness == Brightness.dark ? Colors.white70 : Colors.black87)
+                                    : Colors.white,
+                                elevation: isFollowing ? 0 : 2,
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                              ),
+                              child: Text(
+                                isFollowing ? 'Abonné' : 'Suivre',
+                                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                              ),
+                            ),
                           ),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                         ),
-                        child: Text(
-                          isFollowing ? 'Se désabonner' : 'Suivre',
-                          style: TextStyle(
-                            color: isFollowing 
-                                ? Colors.grey 
-                                : (Theme.of(context).brightness == Brightness.dark ? AppTheme.gold : AppTheme.marineBlue),
+                        const SizedBox(width: 12),
+                        Container(
+                          height: 56,
+                          width: 56,
+                          decoration: BoxDecoration(
+                            border: Border.all(color: Theme.of(context).brightness == Brightness.dark ? Colors.white24 : Colors.grey[300]!),
+                            borderRadius: BorderRadius.circular(16),
+                          ),
+                          child: IconButton(
+                            icon: const Icon(Icons.share_outlined),
+                            onPressed: () {
+                              final String shareText = 'Découvre le profil de $displayName sur Tontetic ! \n\nhttps://tontetic-app.web.app/profile/${user.uid}';
+                              Share.share(shareText);
+                            },
+                            color: Theme.of(context).brightness == Brightness.dark ? Colors.white70 : AppTheme.marineBlue,
                           ),
                         ),
-                      ),
+                      ],
                     ),
                   ],
                 ],

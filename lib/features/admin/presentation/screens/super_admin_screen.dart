@@ -129,7 +129,7 @@ class _SuperAdminScreenState extends State<SuperAdminScreen> {
       case 'Finance & Data': return const _AdminFinanceView();
       case 'Sécurité & Logs': return const _AdminSecurityView();
       case 'Validations': return const _AdminValidationView();
-      case 'Business': return const _AdminBusinessView();
+      case 'Business': return _AdminBusinessView();
       case 'Configuration': return const _AdminConfigView();
       case 'Dashboard':
       default: return const _AdminDashboardView();
@@ -796,12 +796,102 @@ class _AdminConfigViewState extends State<_AdminConfigView> {
   
   final _subPremiumEuroCtrl = TextEditingController();
   final _subPremiumFcfaCtrl = TextEditingController();
-  
+
+  // Fees Controllers
   final _feesCreationEuroCtrl = TextEditingController();
   final _feesCreationFcfaCtrl = TextEditingController();
-
   final _feesTxEuroCtrl = TextEditingController();
   final _feesTxFcfaCtrl = TextEditingController();
+  
+  bool _isSeeding = false;
+
+  Future<void> _seedPlans() async {
+    setState(() => _isSeeding = true);
+    try {
+      final firestore = FirebaseFirestore.instance;
+      // Define Plans (Migrated from main.dart)
+      final plans = [
+        {
+          'code': 'starter_pro',
+          'type': 'enterprise',
+          'name': 'Starter Pro',
+          'prices': {'EUR': 29.99, 'XOF': 19500.0},
+          'limits': {'maxMembers': 24, 'maxCircles': 2},
+          'features': ['24 salariés max', '2 tontines', 'Dashboard complet', 'Messagerie interne', 'Support flexible'],
+          'stripePriceId': 'price_1Suh1rCpguZvNb1UL4HZHv2v',
+          'isRecommended': false,
+          'status': 'active',
+          'sortOrder': 10,
+        },
+        {
+          'code': 'team',
+          'type': 'enterprise',
+          'name': 'Team',
+          'prices': {'EUR': 39.99, 'XOF': 26000.0},
+          'limits': {'maxMembers': 48, 'maxCircles': 4},
+          'features': ['48 salariés max', '4 tontines', 'Dashboard complet', 'Tontines multi-équipes', 'Support flexible'],
+          'stripePriceId': 'price_1Suh3WCpguZvNb1UqkodV50W',
+          'isRecommended': true,
+          'status': 'active',
+          'sortOrder': 20,
+        },
+        {
+          'code': 'team_pro',
+          'type': 'enterprise',
+          'name': 'Team Pro',
+          'prices': {'EUR': 49.99, 'XOF': 32500.0},
+          'limits': {'maxMembers': 60, 'maxCircles': 4},
+          'features': ['60 salariés max', '4 tontines', 'Dashboard complet', 'Tontines multi-services', 'Support prioritaire'],
+          'stripePriceId': 'price_1Suh6tCpguZvNb1Ufn4GQOZd',
+          'isRecommended': false,
+          'status': 'active',
+          'sortOrder': 30,
+        },
+        {
+          'code': 'department',
+          'type': 'enterprise',
+          'name': 'Department',
+          'prices': {'EUR': 69.99, 'XOF': 45500.0},
+          'limits': {'maxMembers': 84, 'maxCircles': 7},
+          'features': ['84 salariés max', '7 tontines', 'Suivi scores par équipe', 'Notifications avancées', 'Support prioritaire'],
+          'stripePriceId': 'price_1Suh9NCpguZvNb1UrPDgTxqe',
+          'isRecommended': false,
+          'status': 'active',
+          'sortOrder': 40,
+        },
+        {
+          'code': 'enterprise',
+          'type': 'enterprise',
+          'name': 'Enterprise',
+          'prices': {'EUR': 89.99, 'XOF': 58500.0},
+          'limits': {'maxMembers': 108, 'maxCircles': 10},
+          'features': ['108 salariés max', '10 tontines', 'Export PDF/CSV', 'Reporting consolidé', 'Support dédié'],
+          'stripePriceId': 'price_1SuhCzCpguZvNb1UrmPmAZVb',
+          'isRecommended': false,
+          'status': 'active',
+          'sortOrder': 50,
+        },
+      ];
+
+      final batch = firestore.batch();
+      for (var planData in plans) {
+        final docRef = firestore.collection('plans').doc(planData['code'] as String);
+        batch.set(docRef, {
+          ...planData,
+          'createdAt': FieldValue.serverTimestamp(),
+          'updatedAt': FieldValue.serverTimestamp(),
+        }, SetOptions(merge: true));
+      }
+      
+      await batch.commit();
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('✅ Plans Enterprise initialisés.')));
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Erreur seed: $e')));
+    } finally {
+      if (mounted) setState(() => _isSeeding = false);
+    }
+  }
+
 
   @override
   void initState() {
@@ -884,6 +974,21 @@ class _AdminConfigViewState extends State<_AdminConfigView> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          // --- DATA FACTORY ---
+          const Text('Data Factory (Admin Only)', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+          const SizedBox(height: 8),
+          Card(
+            child: ListTile(
+              leading: const Icon(Icons.cloud_upload),
+              title: const Text('Initialiser les Plans Enterprise'),
+              subtitle: const Text('Crée/Met à jour les plans dans Firestore.'),
+              trailing: _isSeeding 
+                ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2)) 
+                : ElevatedButton(onPressed: _seedPlans, child: const Text('EXÉCUTER')),
+            ),
+          ),
+          const Divider(height: 32),
+
           const Text('Configuration App & Tarifs', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
           const SizedBox(height: 16),
           
@@ -980,39 +1085,40 @@ class _AdminConfigViewState extends State<_AdminConfigView> {
     );
   }
 
-  Widget _buildPricingCard({required String title, required IconData icon, required Color color, required TextEditingController euroCtrl, required TextEditingController fcfaCtrl}) {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(children: [Icon(icon, color: color), const SizedBox(width: 8), Text(title, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16))]),
-            const SizedBox(height: 16),
-            Row(
-              children: [
-                Expanded(child: _buildCurrencyField(euroCtrl, '€')),
-                const SizedBox(width: 16),
-                Expanded(child: _buildCurrencyField(fcfaCtrl, 'FCFA')),
-              ],
-            ),
-          ],
-        ),
-      ),
-    );
-  }
+}
 
-  Widget _buildCurrencyField(TextEditingController ctrl, String suffix) {
-    return TextField(
-      controller: ctrl,
-      keyboardType: TextInputType.number,
-      decoration: InputDecoration(
-        suffixText: suffix,
-        border: const OutlineInputBorder(),
-        isDense: true,
+Widget _buildPricingCard({required String title, required IconData icon, required Color color, required TextEditingController euroCtrl, required TextEditingController fcfaCtrl}) {
+  return Card(
+    child: Padding(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(children: [Icon(icon, color: color), const SizedBox(width: 8), Text(title, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16))]),
+          const SizedBox(height: 16),
+          Row(
+            children: [
+              Expanded(child: _buildCurrencyField(euroCtrl, '€')),
+              const SizedBox(width: 16),
+              Expanded(child: _buildCurrencyField(fcfaCtrl, 'FCFA')),
+            ],
+          ),
+        ],
       ),
-    );
-  }
+    ),
+  );
+}
+
+Widget _buildCurrencyField(TextEditingController ctrl, String suffix) {
+  return TextField(
+    controller: ctrl,
+    keyboardType: TextInputType.number,
+    decoration: InputDecoration(
+      suffixText: suffix,
+      border: const OutlineInputBorder(),
+      isDense: true,
+    ),
+  );
 }
 
 class _AdminBusinessView extends StatelessWidget {
@@ -1034,7 +1140,7 @@ class _AdminBusinessView extends StatelessWidget {
               ],
             ),
           ),
-          const Expanded(
+          Expanded(
             child: TabBarView(
               children: [
                 AdminEnterprisesSection(),

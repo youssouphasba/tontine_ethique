@@ -7,6 +7,7 @@ import 'package:tontetic/core/providers/consent_provider.dart';
 import 'package:tontetic/core/providers/auth_provider.dart';
 import 'package:go_router/go_router.dart';
 import 'package:tontetic/core/services/auth_service.dart';
+import 'package:tontetic/features/auth/presentation/widgets/otp_dialog.dart';
 
 
 import 'package:tontetic/core/constants/legal_texts.dart';
@@ -457,67 +458,12 @@ class _IndividualRegistrationScreenState extends ConsumerState<IndividualRegistr
     
     if (!mounted) return;
 
-    // Show OTP dialog
-    final otp = await showDialog<String>(
-      context: context,
-      barrierDismissible: false,
-      builder: (ctx) {
-        final controller = TextEditingController();
-        bool isVerifying = false;
-        String? error;
-
-        return StatefulBuilder(
-          builder: (context, setDialogState) {
-            return AlertDialog(
-              title: const Text('Vérification OTP'),
-              content: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text('Code envoyé au $fullPhone'),
-                  const SizedBox(height: 16),
-                  TextField(
-                    controller: controller,
-                    keyboardType: TextInputType.number,
-                    maxLength: 6,
-                    decoration: InputDecoration(
-                       labelText: 'Code à 6 chiffres',
-                       errorText: error,
-                    ),
-                  ),
-                  if (isVerifying)
-                    const Padding(
-                      padding: EdgeInsets.only(top: 16),
-                      child: CircularProgressIndicator(),
-                    ),
-                ],
-              ),
-              actions: [
-                TextButton(
-                  onPressed: isVerifying ? null : () => Navigator.pop(ctx), 
-                  child: const Text('Annuler')
-                ),
-                ElevatedButton(
-                  onPressed: isVerifying ? null : () async {
-                     setDialogState(() { isVerifying = true; error = null; });
-                     final validResult = await authService.validateOtp(controller.text);
-                     if (validResult.success) {
-                       Navigator.pop(ctx, 'SUCCESS');
-                     } else {
-                       setDialogState(() { isVerifying = false; error = validResult.error ?? 'Code invalide'; });
-                     }
-                  },
-                  child: const Text('Valider'),
-                ),
-              ],
-            );
-          },
-        );
-      },
-    );
+    // Show new reusable OTP dialog
+    final otpResult = await OtpDialog.show(context, phone: fullPhone);
 
     if (!mounted) return;
 
-    if (otp == 'SUCCESS') {
+    if (otpResult == 'SUCCESS') {
       setState(() => _phoneVerified = true);
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('✅ Téléphone vérifié !'), backgroundColor: Colors.green),
