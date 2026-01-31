@@ -1,6 +1,8 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
 import 'package:tontetic/core/providers/tontine_provider.dart';
+import 'package:tontetic/core/models/tontine_model.dart';
+import 'package:tontetic/core/models/user_model.dart';
 import 'package:tontetic/core/services/security_service.dart';
 import 'package:tontetic/core/services/notification_service.dart';
 
