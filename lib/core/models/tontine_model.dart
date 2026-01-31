@@ -1,3 +1,4 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 /// Join request status
 enum JoinRequestStatus { pending, approved, rejected }
@@ -80,6 +81,52 @@ class TontineCircle {
     this.joinRequests = const [],
     this.pendingSignatureIds = const [],
   });
+
+  factory TontineCircle.fromFirestore(DocumentSnapshot doc) {
+    final data = doc.data() as Map<String, dynamic>;
+    return TontineCircle(
+      id: doc.id,
+      name: data['name'] ?? '',
+      objective: data['objective'] ?? '',
+      amount: (data['amount'] ?? 0).toDouble(),
+      maxParticipants: data['maxParticipants'] ?? 10,
+      frequency: data['frequency'] ?? 'Mensuel',
+      payoutDay: data['payoutDay'] ?? 1,
+      orderType: data['orderType'] ?? 'Aléatoire',
+      creatorId: data['creatorId'] ?? '',
+      creatorName: data['creatorName'] ?? '',
+      invitationCode: data['invitationCode'] ?? '',
+      isPublic: data['isPublic'] ?? true,
+      isSponsored: data['isSponsored'] ?? false,
+      currency: data['currency'] ?? 'FCFA',
+      createdAt: (data['createdAt'] as Timestamp).toDate(),
+      memberIds: List<String>.from(data['memberIds'] ?? []),
+      currentCycle: data['currentCycle'] ?? 1,
+      pendingSignatureIds: List<String>.from(data['pendingSignatureIds'] ?? []),
+    );
+  }
+
+  Map<String, dynamic> toFirestore() {
+    return {
+      'name': name,
+      'objective': objective,
+      'amount': amount,
+      'maxParticipants': maxParticipants,
+      'frequency': frequency,
+      'payoutDay': payoutDay,
+      'orderType': orderType,
+      'creatorId': creatorId,
+      'creatorName': creatorName,
+      'invitationCode': invitationCode,
+      'isPublic': isPublic,
+      'isSponsored': isSponsored,
+      'currency': currency,
+      'createdAt': Timestamp.fromDate(createdAt),
+      'memberIds': memberIds,
+      'currentCycle': currentCycle,
+      'pendingSignatureIds': pendingSignatureIds,
+    };
+  }
 
   TontineCircle copyWith({
     String? id,

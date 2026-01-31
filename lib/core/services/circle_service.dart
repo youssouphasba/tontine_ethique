@@ -16,25 +16,8 @@ class CircleService {
       final docRef = _db.collection('tontines').doc();
       final newCircle = circle.copyWith(id: docRef.id);
       
-      await docRef.set({
-        'id': docRef.id,
-        'name': newCircle.name,
-        'objective': newCircle.objective,
-        'amount': newCircle.amount,
-        'maxParticipants': newCircle.maxParticipants,
-        'frequency': newCircle.frequency,
-        'payoutDay': newCircle.payoutDay,
-        'orderType': newCircle.orderType,
-        'creatorId': newCircle.creatorId,
-        'creatorName': newCircle.creatorName,
-        'invitationCode': newCircle.invitationCode,
-        'isPublic': newCircle.isPublic,
-        'isSponsored': newCircle.isSponsored,
-        'currency': newCircle.currency, // V15: Dynamic Currency
-        'createdAt': Timestamp.fromDate(newCircle.createdAt),
-        'memberIds': newCircle.memberIds,
-        'currentCycle': newCircle.currentCycle,
-      });
+      // Use clean serialization
+      await docRef.set(newCircle.toFirestore());
 
       // V1.5: Enregistrer l'activité sociale réelle
       await _db.collection('activities').add({
@@ -62,7 +45,7 @@ class CircleService {
         .where('memberIds', arrayContains: userId)
         .snapshots()
         .map((snapshot) => snapshot.docs
-            .map((doc) => _mapDocToCircle(doc))
+            .map((doc) => TontineCircle.fromFirestore(doc))
             .toList());
   }
 
@@ -72,7 +55,7 @@ class CircleService {
         .collection('tontines')
         .doc(circleId)
         .snapshots()
-        .map((doc) => doc.exists ? _mapDocToCircle(doc) : null);
+        .map((doc) => doc.exists ? TontineCircle.fromFirestore(doc) : null);
   }
 
   /// Récupérer les cercles publics (Explorer)
@@ -82,7 +65,7 @@ class CircleService {
         .where('isPublic', isEqualTo: true)
         .snapshots()
         .map((snapshot) => snapshot.docs
-            .map((doc) => _mapDocToCircle(doc))
+            .map((doc) => TontineCircle.fromFirestore(doc))
             .toList());
   }
 
@@ -312,29 +295,7 @@ class CircleService {
     await _updateUserStats(userId, increment: 1);
   }
 
-  TontineCircle _mapDocToCircle(DocumentSnapshot doc) {
-    final data = doc.data() as Map<String, dynamic>;
-    return TontineCircle(
-      id: doc.id,
-      name: data['name'] ?? '',
-      objective: data['objective'] ?? '',
-      amount: (data['amount'] ?? 0).toDouble(),
-      maxParticipants: data['maxParticipants'] ?? 10,
-      frequency: data['frequency'] ?? 'Mensuel',
-      payoutDay: data['payoutDay'] ?? 1,
-      orderType: data['orderType'] ?? 'Aléatoire',
-      creatorId: data['creatorId'] ?? '',
-      creatorName: data['creatorName'] ?? '',
-      invitationCode: data['invitationCode'] ?? '',
-      isPublic: data['isPublic'] ?? true,
-      isSponsored: data['isSponsored'] ?? false,
-      currency: data['currency'] ?? 'FCFA', // Fallback to FCFA for old circles
-      createdAt: (data['createdAt'] as Timestamp).toDate(),
-      memberIds: List<String>.from(data['memberIds'] ?? []),
-      currentCycle: data['currentCycle'] ?? 1,
-      pendingSignatureIds: List<String>.from(data['pendingSignatureIds'] ?? []),
-    );
-  }
+
 
   /// Update user stats (Back Office Sync)
   Future<void> _updateUserStats(String userId, {required int increment}) async {
