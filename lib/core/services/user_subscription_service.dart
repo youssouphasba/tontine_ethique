@@ -14,6 +14,7 @@
 library;
 
 import 'package:flutter/foundation.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 // ============================================================
 // ENUMS
@@ -299,8 +300,19 @@ class UserSubscriptionService {
   static final UserSubscriptionService _instance = UserSubscriptionService._internal();
   factory UserSubscriptionService() => _instance;
   UserSubscriptionService._internal() {
-    _initializeDemoData();
+    _initializeService();
   }
+
+  /// Stockage des définitions locales (fallback)
+  final Map<UserPlan, PlanDefinition> _localPlans = {
+    UserPlan.gratuit: PlanDefinitions.gratuit,
+    UserPlan.starter: PlanDefinitions.starter,
+    UserPlan.standard: PlanDefinitions.standard,
+    UserPlan.premium: PlanDefinitions.premium,
+  };
+
+  /// Stockage des définitions distantes (Firestore)
+  final Map<UserPlan, PlanDefinition> _remotePlans = {};
 
   /// Stockage des abonnements (en mémoire pour la démo)
   final Map<String, UserSubscription> _subscriptions = {};
@@ -308,12 +320,69 @@ class UserSubscriptionService {
   /// Stockage du nombre de cercles par utilisateur
   final Map<String, int> _userCircleCounts = {};
 
+  Future<void> _initializeService() async {
+    // 1. Initialiser avec les données locales par défaut
+    debugPrint('[Subscription] Service initialized with local defaults');
+    
+    // 2. Tenter de récupérer les configs à jour depuis Firestore
+    try {
+      await _fetchPlansFromFirestore();
+    } catch (e) {
+      debugPrint('[Subscription] Failed to fetch remote plans: $e');
+    }
+  }
+
+  /// Récupère les définitions à jour depuis Firestore
+  Future<void> _fetchPlansFromFirestore() async {
+    try {
+      final snapshot = await FirebaseFirestore.instance.collection('plans').get();
+      
+      if (snapshot.docs.isEmpty) {
+        debugPrint('[Subscription] No remote plans found in Firestore.');
+        return;
+      }
+
+      for (var doc in snapshot.docs) {
+        final data = doc.data();
+        final planCode = _parsePlanCode(data['code'] ?? doc.id); // 'gratuit', 'starter'...
+        
+        if (planCode != null) {
+          final limits = data['limits'] as Map<String, dynamic>? ?? {};
+          
+          final def = PlanDefinition(
+            plan: planCode,
+            name: data['name'] ?? _localPlans[planCode]?.name ?? 'Plan',
+            description: data['description'] ?? _localPlans[planCode]?.description ?? '',
+            monthlyPriceEur: (data['priceCents'] ?? 0) / 100.0,
+            maxCircles: limits['maxActiveCircles'] ?? _localPlans[planCode]?.maxCircles ?? 1,
+            maxParticipantsPerCircle: limits['maxMembers'] ?? _localPlans[planCode]?.maxParticipantsPerCircle ?? 5,
+            features: List<String>.from(data['features'] ?? _localPlans[planCode]?.features ?? []),
+            supportLevel: data['supportLevel'] ?? _localPlans[planCode]?.supportLevel ?? 'Standard',
+            hasAlerts: data['hasAlerts'] ?? _localPlans[planCode]?.hasAlerts ?? false,
+            hasPriorityAI: data['hasPriorityAI'] ?? _localPlans[planCode]?.hasPriorityAI ?? false,
+          );
+          
+          _remotePlans[planCode] = def;
+          debugPrint('[Subscription] Loaded remote config for ${planCode.name}: ${def.maxCircles} circles, ${def.maxParticipantsPerCircle} members');
+        }
+      }
+    } catch (e) {
+      debugPrint('[Subscription] Error parsing remote plans: $e');
+    }
+  }
+
+  UserPlan? _parsePlanCode(String code) {
+    try {
+      return UserPlan.values.firstWhere(
+        (e) => e.name.toLowerCase() == code.toLowerCase(),
+      );
+    } catch (_) {
+      return null;
+    }
+  }
+
   void _initializeDemoData() {
-    // PRODUCTION: No demo data - all subscription data comes from:
-    // 1. Stripe webhooks -> entitlements collection
-    // 2. User planId field in users collection
-    // The SubscriptionService (in core/business/) uses dynamic Plan data from Firestore
-    debugPrint('[Subscription] Service initialized (no demo data)');
+    // Deprecated - kept for reference
   }
 
   // ============================================================
@@ -328,9 +397,11 @@ class UserSubscriptionService {
     return _subscriptions[userId]?.plan ?? UserPlan.gratuit;
   }
 
-  /// Récupère la définition du plan de l'utilisateur
+  /// Récupère la définition du plan de l'utilisateur (Remote > Local)
   PlanDefinition getUserPlanDefinition(String userId) {
-    return PlanDefinitions.getDefinition(getUserPlan(userId));
+    final userPlan = getUserPlan(userId);
+    // Priorité à la config Firestore, sinon fallback hardcodé
+    return _remotePlans[userPlan] ?? _localPlans[userPlan] ?? PlanDefinitions.getDefinition(userPlan);
   }
 
   /// ⚠️ VÉRIFICATION SERVEUR: L'utilisateur peut-il créer une nouvelle tontine?

@@ -226,11 +226,44 @@ class ReferralService {
     }
   }
 
-  /// Get active campaign
-  ReferralCampaign? getActiveCampaign() {
+  /// Get active campaign from Firestore
+  Future<ReferralCampaign?> getActiveCampaign() async {
     try {
-      return _campaigns.firstWhere((c) => c.isActive);
+      final snapshot = await FirebaseFirestore.instance
+          .collection('referral_campaigns')
+          .where('isActive', isEqualTo: true)
+          .where('endDate', isGreaterThan: DateTime.now())
+          .orderBy('endDate') // Get the one ending soonest or latest created
+          .limit(1)
+          .get();
+
+      if (snapshot.docs.isEmpty) return null;
+
+      final doc = snapshot.docs.first;
+      final data = doc.data();
+
+      // Parse Reward Type safely
+      ReferralRewardType rewardType = ReferralRewardType.feeFree;
+      try {
+        rewardType = ReferralRewardType.values.firstWhere(
+            (e) => e.name == (data['rewardType'] as String? ?? 'feeFree'));
+      } catch (_) {}
+
+      return ReferralCampaign(
+        id: doc.id,
+        name: data['name'] ?? 'Campagne',
+        description: data['description'] ?? '',
+        rewardType: rewardType,
+        rewardAmount: (data['rewardAmount'] as num?)?.toDouble() ?? 0.0,
+        isActive: true,
+        startDate: (data['startDate'] as Timestamp).toDate(),
+        endDate: (data['endDate'] as Timestamp?)?.toDate(),
+        maxReferralsPerUser: data['maxReferralsPerUser'] ?? 50,
+        minCirclesToValidate: data['minCirclesToValidate'] ?? 1,
+      );
+
     } catch (e) {
+      debugPrint('[Referral] Error fetching active campaign: $e');
       return null;
     }
   }

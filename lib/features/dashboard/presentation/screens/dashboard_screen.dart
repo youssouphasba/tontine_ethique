@@ -13,7 +13,7 @@ import 'package:tontetic/core/business/subscription_service.dart';
 import 'package:tontetic/features/social/presentation/screens/conversations_list_screen.dart';
 import 'package:tontetic/features/tontine/presentation/screens/circle_chat_screen.dart';
 import 'package:tontetic/features/onboarding/presentation/widgets/welcome_dialog.dart';
-import 'package:tontetic/features/referral/data/referral_service.dart';
+import 'package:tontetic/core/services/referral_service.dart';
 import 'package:tontetic/features/settings/presentation/screens/settings_screen.dart';
 import 'package:tontetic/features/shop/presentation/screens/boutique_screen.dart'; // Boutique TikTok-style
 import 'package:tontetic/features/tontine/presentation/screens/create_tontine_screen.dart';
@@ -52,6 +52,7 @@ class DashboardScreen extends ConsumerStatefulWidget {
 class _DashboardScreenState extends ConsumerState<DashboardScreen> with SingleTickerProviderStateMixin {
 
   bool _isReferralActive = false;
+  String _activeCampaignReward = '';
   bool _isRecording = false;
   bool _isProcessing = false;
   bool _hasVoiceConsent = false;
@@ -109,10 +110,12 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> with SingleTi
   }
   
   Future<void> _checkFeatureFlag() async {
-    final isActive = await ReferralService.isReferralActive();
+    // Check for active referral campaign
+    final activeCampaign = await ReferralService().getActiveCampaign();
     if (mounted) {
       setState(() {
-        _isReferralActive = isActive;
+        _isReferralActive = activeCampaign != null;
+        _activeCampaignReward = activeCampaign?.rewardAmount.toString() ?? '';
       });
     }
   }
@@ -846,9 +849,8 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> with SingleTi
     // Generate code from user name
     final namePart = userName.toUpperCase().split(' ').first.substring(0, 
       userName.split(' ').first.length > 6 ? 6 : userName.split(' ').first.length);
-    final referralCode = '$namePart${userId.hashCode.abs() % 1000}';
-
-    final referralLink = 'https://tontetic-app.web.app/join?ref=$referralCode';
+    final referralCode = ReferralService().getReferralCode(userId, namePart);
+    final referralLink = ReferralService().getReferralLink(referralCode);
 
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 24),
@@ -936,7 +938,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> with SingleTi
                     Share.share(
                       '🌟 Rejoins Tontetic, l\'app de tontine solidaire !\n\n'
                       '💰 Ensemble, on atteint nos objectifs.\n'
-                      '🎁 Utilise mon code $referralCode pour gagner 1 mois sans frais !\n\n'
+                      '🎁 Utilise mon code $referralCode pour gagner ${_activeCampaignReward.isNotEmpty ? "$_activeCampaignReward FCFA" : "une récompense"} !\n\n'
                       '📲 $referralLink',
                       subject: 'Invitation Tontetic - Code $referralCode',
                     );

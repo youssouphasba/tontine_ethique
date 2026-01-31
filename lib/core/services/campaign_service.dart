@@ -1,4 +1,6 @@
 import 'package:flutter/foundation.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:tontetic/core/services/notification_service.dart';
 
 /// With audience targeting and analytics
 
@@ -168,6 +170,45 @@ class CampaignService {
 
     // PRODUCTION: No demo campaigns - campaigns come from Firestore 'broadcasts' collection
     debugPrint('[Campaign] Service initialized (no demo campaigns)');
+    listenToBroadcasts();
+  }
+
+  /// Listen to real-time broadcasts from Admin
+  void listenToBroadcasts() {
+    debugPrint('[Campaign] Listening to broadcasts...');
+    final now = DateTime.now();
+    
+    FirebaseFirestore.instance
+        .collection('broadcasts')
+        .where('createdAt', isGreaterThan: Timestamp.fromDate(now))
+        .snapshots()
+        .listen((snapshot) {
+      for (final change in snapshot.docChanges) {
+        if (change.type == DocumentChangeType.added) {
+          final data = change.doc.data();
+          if (data != null) {
+            _handleNewBroadcast(data);
+          }
+        }
+      }
+    });
+  }
+
+  void _handleNewBroadcast(Map<String, dynamic> data) {
+    final title = data['title'] as String? ?? 'Nouvelle annonce';
+    final body = data['body'] as String? ?? 'Consultez les nouveautés dans l\'application.';
+    
+    debugPrint('[Campaign] New broadcast received: $title');
+    
+    // Trigger local notification for immediate visibility
+    // Using a hashcode of the title mixed with time for a somewhat unique ID
+    final id = (title.hashCode + DateTime.now().millisecondsSinceEpoch).abs() % 100000;
+    
+    NotificationService.showLocalNotification(
+      id: id,
+      title: title,
+      body: body,
+    );
   }
 
   // CRUD Operations

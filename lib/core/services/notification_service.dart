@@ -49,7 +49,7 @@ class NotificationService {
       
       // Afficher une notification locale "Heads-up" si l'app est ouverte
       if (message.notification != null) {
-        _showLocalNotification(
+        showLocalNotification(
           id: message.hashCode,
           title: message.notification!.title ?? 'Notification',
           body: message.notification!.body ?? '',
@@ -81,7 +81,7 @@ class NotificationService {
   }
 
   /// Affiche une notification locale (Heads-up)
-  static Future<void> _showLocalNotification({
+  static Future<void> showLocalNotification({
     required int id,
     required String title,
     required String body,
