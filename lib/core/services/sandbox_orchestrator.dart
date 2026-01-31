@@ -6,7 +6,7 @@ import 'package:tontetic/core/services/audit_log_service.dart';
 import 'package:tontetic/features/wallet/data/wallet_provider.dart';
 import 'package:tontetic/core/services/voice_service.dart';
 import 'package:tontetic/core/providers/localization_provider.dart';
-import 'package:tontetic/core/providers/circle_provider.dart';
+import 'package:tontetic/core/providers/tontine_provider.dart';
 
 enum SimulationScenario { normal, insufficientFunds, accountClosed }
 

@@ -31,7 +31,7 @@ import 'package:tontetic/core/services/voice_service.dart';
 import 'package:tontetic/features/ai/presentation/widgets/voice_consent_dialog.dart';
 import 'package:tontetic/features/ai/presentation/widgets/audio_visualizer.dart';
 import 'package:tontetic/features/ai/presentation/widgets/pulsating_mic_button.dart';
-import 'package:tontetic/core/providers/circle_provider.dart';
+import 'package:tontetic/core/providers/tontine_provider.dart';
 import 'package:tontetic/core/providers/context_provider.dart';
 import 'package:tontetic/features/auth/presentation/widgets/biometric_setup_prompt.dart';
 import 'package:tontetic/core/services/guest_mode_service.dart';

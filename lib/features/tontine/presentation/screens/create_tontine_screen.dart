@@ -9,7 +9,7 @@ import 'package:tontetic/core/business/subscription_service.dart';
 import 'package:tontetic/features/subscription/presentation/screens/subscription_selection_screen.dart';
 import 'package:tontetic/features/tontine/presentation/screens/legal_commitment_screen.dart';
 import 'package:tontetic/core/services/wolof_audio_service.dart';
-import 'package:tontetic/core/providers/circle_provider.dart';
+import 'package:tontetic/core/providers/tontine_provider.dart';
 import 'package:tontetic/features/social/data/social_provider.dart';
 import 'package:tontetic/features/settings/presentation/screens/legal_documents_screen.dart';
 import 'package:tontetic/features/tontine/presentation/screens/circle_chat_screen.dart';

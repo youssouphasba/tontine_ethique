@@ -4,7 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:tontetic/core/theme/app_theme.dart';
-import 'package:tontetic/core/providers/circle_provider.dart';
+import 'package:tontetic/core/providers/tontine_provider.dart';
 
 /// Screen to generate QR code invitations for circles
 class QRInvitationScreen extends ConsumerStatefulWidget {

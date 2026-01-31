@@ -2,7 +2,7 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:tontetic/core/providers/user_provider.dart';
-import 'package:tontetic/core/providers/circle_provider.dart';
+import 'package:tontetic/core/providers/tontine_provider.dart';
 import 'package:tontetic/features/wallet/data/wallet_provider.dart';
 import 'package:tontetic/core/providers/consent_provider.dart';
 

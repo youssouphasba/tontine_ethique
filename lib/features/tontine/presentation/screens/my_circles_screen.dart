@@ -16,7 +16,7 @@ import 'package:tontetic/features/tontine/presentation/screens/legal_commitment_
 import 'package:tontetic/core/services/notification_service.dart'; // V10.1 Notifications
 import 'package:tontetic/features/tontine/presentation/screens/qr_scanner_screen.dart';
 import 'package:tontetic/core/providers/localization_provider.dart';
-import 'package:tontetic/core/providers/circle_provider.dart';
+import 'package:tontetic/core/providers/tontine_provider.dart';
 import 'package:tontetic/core/providers/auth_provider.dart';
 import 'package:tontetic/features/tontine/presentation/screens/circle_chat_screen.dart';
 import 'package:tontetic/features/tontine/presentation/screens/circle_details_screen.dart'; // V16 Import

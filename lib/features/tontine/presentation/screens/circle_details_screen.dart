@@ -5,7 +5,7 @@ import 'package:share_plus/share_plus.dart';
 import 'package:tontetic/core/theme/app_theme.dart';
 import 'package:tontetic/features/social/presentation/screens/profile_screen.dart';
 import 'package:tontetic/core/providers/user_provider.dart'; // Import UserProvider
-import 'package:tontetic/core/providers/circle_provider.dart'; // Import CircleProvider
+import 'package:tontetic/core/providers/tontine_provider.dart'; // Import CircleProvider
 import 'package:tontetic/core/presentation/widgets/tts_control_toggle.dart';
 import 'package:tontetic/core/presentation/widgets/speaker_icon.dart';
 import 'package:tontetic/features/tontine/presentation/screens/circle_chat_screen.dart';
