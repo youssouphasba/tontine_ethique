@@ -12,6 +12,7 @@ import 'core/providers/theme_provider.dart';
 import 'core/providers/user_provider.dart';
 import 'package:tontetic/core/services/security_service.dart';
 import 'package:tontetic/core/services/stripe_service.dart';
+import 'package:tontetic/core/services/notification_service.dart';
 import 'core/services/encryption_service.dart'; // E2E
 import 'features/onboarding/presentation/screens/onboarding_screen.dart';
 import 'features/dashboard/presentation/screens/dashboard_screen.dart';
@@ -56,6 +57,13 @@ void main() async {
     await StripeService.initialize();
   } catch (e) {
     debugPrint('Fatal: Failed to initialize StripeService: $e');
+  }
+
+  // Initialize Notifications (Real FCM + Local)
+  try {
+    await NotificationService.initialize();
+  } catch (e) {
+    debugPrint('Warning: Failed to initialize NotificationService: $e');
   }
 
   // --- PRODUCTION SAFETY GUARD ---

@@ -136,9 +136,9 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> with SingleTi
     final l10n = ref.watch(localizationProvider);
     List<BottomNavigationBarItem> navItems = [
       BottomNavigationBarItem(icon: const Icon(Icons.home), label: l10n.translate('tab_home')),
-      BottomNavigationBarItem(icon: const Icon(Icons.groups), label: l10n.translate('my_tontines')),
+      const BottomNavigationBarItem(icon: Icon(Icons.search), label: 'Explorer'),
       BottomNavigationBarItem(icon: const Icon(Icons.account_balance_wallet), label: l10n.translate('tab_wallet')),
-      BottomNavigationBarItem(icon: const Icon(Icons.storefront), label: 'Boutique'), // Boutique TikTok-style
+      BottomNavigationBarItem(icon: const Icon(Icons.storefront), label: 'Boutique'),
       const BottomNavigationBarItem(icon: Icon(Icons.settings), label: 'Paramètres'),
     ];
 
@@ -149,14 +149,12 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> with SingleTi
     if (_selectedIndex == 0) {
       content = _buildHomeContent();
     } else if (_selectedIndex == 1) {
-      // Tontines now require account - guests can't see circles
-      content = isGuest ? _buildGuestBlocker('Tontines') : const MyCirclesScreen();
+      content = const ExplorerScreen();
     } else if (_selectedIndex == 2) {
       content = isGuest ? _buildGuestBlocker('Portefeuille') : const WalletTabScreen();
     } else if (_selectedIndex == 3) {
-      content = const BoutiqueScreen(); // Boutique TikTok-style (pas de guest block)
+      content = const BoutiqueScreen();
     } else {
-      // Settings - Allow minimal settings or full? Let's allow full for Theme switch
       content = const SettingsScreen();
     }
 
@@ -590,7 +588,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> with SingleTi
                 ),
                 TextButton(
                   onPressed: () {
-                     ref.read(navigationProvider.notifier).setIndex(1); // Navigate to MyCircles tab
+                     context.push('/tontines');
                   },
                   child: const Text('Voir tout'),
                 ),

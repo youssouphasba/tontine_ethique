@@ -91,6 +91,35 @@ class E2EEncryptionService {
 
   // --- 2. ENCRYPTION (AES + RSA) ---
 
+  /// Encrypts for Recipient AND Sender (so Sender can read it back)
+  static Future<Map<String, dynamic>> encryptMessageDual(String plainText, String recipientPublicKeyPem, String senderPublicKeyPem) async {
+    // 1. Generate ephemeral AES Key and IV
+    final aesKey = enc.Key.fromSecureRandom(32);
+    final iv = enc.IV.fromSecureRandom(16);
+
+    // 2. Encrypt Content with AES
+    final encrypter = enc.Encrypter(enc.AES(aesKey));
+    final encryptedContent = encrypter.encrypt(plainText, iv: iv);
+
+    // 3. Encrypt AES Key with Recipient's RSA Public Key
+    final parser = enc.RSAKeyParser();
+    final rsaPublicRecip = parser.parse(recipientPublicKeyPem) as pc_api.RSAPublicKey;
+    final rsaEncrypterRecip = enc.Encrypter(enc.RSA(publicKey: rsaPublicRecip));
+    final encryptedKeyRecip = rsaEncrypterRecip.encryptBytes(aesKey.bytes);
+    
+    // 4. Encrypt AES Key with Sender's RSA Public Key
+    final rsaPublicSender = parser.parse(senderPublicKeyPem) as pc_api.RSAPublicKey;
+    final rsaEncrypterSender = enc.Encrypter(enc.RSA(publicKey: rsaPublicSender));
+    final encryptedKeySender = rsaEncrypterSender.encryptBytes(aesKey.bytes);
+
+    return {
+      'content': encryptedContent.base64,
+      'key': base64Encode(encryptedKeyRecip.bytes),
+      'keySender': base64Encode(encryptedKeySender.bytes),
+      'iv': iv.base64,
+    };
+  }
+
   /// Encrypts a message for a specific recipient
   /// Returns { 'content': AES_ENCRYPTED_TEXT, 'key': RSA_ENCRYPTED_AES_KEY, 'iv': IV }
   static Future<Map<String, String>> encryptMessage(String plainText, String recipientPublicKeyPem) async {

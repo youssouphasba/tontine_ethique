@@ -11,6 +11,7 @@ library;
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:tontetic/core/services/notification_service.dart';
 
 enum TontineInvitationStatus {
   pending,    // En attente de validation par le créateur

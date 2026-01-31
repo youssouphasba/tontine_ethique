@@ -1,7 +1,0 @@
-﻿Analyzing lib...                                                
-
-warning - The value of the field '_isSigning' isn't used - lib\features\advertising\presentation\screens\merchant_charter_screen.dart:21:8 - unused_field
-   info - Don't use 'BuildContext's across async gaps - lib\features\kyc\presentation\screens\identity_verification_screen.dart:52:25 - use_build_context_synchronously
-   info - Don't use 'BuildContext's across async gaps - lib\features\subscription\presentation\screens\subscription_selection_screen.dart:526:28 - use_build_context_synchronously
-warning - The value of the field '_awaitingApproval' isn't used - lib\features\tontine\presentation\screens\invitation_landing_screen.dart:35:8 - unused_field
-

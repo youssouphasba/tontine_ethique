@@ -21,7 +21,9 @@ class _DirectChatScreenState extends ConsumerState<DirectChatScreen> {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      ref.read(socialProvider.notifier).listenToConversation(widget.friendName, widget.friendName);
+      if (widget.friendId != null) {
+        ref.read(socialProvider.notifier).listenToConversation(widget.friendName, widget.friendId!);
+      }
     });
   }
 
@@ -210,10 +212,18 @@ class _DirectChatScreenState extends ConsumerState<DirectChatScreen> {
 
   void _handleSend() {
     if (_msgController.text.trim().isEmpty) return;
-    ref.read(socialProvider.notifier).sendMessage(widget.friendName, widget.friendName, _msgController.text, recipientId: widget.friendId);
+    
+    if (widget.friendId == null) {
+       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Erreur: ID ami introuvable')));
+       return;
+    }
+
+    ref.read(socialProvider.notifier).sendMessage(widget.friendName, widget.friendId!, _msgController.text);
     _msgController.clear();
     Future.delayed(const Duration(milliseconds: 100), () {
-       _scrollController.animateTo(_scrollController.position.maxScrollExtent, duration: const Duration(milliseconds: 300), curve: Curves.easeOut);
+       if (_scrollController.hasClients) {
+         _scrollController.animateTo(_scrollController.position.maxScrollExtent, duration: const Duration(milliseconds: 300), curve: Curves.easeOut);
+       }
     });
   }
 }

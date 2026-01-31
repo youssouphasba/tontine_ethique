@@ -4,6 +4,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:tontetic/core/services/security_service.dart';
+import 'package:tontetic/core/services/notification_service.dart';
 
 /// Résultat d'une opération d'authentification
 class AuthResult {
@@ -34,6 +35,10 @@ class AuthService {
   Future<AuthResult> signInWithEmail({required String email, required String password}) async {
     try {
       await _auth.signInWithEmailAndPassword(email: email, password: password);
+      // Save FCM Token
+      if (_auth.currentUser != null) {
+        await NotificationService.saveUserToken(_auth.currentUser!.uid);
+      }
       return AuthResult(success: true);
     } on FirebaseAuthException catch (e) {
       return AuthResult(success: false, error: _mapFirebaseError(e.code));
@@ -65,6 +70,9 @@ class AuthService {
           fullName: fullName,
           role: role,
         );
+        
+        // Save FCM Token
+        await NotificationService.saveUserToken(credential.user!.uid);
       }
 
       return AuthResult(success: true);
@@ -268,6 +276,10 @@ class AuthService {
       }
 
       debugPrint('DEBUG_AUTH: Google Sign-In complete!');
+      // Save FCM Token
+      if (userCredential.user != null) {
+        await NotificationService.saveUserToken(userCredential.user!.uid);
+      }
       return AuthResult(success: true, isNewUser: isNewUser);
     } catch (e, stackTrace) {
       debugPrint('DEBUG_AUTH: Error in signInWithGoogle: $e');

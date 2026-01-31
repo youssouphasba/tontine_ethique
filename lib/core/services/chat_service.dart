@@ -9,6 +9,11 @@ import 'package:tontetic/core/services/encryption_service.dart';
 class ChatService {
   late final FirebaseFirestore _db = FirebaseFirestore.instance;
 
+  /// Generate a unique ID for 1-on-1 chat
+  static String getCanonicalId(String userA, String userB) {
+    return userA.compareTo(userB) < 0 ? '${userA}_$userB' : '${userB}_$userA';
+  }
+
   /// Écouter les messages d'une conversation (Auto-Decrypt)
   Stream<List<ChatMessage>> getMessages(String conversationId, String currentUserId) {
     return _db
@@ -28,8 +33,12 @@ class ChatService {
   Future<void> sendMessage({
     required String conversationId,
     required String senderId,
-    required String recipientId, // REQUIRED for E2EE
+    required String recipientId, // REQUIRED for E2EE and Direct Chat Participants
     required String text,
+    String? senderName,
+    String? recipientName,
+    String? senderPhoto,
+    String? recipientPhoto,
     bool isInvite = false,
     Map<String, dynamic>? circleData,
   }) async {
@@ -53,7 +62,17 @@ class ChatService {
       // 1. Try Encryption
       try {
         final recipientKey = await E2EEncryptionService.getPublicKey(recipientId);
-        if (recipientKey != null) {
+        final senderKey = await E2EEncryptionService.getPublicKey(senderId);
+
+        if (recipientKey != null && senderKey != null) {
+           final encrypted = await E2EEncryptionService.encryptMessageDual(text, recipientKey, senderKey);
+           payload['text'] = ''; // Clear plain text
+           payload['isEncrypted'] = true;
+           payload['encryptedContent'] = encrypted['content'];
+           payload['encryptedKey'] = encrypted['key'];
+           payload['encryptedKeySender'] = encrypted['keySender'];
+           payload['iv'] = encrypted['iv'];
+        } else if (recipientKey != null) {
            final encrypted = await E2EEncryptionService.encryptMessage(text, recipientKey);
            payload['text'] = ''; // Clear plain text
            payload['isEncrypted'] = true;
@@ -67,11 +86,22 @@ class ChatService {
 
       await docRef.set(payload);
 
-      // Mettre à jour le timestamp de la conversation parente pour le tri
-      await _db.collection('conversations').doc(conversationId).set({
+      // Mettre à jour le timestamp de la conversation parente pour le tri et le query
+      final updateData = {
         'lastMessageAt': FieldValue.serverTimestamp(),
         'lastMessageText': payload['isEncrypted'] ? '🔒 Message chiffré' : text,
-      }, SetOptions(merge: true));
+        'participants': [senderId, recipientId], // Allow querying by arrayContains
+        'updatedAt': FieldValue.serverTimestamp(),
+      };
+      
+      if (senderName != null || recipientName != null) {
+         updateData['participantsData'] = {
+            if (senderName != null) senderId: {'name': senderName, 'photo': senderPhoto},
+            if (recipientName != null) recipientId: {'name': recipientName, 'photo': recipientPhoto},
+         };
+      }
+
+      await _db.collection('conversations').doc(conversationId).set(updateData, SetOptions(merge: true));
 
     } catch (e) {
       debugPrint('❌ Erreur envoi message: $e');
@@ -87,13 +117,27 @@ class ChatService {
     
     if (isEncrypted) {
       if (data['senderId'] == currentUserId) {
-         // Show "Sent Encrypted" or store own copy de-crypted (not implemented here)
-         // For now, sender might not see their own message if we don't store "myEncryptedKey"
-         // TODO: Multi-recipient encryption (Store key for Sender AND Recipient)
-         // Current MVP: Sender sees "🔒 Message sécurisé"
-         text = '🔒 Message sécurisé (envoyé)';
+         if (data['encryptedKeySender'] != null) {
+             // Decrypt using may private key (which is the Sender key in this case)
+             try {
+                final myKey = await E2EEncryptionService.getPrivateKey(currentUserId);
+                if (myKey != null) {
+                  text = await E2EEncryptionService.decryptMessage({
+                     'content': data['encryptedContent'],
+                     'key': data['encryptedKeySender'],
+                     'iv': data['iv']
+                  }, myKey);
+                } else {
+                  text = '🔒 Clé manquante';
+                }
+             } catch (e) {
+                text = '🔒 Erreur déchiffrement';
+             }
+         } else {
+             text = '🔒 Message sécurisé (envoyé)';
+         }
       } else {
-         // Decrypt
+         // Decrypt for Recipient
          try {
             final myKey = await E2EEncryptionService.getPrivateKey(currentUserId);
             if (myKey != null) {

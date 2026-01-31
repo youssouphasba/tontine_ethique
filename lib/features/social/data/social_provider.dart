@@ -5,6 +5,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:tontetic/core/providers/auth_provider.dart';
 import 'package:tontetic/core/providers/user_provider.dart';
 import 'package:tontetic/core/services/chat_service.dart';
+import 'package:tontetic/features/social/data/suggestion_service.dart'; // Import Added
 import 'package:tontetic/features/social/domain/chat_models.dart';
 export 'package:tontetic/features/social/domain/chat_models.dart';
 
@@ -153,11 +154,14 @@ class SocialNotifier extends StateNotifier<SocialState> {
   }
 
   /// Démarre l'écoute d'une conversation spécifique
-  void listenToConversation(String friendName, String conversationId) {
-    if (_convSubs.containsKey(conversationId)) return;
-
+  void listenToConversation(String friendName, String friendId) {
     final user = ref.read(authStateProvider).value;
     if (user == null) return;
+
+    // Use Canonical ID for Firestore (bi-directional)
+    final conversationId = ChatService.getCanonicalId(user.uid, friendId);
+
+    if (_convSubs.containsKey(conversationId)) return;
 
     final sub = ref.read(chatServiceProvider).getMessages(conversationId, user.uid).listen((messages) {
       final conversations = Map<String, Conversation>.from(state.directMessages);
@@ -168,20 +172,22 @@ class SocialNotifier extends StateNotifier<SocialState> {
     _convSubs[conversationId] = sub;
   }
 
-  Future<void> sendMessage(String friendName, String conversationId, String text, {String? recipientId, bool isInvite = false, Map<String, dynamic>? circleData}) async {
+  Future<void> sendMessage(String friendName, String friendId, String text, {bool isInvite = false, Map<String, dynamic>? circleData}) async {
     final user = ref.read(authStateProvider).value;
+    final userData = ref.read(userProvider);
     if (user == null) return;
 
-    // Warning: If recipientId is missing in E2EE mode, encryption won't happen.
-    // For DirectChatScreen, we should pass recipientId.
-    // If not passed, we use conversationId assuming it might be the ID (legacy/lazy mode)
-    final targetId = recipientId ?? conversationId; 
+    // Use Canonical ID
+    final conversationId = ChatService.getCanonicalId(user.uid, friendId);
 
     await ref.read(chatServiceProvider).sendMessage(
       conversationId: conversationId,
       senderId: user.uid,
-      recipientId: targetId,
+      recipientId: friendId,
       text: text,
+      senderName: userData.displayName,
+      senderPhoto: userData.photoUrl,
+      recipientName: friendName,
       isInvite: isInvite,
       circleData: circleData,
     );
