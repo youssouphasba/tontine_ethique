@@ -37,6 +37,8 @@ import 'package:tontetic/features/auth/presentation/widgets/biometric_setup_prom
 import 'package:tontetic/core/services/guest_mode_service.dart';
 import 'package:tontetic/core/providers/auth_provider.dart';
 import 'package:tontetic/core/providers/navigation_provider.dart';
+import 'package:tontetic/core/providers/notification_provider.dart';
+import 'package:tontetic/core/models/notification_model.dart';
 import 'package:tontetic/features/auth/presentation/screens/auth_screen.dart';
 
 class DashboardScreen extends ConsumerStatefulWidget {
@@ -170,9 +172,38 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> with SingleTi
             icon: const Icon(Icons.chat_bubble_outline, color: Colors.white),
             onPressed: () => context.push('/conversations'),
           ),
-          IconButton(
-            icon: const Icon(Icons.notifications_none, color: Colors.white),
-            onPressed: () => _showNotifications(context, ref),
+          Stack(
+            children: [
+              IconButton(
+                icon: const Icon(Icons.notifications_none, color: Colors.white),
+                onPressed: () => _showNotifications(context, ref),
+              ),
+              if (ref.watch(notificationProvider).unreadCount > 0)
+                Positioned(
+                  right: 8,
+                  top: 8,
+                  child: Container(
+                    padding: const EdgeInsets.all(4),
+                    decoration: const BoxDecoration(
+                      color: Colors.red,
+                      shape: BoxShape.circle,
+                    ),
+                    constraints: const BoxConstraints(
+                      minWidth: 16,
+                      minHeight: 16,
+                    ),
+                    child: Text(
+                      '${ref.watch(notificationProvider).unreadCount}',
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 10,
+                        fontWeight: FontWeight.bold,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                  ),
+                ),
+            ],
           ),
           CircleAvatar(
             radius: 16,
@@ -1193,8 +1224,8 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> with SingleTi
   }
 
   void _showNotifications(BuildContext context, WidgetRef ref) {
-    final user = ref.read(authStateProvider).value;
-    if (user == null) return;
+    final notifState = ref.watch(notificationProvider);
+    final notes = notifState.notifications;
 
     showModalBottomSheet(
       context: context,
@@ -1218,23 +1249,23 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> with SingleTi
                 margin: const EdgeInsets.only(bottom: 16),
                 decoration: BoxDecoration(color: Colors.grey[300], borderRadius: BorderRadius.circular(2)),
               ),
-              const Text('Centre de Notifications', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Text('Centre de Notifications', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                  if (notifState.unreadCount > 0)
+                    TextButton(
+                      onPressed: () => ref.read(notificationProvider.notifier).markAllAsRead(),
+                      child: const Text('Tout marquer comme lu'),
+                    ),
+                ],
+              ),
               const SizedBox(height: 16),
               Expanded(
-                child: StreamBuilder<QuerySnapshot>(
-                  stream: FirebaseFirestore.instance
-                      .collection('users')
-                      .doc(user.uid)
-                      .collection('notifications')
-                      .orderBy('timestamp', descending: true)
-                      .snapshots(),
-                  builder: (context, snapshot) {
-                    if (snapshot.hasError) return Center(child: Text('Erreur: ${snapshot.error}'));
-                    if (snapshot.connectionState == ConnectionState.waiting) return const Center(child: CircularProgressIndicator());
-
-                    final notes = snapshot.data?.docs ?? [];
-                    if (notes.isEmpty) {
-                      return const Center(
+                child: notifState.isLoading 
+                  ? const Center(child: CircularProgressIndicator())
+                  : notes.isEmpty
+                    ? const Center(
                         child: Column(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
@@ -1243,89 +1274,88 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> with SingleTi
                             Text('Aucune notification pour le moment.', style: TextStyle(color: Colors.grey)),
                           ],
                         ),
-                      );
-                    }
-
-                    return ListView.builder(
+                      )
+                    : ListView.builder(
                       controller: scrollController,
                       itemCount: notes.length,
                       itemBuilder: (ctx, i) {
-                        final doc = notes[i];
-                        final n = doc.data() as Map<String, dynamic>;
-                        final type = n['type'] ?? 'info';
-                        final isRead = n['read'] ?? false;
+                        final n = notes[i];
                         
                         IconData iconData = Icons.info_outline;
                         Color iconColor = Colors.blue;
                         
-                        if (type == 'join_approval') {
-                          iconData = Icons.check_circle_outline;
-                          iconColor = Colors.green;
-                        } else if (type == 'join_request') {
-                          iconData = Icons.person_add_outlined;
-                          iconColor = Colors.orange;
-                        } else if (type == 'new_follower') {
-                          iconData = Icons.person_outline;
-                          iconColor = Colors.purple;
+                        switch (n.type) {
+                          case NotificationType.success:
+                          case NotificationType.payment:
+                            iconData = Icons.check_circle_outline;
+                            iconColor = Colors.green;
+                            break;
+                          case NotificationType.warning:
+                            iconData = Icons.warning_amber_rounded;
+                            iconColor = Colors.orange;
+                            break;
+                          case NotificationType.tontine_invite:
+                            iconData = Icons.mail_outline;
+                            iconColor = Colors.purple;
+                            break;
+                          case NotificationType.chat_message:
+                            iconData = Icons.chat_bubble_outline;
+                            iconColor = AppTheme.marineBlue;
+                            break;
+                          default:
+                            iconData = Icons.notifications_none;
                         }
 
-                        return Card(
-                          elevation: isRead ? 0 : 2,
-                          color: isRead ? Colors.transparent : (Theme.of(context).brightness == Brightness.dark ? Colors.grey[900] : Colors.white),
-                          margin: const EdgeInsets.only(bottom: 8),
-                          child: ListTile(
-                            leading: CircleAvatar(
-                              backgroundColor: iconColor.withValues(alpha: 0.1),
-                              child: Icon(iconData, color: iconColor),
-                            ),
-                            title: Text(n['title'] ?? 'Notification', style: TextStyle(fontWeight: isRead ? FontWeight.normal : FontWeight.bold)),
-                            subtitle: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(n['message'] ?? ''),
-                                if (n['timestamp'] != null)
+                        return Dismissible(
+                          key: Key(n.id),
+                          direction: DismissDirection.endToStart,
+                          background: Container(
+                            alignment: Alignment.centerRight,
+                            padding: const EdgeInsets.only(right: 20.0),
+                            color: Colors.red,
+                            child: const Icon(Icons.delete, color: Colors.white),
+                          ),
+                          onDismissed: (direction) {
+                             ref.read(notificationProvider.notifier).deleteNotification(n.id);
+                          },
+                          child: Card(
+                            elevation: n.isRead ? 0 : 2,
+                            color: n.isRead ? Colors.transparent : (Theme.of(context).brightness == Brightness.dark ? Colors.grey[900] : Colors.white),
+                            margin: const EdgeInsets.only(bottom: 8),
+                            child: ListTile(
+                              leading: CircleAvatar(
+                                backgroundColor: iconColor.withValues(alpha: 0.1),
+                                child: Icon(iconData, color: iconColor),
+                              ),
+                              title: Text(n.title, style: TextStyle(fontWeight: n.isRead ? FontWeight.normal : FontWeight.bold)),
+                              subtitle: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(n.body),
                                   Padding(
                                     padding: const EdgeInsets.only(top: 4),
                                     child: Text(
-                                      DateFormat('dd/MM HH:mm').format((n['timestamp'] as Timestamp).toDate()),
+                                      DateFormat('dd/MM HH:mm').format(n.createdAt),
                                       style: const TextStyle(fontSize: 10, color: Colors.grey),
                                     ),
                                   ),
-                              ],
+                                ],
+                              ),
+                              onTap: () {
+                                // Mark as read
+                                ref.read(notificationProvider.notifier).markAsRead(n.id);
+                                
+                                // Logic based on type (example)
+                                if (n.type == NotificationType.tontine_invite && n.data != null) {
+                                  // Example navigation
+                                  // context.push('/circle-details/${n.data!['circleId']}');
+                                }
+                              },
                             ),
-                            trailing: IconButton(
-                              icon: const Icon(Icons.close, size: 18),
-                              onPressed: () => FirebaseFirestore.instance
-                                  .collection('users')
-                                  .doc(user.uid)
-                                  .collection('notifications')
-                                  .doc(doc.id)
-                                  .delete(),
-                            ),
-                            onTap: () {
-                              // Mark as read
-                              FirebaseFirestore.instance
-                                  .collection('users')
-                                  .doc(user.uid)
-                                  .collection('notifications')
-                                  .doc(doc.id)
-                                  .update({'read': true});
-                              
-                              // Logic based on type
-                              if (type == 'join_approval' && n['circleId'] != null) {
-                                Navigator.pop(ctx);
-                                context.push('/circle-details/${n['circleId']}');
-                              } else if (type == 'new_follower' && n['senderId'] != null) {
-                                Navigator.pop(ctx);
-                                context.push('/profile?uid=${n['senderId']}');
-                              }
-                            },
                           ),
                         );
                       },
-                    );
-                  },
-                ),
+                    ),
               ),
             ],
           ),
