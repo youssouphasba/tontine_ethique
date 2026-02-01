@@ -5,7 +5,7 @@ import 'package:tontetic/core/providers/auth_provider.dart';
 import 'package:tontetic/core/theme/app_theme.dart';
 
 import 'package:tontetic/features/admin/presentation/screens/admin_login_screen.dart';
-import 'package:tontetic/features/admin/presentation/screens/super_admin_screen.dart';
+import 'package:tontetic/features/admin/presentation/screens/admin_dashboard.dart';
 
 /// Admin Wrapper - PRODUCTION VERSION
 /// Implements RBAC by checking user role in Firestore before granting access
@@ -56,7 +56,7 @@ class AdminWrapper extends ConsumerWidget {
             }
 
             // Access granted - show admin dashboard
-            return const SuperAdminScreen();
+            return const AdminDashboard();
           },
         );
       },

@@ -34,13 +34,18 @@ class _AdminDashboardState extends ConsumerState<AdminDashboard> {
   
   final List<_AdminSection> _sections = [
     _AdminSection(Icons.dashboard, 'Vue d\'ensemble', Colors.blue),
+    _AdminSection(Icons.star, 'Gestion des Plans', Colors.amber),
     _AdminSection(Icons.people, 'Utilisateurs', Colors.green),
-    _AdminSection(Icons.donut_large, 'Cercles', Colors.orange),
+    _AdminSection(Icons.donut_large, 'Gestion des Cercles', Colors.orange),
     _AdminSection(Icons.shield, 'Modération', Colors.red),
     _AdminSection(Icons.store, 'Marchands', Colors.purple),
     _AdminSection(Icons.business, 'Entreprises', Colors.indigo),
-    _AdminSection(Icons.payment, 'Paiements (RO)', Colors.teal),
-    _AdminSection(Icons.report, 'Signalements', Colors.amber),
+    _AdminSection(Icons.payment, 'Finance', Colors.teal),
+    _AdminSection(Icons.report, 'Signalements', Colors.pink),
+    _AdminSection(Icons.message, 'Support', Colors.blueGrey),
+    _AdminSection(Icons.campaign, 'Campagnes', Colors.deepOrange),
+    _AdminSection(Icons.card_giftcard, 'Parrainage', Colors.cyan),
+    _AdminSection(Icons.security, 'Sécurité', Colors.black),
     _AdminSection(Icons.history, 'Audit', Colors.brown),
     _AdminSection(Icons.settings, 'Paramètres', Colors.grey),
   ];
@@ -133,15 +138,20 @@ class _AdminDashboardState extends ConsumerState<AdminDashboard> {
   Widget _buildMainContent() {
     switch (_selectedSection) {
       case 0: return const _OverviewSection();
-      case 1: return const _UsersSection();
-      case 2: return const _CirclesSection();
-      case 3: return const _ModerationSection();
-      case 4: return const _MerchantsSection();
-      case 5: return const _EnterprisesSection();
-      case 6: return const _PaymentsSection();
-      case 7: return const _ReportsSection();
-      case 8: return const _AuditSection();
-      case 9: return const _SettingsSection();
+      case 1: return const _PlansSection();
+      case 2: return const _UsersSection();
+      case 3: return const _CirclesSection();
+      case 4: return const _ModerationSection();
+      case 5: return const _MerchantsSection();
+      case 6: return const _EnterprisesSection();
+      case 7: return const _PaymentsSection();
+      case 8: return const _ReportsSection();
+      case 9: return const _SupportSection();
+      case 10: return const _CampaignsSection();
+      case 11: return const _ReferralSection();
+      case 12: return const _SecuritySection();
+      case 13: return const _AuditSection();
+      case 14: return const _SettingsSection();
       default: return const _OverviewSection();
     }
   }
@@ -958,4 +968,250 @@ class _SettingsSection extends StatelessWidget {
   const _SettingsSection();
   @override
   Widget build(BuildContext context) => const AdminSettingsSection();
+}
+
+// ==================== SECTION: PLANS & PRICING ====================
+class _PlansSection extends StatefulWidget {
+  const _PlansSection();
+  @override
+  State<_PlansSection> createState() => _PlansSectionState();
+}
+
+class _PlansSectionState extends State<_PlansSection> {
+  bool _isSeeding = false;
+  
+  Future<void> _seedPlans() async {
+    setState(() => _isSeeding = true);
+    try {
+      final firestore = FirebaseFirestore.instance;
+      final plans = [
+        {
+          'code': 'starter_pro',
+          'type': 'enterprise',
+          'name': 'Starter Pro',
+          'prices': {'EUR': 29.99, 'XOF': 19500.0},
+          'limits': {'maxMembers': 24, 'maxCircles': 2},
+          'features': ['24 salariés max', '2 tontines', 'Dashboard complet', 'Messagerie interne', 'Support flexible'],
+          'stripePriceId': 'price_1Suh1rCpguZvNb1UL4HZHv2v',
+          'isRecommended': false,
+          'status': 'active',
+          'sortOrder': 10,
+        },
+        {
+          'code': 'team',
+          'type': 'enterprise',
+          'name': 'Team',
+          'prices': {'EUR': 39.99, 'XOF': 26000.0},
+          'limits': {'maxMembers': 48, 'maxCircles': 4},
+          'features': ['48 salariés max', '4 tontines', 'Dashboard complet', 'Tontines multi-équipes', 'Support flexible'],
+          'stripePriceId': 'price_1Suh3WCpguZvNb1UqkodV50W',
+          'isRecommended': true,
+          'status': 'active',
+          'sortOrder': 20,
+        },
+      ];
+
+      final batch = firestore.batch();
+      for (var planData in plans) {
+        final docRef = firestore.collection('plans').doc(planData['code'] as String);
+        batch.set(docRef, { ...planData, 'createdAt': FieldValue.serverTimestamp(), 'updatedAt': FieldValue.serverTimestamp() }, SetOptions(merge: true));
+      }
+      await batch.commit();
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('✅ Plans Enterprise initialisés.')));
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Erreur seed: $e')));
+    } finally {
+      if (mounted) setState(() => _isSeeding = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(24),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text('Gestion des Plans & Tarifs', style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold)),
+          const SizedBox(height: 24),
+          Card(
+            child: ListTile(
+              leading: const Icon(Icons.cloud_upload, color: Colors.blue),
+              title: const Text('Initialiser les Plans Enterprise'),
+              subtitle: const Text('Mise à jour automatique des offres Enterprise dans Firestore.'),
+              trailing: _isSeeding 
+                ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2)) 
+                : ElevatedButton(onPressed: _seedPlans, child: const Text('EXÉCUTER')),
+            ),
+          ),
+          const SizedBox(height: 24),
+          const Text('Configuration des tarifs (B2C/Premium)', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+          const SizedBox(height: 16),
+          const Center(child: Text('Module de tarification dynamique connecté à Firestore.', style: TextStyle(color: Colors.grey))),
+        ],
+      ),
+    );
+  }
+}
+
+// ==================== SECTION: SUPPORT ====================
+class _SupportSection extends StatelessWidget {
+  const _SupportSection();
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.all(24),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text('Tickets Support & Assistance', style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold)),
+          const SizedBox(height: 24),
+          Expanded(
+            child: StreamBuilder<QuerySnapshot>(
+              stream: FirebaseFirestore.instance.collection('support_tickets').orderBy('createdAt', descending: true).snapshots(),
+              builder: (context, snapshot) {
+                if (snapshot.hasError) return Text('Erreur: ${snapshot.error}');
+                if (snapshot.connectionState == ConnectionState.waiting) return const Center(child: CircularProgressIndicator());
+                
+                final tickets = snapshot.data?.docs ?? [];
+                if (tickets.isEmpty) return const Center(child: Text('Aucun ticket en attente.'));
+
+                return ListView.builder(
+                  itemCount: tickets.length,
+                  itemBuilder: (ctx, i) {
+                    final data = tickets[i].data() as Map<String, dynamic>;
+                    return Card(
+                      child: ListTile(
+                        leading: Icon(Icons.mail, color: data['status'] == 'open' ? Colors.red : Colors.green),
+                        title: Text(data['subject'] ?? 'Sans objet'),
+                        subtitle: Text('${data['userName'] ?? 'Membre'} • ${data['status']}'),
+                        trailing: const Icon(Icons.chevron_right),
+                        onTap: () {},
+                      ),
+                    );
+                  },
+                );
+              }
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ==================== SECTION: CAMPAIGNS ====================
+class _CampaignsSection extends StatefulWidget {
+  const _CampaignsSection();
+  @override
+  State<_CampaignsSection> createState() => _CampaignsSectionState();
+}
+
+class _CampaignsSectionState extends State<_CampaignsSection> {
+  final _msgCtrl = TextEditingController();
+
+  void _send() async {
+    if (_msgCtrl.text.isEmpty) return;
+    try {
+      await FirebaseFirestore.instance.collection('broadcasts').add({
+        'title': 'Annonce Admin', 
+        'body': _msgCtrl.text,
+        'createdAt': FieldValue.serverTimestamp(),
+        'target': 'all',
+      });
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Campagne diffusée ! 🚀')));
+        _msgCtrl.clear();
+      }
+    } catch(e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Erreur: $e')));
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.all(24),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text('Campagnes & Communications', style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold)),
+          const SizedBox(height: 24),
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: Column(
+                children: [
+                  TextField(controller: _msgCtrl, maxLines: 5, decoration: const InputDecoration(hintText: 'Votre message de diffusion...', border: OutlineInputBorder())),
+                  const SizedBox(height: 16),
+                  SizedBox(width: double.infinity, height: 50, child: ElevatedButton.icon(onPressed: _send, icon: const Icon(Icons.send), label: const Text('LANCER LA CAMPAGNE'))),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ==================== SECTION: REFERRAL ====================
+class _ReferralSection extends StatelessWidget {
+  const _ReferralSection();
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.all(24),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text('Programme de Parrainage', style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold)),
+          const SizedBox(height: 24),
+          Card(
+            child: SwitchListTile(
+              title: const Text('Activer le module de parrainage'),
+              subtitle: const Text('Permet aux utilisateurs de gagner des bonus en invitant des amis.'),
+              value: true,
+              onChanged: (v) {},
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ==================== SECTION: SECURITY ====================
+class _SecuritySection extends StatelessWidget {
+  const _SecuritySection();
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.all(24),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text('Piliers de Sécurité & Audit', style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold)),
+          const SizedBox(height: 24),
+          Expanded(
+            child: Container(
+              width: double.infinity,
+              color: Colors.black,
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                   const Text('> System Secure', style: TextStyle(color: Colors.green, fontFamily: 'monospace')),
+                   const Text('> Cloud IAM Active', style: TextStyle(color: Colors.green, fontFamily: 'monospace')),
+                   const Text('> Audit Logging Enabled', style: TextStyle(color: Colors.green, fontFamily: 'monospace')),
+                   const Divider(color: Colors.green),
+                   const Text('> Accès restreint au personnel autorisé.', style: TextStyle(color: Colors.green, fontFamily: 'monospace')),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 }

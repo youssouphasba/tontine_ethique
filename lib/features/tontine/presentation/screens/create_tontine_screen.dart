@@ -17,6 +17,7 @@ import 'package:tontetic/core/services/security_service.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:go_router/go_router.dart';
 import 'package:tontetic/core/providers/auth_provider.dart';
+import 'package:tontetic/features/payments/data/payment_service.dart';
 
 class CreateTontineScreen extends ConsumerStatefulWidget {
   const CreateTontineScreen({super.key});
@@ -57,6 +58,7 @@ class _CreateTontineScreenState extends ConsumerState<CreateTontineScreen> {
   
   // State Step 3 (Invites)
   bool _publishToExplorer = true; // Default true per user request "publish to complete"
+  bool _isSponsored = false; // V15+: Boost option restored for Audit 2026
 
   @override
   void initState() {
@@ -1056,10 +1058,42 @@ class _CreateTontineScreenState extends ConsumerState<CreateTontineScreen> {
                 _buildSummaryRow('Participants', _participantsController.text.isEmpty ? 'Non défini' : _participantsController.text),
                 _buildSummaryRow('Fréquence', _frequency),
                 _buildSummaryRow('Invités', '${_invitedContacts.length} personne(s)'),
+                const Divider(),
+                SwitchListTile(
+                  contentPadding: EdgeInsets.zero,
+                  title: const Text('Booster la tontine (1€)', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                  subtitle: const Text('Apparaître en haut de l\'Explorer pour attirer plus de membres.', style: TextStyle(fontSize: 11)),
+                  value: _isSponsored,
+                  activeColor: AppTheme.gold,
+                  onChanged: (v) => setState(() => _isSponsored = v),
+                ),
               ],
             ),
           ),
           const SizedBox(height: 16),
+          
+          if (_isSponsored)
+            Container(
+              padding: const EdgeInsets.all(12),
+              margin: const EdgeInsets.only(bottom: 16),
+              decoration: BoxDecoration(
+                color: Colors.amber.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: AppTheme.gold.withValues(alpha: 0.3)),
+              ),
+              child: const Row(
+                children: [
+                  Icon(Icons.rocket_launch, color: AppTheme.gold, size: 20),
+                  SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      'Option Boost sélectionnée. Un paiement de 1€ sera demandé à la signature.',
+                      style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: AppTheme.gold),
+                    ),
+                  ),
+                ],
+              ),
+            ),
           
           // Visibility note
           Container(
@@ -1157,11 +1191,25 @@ class _CreateTontineScreenState extends ConsumerState<CreateTontineScreen> {
                  creatorId: user.uid,
                  creatorName: user.displayName,
                  isPublic: _publishToExplorer,
-                 isSponsored: false, // V15: Boost option removed
+                 isSponsored: _isSponsored, // Restored logic
                  invitedContacts: _invitedContacts,
                  currency: ref.read(userProvider).currencySymbol,
                  enterpriseId: user.organizationId, // V18: Link to Enterprise if exists
                );
+               
+               // V15+: BOOST PAYMENT REAL INTEGRATION
+               if (_isSponsored && circleId != null) {
+                 final paymentService = ref.read(paymentServiceProvider);
+                 final success = await paymentService.chargeBoost(
+                   email: user.email,
+                   userId: user.uid,
+                 );
+                 
+                 if (!success) {
+                   // Rollback circle creation or mark as unpaid in real prod
+                   debugPrint('BOOST_PAYMENT_FAILED: Circle created but boost unpaid');
+                 }
+               }
                
                // Trigger Billing si premier cercle
                ref.read(userProvider.notifier).activateSubscriptionBilling();

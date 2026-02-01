@@ -18,17 +18,19 @@ enum AccessLevel {
 /// Admin sections that can have independent permissions
 enum AdminSection {
   dashboard,     // Overview & stats
+  plans,         // NEW: Membership & Pricing management
   users,         // User management
   circles,       // Circle/Tontine management
+  moderation,    // Content moderation
   merchants,     // Merchant management
   enterprises,   // B2B enterprise management
   payments,      // Payment transactions (READ-ONLY always)
   reports,       // Reports & disputes
-  moderation,    // Content moderation
   support,       // Support tickets
   campaigns,     // Marketing campaigns
   referral,      // Referral/sponsorship
-  audit,         // Audit logs
+  security,      // NEW: Security pillars & audit logs
+  audit,         // Audit logs (legacy/detailed)
   settings,      // Global settings
 }
 
@@ -343,16 +345,18 @@ class AdminPermissionService {
   String getSectionLabel(AdminSection section) {
     switch (section) {
       case AdminSection.dashboard: return 'Tableau de bord';
+      case AdminSection.plans: return 'Gestion des Plans';
       case AdminSection.users: return 'Utilisateurs';
-      case AdminSection.circles: return 'Cercles';
+      case AdminSection.circles: return 'Gestion des Cercles';
+      case AdminSection.moderation: return 'Modération';
       case AdminSection.merchants: return 'Marchands';
       case AdminSection.enterprises: return 'Entreprises';
-      case AdminSection.payments: return 'Paiements';
+      case AdminSection.payments: return 'Finance';
       case AdminSection.reports: return 'Signalements';
-      case AdminSection.moderation: return 'Modération';
       case AdminSection.support: return 'Support';
       case AdminSection.campaigns: return 'Campagnes';
       case AdminSection.referral: return 'Parrainage';
+      case AdminSection.security: return 'Sécurité';
       case AdminSection.audit: return 'Audit';
       case AdminSection.settings: return 'Paramètres';
     }
