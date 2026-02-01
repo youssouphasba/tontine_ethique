@@ -125,7 +125,7 @@ class AuthService {
       );
 
       // Verify by attempting sign-in (creates a temporary anonymous-like session or real phone session)
-      final userCredential = await _auth.signInWithCredential(credential);
+      await _auth.signInWithCredential(credential);
       
       // If successful, we sign out immediately to allow email registration
       await _auth.signOut();

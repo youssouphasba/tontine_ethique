@@ -135,7 +135,8 @@ class CampaignService {
   final List<CampaignTemplate> _templates = [];
 
   // Initialize with demo data
-  void initDemoData() {
+  // Initialize default templates
+  void seedDefaultTemplates() {
     // Templates
     _templates.addAll([
       CampaignTemplate(
@@ -167,10 +168,6 @@ class CampaignService {
         contentTemplate: 'Rejoignez un cercle Tabaski et assurez votre mouton cette année.',
       ),
     ]);
-
-    // PRODUCTION: No demo campaigns - campaigns come from Firestore 'broadcasts' collection
-    debugPrint('[Campaign] Service initialized (no demo campaigns)');
-    listenToBroadcasts();
   }
 
   /// Listen to real-time broadcasts from Admin
@@ -275,21 +272,13 @@ class CampaignService {
     final index = _campaigns.indexWhere((c) => c.id == campaignId);
     if (index == -1) return;
 
-    // Simulate targeting users
-    final targetCount = _estimateAudienceSize(_campaigns[index].audience);
-
+    // Mark as sending. The actual dispatch is handled by Cloud Functions listening to this document/status.
     _campaigns[index] = _campaigns[index].copyWith(
-      status: CampaignStatus.sent,
+      status: CampaignStatus.sending,
       sentAt: DateTime.now(),
-      stats: CampaignStats(
-        targetedUsers: targetCount,
-        delivered: (targetCount * 0.92).round(), // 92% delivery rate simulation
-        opened: 0,
-        clicked: 0,
-        unsubscribed: 0,
-      ),
+      // Stats will be updated asynchronously by the backend as events occur
     );
-    debugPrint('[Campaign] Sent: $campaignId to $targetCount users');
+    debugPrint('[Campaign] Marked as sending: $campaignId');
   }
 
   void cancelCampaign(String campaignId) {

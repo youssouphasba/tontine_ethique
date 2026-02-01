@@ -200,7 +200,7 @@ class ReferralService {
       totalReferrals: userReferrals.length,
       pendingReferrals: userReferrals.where((r) => r.status == ReferralStatus.pending).length,
       validatedReferrals: userReferrals.where((r) => r.status == ReferralStatus.validated || r.status == ReferralStatus.rewarded).length,
-      totalRewardsEarned: userReferrals.where((r) => r.status == ReferralStatus.rewarded).fold(0, (sum, r) => sum + (r.rewardAmount ?? 0)),
+      totalRewardsEarned: userReferrals.where((r) => r.status == ReferralStatus.rewarded).fold(0, (total, r) => total + (r.rewardAmount ?? 0)),
       referralHistory: userReferrals,
     );
   }
@@ -269,14 +269,14 @@ class ReferralService {
   }
 
   /// Register a new referral
-  void registerReferral({
+  Future<void> registerReferral({
     required String referrerId,
     required String referrerName,
     required String referreeId,
     required String refereeName,
     required String referralCode,
-  }) {
-    final campaign = getActiveCampaign();
+  }) async {
+    final campaign = await getActiveCampaign();
     if (campaign == null) {
       debugPrint('[Referral] No active campaign');
       return;
@@ -414,7 +414,7 @@ class ReferralService {
     
     final totalRewards = _referrals
       .where((r) => r.status == ReferralStatus.rewarded)
-      .fold<double>(0, (sum, r) => sum + (r.rewardAmount ?? 0));
+      .fold<double>(0, (total, r) => total + (r.rewardAmount ?? 0));
 
     final activeCampaigns = _campaigns.where((c) => c.isActive).length;
 

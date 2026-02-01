@@ -29,12 +29,14 @@ class WalletService {
             .toList());
   }
 
-  /// Effectuer un dépôt (Simulé pour la démo, mais enregistré)
+  /// Effectuer un dépôt ou une transaction
+  /// Enregistre l'opération dans Firestore et met à jour le solde
   Future<void> addTransaction({
     required String uid,
     required String title,
     required double amount,
     required String type,
+    String? tontineId, // Optional: Link to a specific Tontine
   }) async {
     final batch = _db.batch();
     final userRef = _db.collection('users').doc(uid);
@@ -46,11 +48,11 @@ class WalletService {
       'title': title,
       'amount': amount,
       'type': type,
+      'tontineId': tontineId, // Traceability
       'date': FieldValue.serverTimestamp(),
     });
 
     // 2. Mettre à jour le solde (Incrément ou Décrément selon le type)
-    // Pour simplifier, on passe le montant signé (+ pour dépôt, - pour retrait)
     batch.update(userRef, {
       'balance': FieldValue.increment(amount),
     });

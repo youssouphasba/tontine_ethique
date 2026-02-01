@@ -1,7 +1,11 @@
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:firebase_storage/firebase_storage.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:tontetic/core/providers/user_provider.dart';
+// Added for deleteAccount calling logic usage transparency if needed
+import 'package:tontetic/core/providers/auth_provider.dart';
 import 'package:tontetic/core/providers/tontine_provider.dart';
 import 'package:tontetic/features/wallet/data/wallet_provider.dart';
 import 'package:tontetic/core/providers/consent_provider.dart';
@@ -123,17 +127,107 @@ class GDPRService {
   }
 
   /// Execute deletion after confirmation
-  Future<void> executeDeletion(String anonymousId) async {
+  Future<bool> executeDeletion(String anonymousId) async {
+    final user = _ref.read(userProvider);
+    final uid = user.uid;
+    
+    if (uid.isEmpty) return false;
 
-    
-    // Anonymize user data
-    _ref.read(userProvider.notifier).anonymize(anonymousId);
-    
-    // Clear local circles (but keep in audit with anonymous ID)
-    // Note: In real implementation, this would also clean Firestore
-    
-    // Log final deletion
-    debugPrint('[RGPD] GDPR_DELETION_EXECUTED - User: $anonymousId - Compte supprimé et anonymisé');
+    try {
+      debugPrint('[RGPD] 🚨 Starting deletion process for $uid');
+
+      // 1. Storage Cleanup (Best Effort)
+      // Tries to delete profile pictures and KYC docs if they exist
+      final storageRef = FirebaseStorage.instance.ref();
+      
+      // 0. FAILSAFE: Mark as deletion_pending immediately
+      // This prevents the user from using the app if the process is interrupted
+      await FirebaseFirestore.instance.collection('users').doc(uid).update({
+        'accountStatus': 'deletion_pending',
+        'deletionStartedAt': FieldValue.serverTimestamp(),
+      });
+
+      // 1. Storage Cleanup (Best Effort)
+      final filesToDelete = [
+        'users/$uid/profile.jpg',
+        'users/$uid/id_document.jpg',
+        'users/$uid/selfie.jpg',
+        'kyc/$uid/id_card.jpg', // Legacy path
+        'kyc/$uid/selfie.jpg',  // Legacy path
+      ];
+
+      for (final path in filesToDelete) {
+        try {
+          await storageRef.child(path).delete();
+          debugPrint('[RGPD] Deleted storage file: $path');
+        } catch (e) {
+          // Ignore if file not found
+          debugPrint('[RGPD] File not found or error: $path ($e)');
+        }
+      }
+
+      // 2. Anonymize User Document in Firestore
+      // We keep the doc ID for referential integrity (transaction history) but scrub PII
+      await FirebaseFirestore.instance.collection('users').doc(uid).update({
+        'fullName': 'Utilisateur Supprimé',
+        'email': '$anonymousId@deleted.tontetic.com',
+        'phoneNumber': '0000000000',
+        'photoUrl': null,
+        'bio': null,
+        'jobTitle': null,
+        'company': null,
+        'encryptedName': null,
+        'encryptedAddress': null,
+        'encryptedSiret': null,
+        'encryptedRepresentative': null,
+        'encryptedBirthDate': null,
+        'isDeleted': true,
+        'deletedAt': FieldValue.serverTimestamp(),
+        'deletionId': anonymousId,
+        'fcmToken': null,
+      });
+      debugPrint('[RGPD] Firestore user document anonymized');
+
+      // 3. Delete from 'merchants' collection if exists
+      // Check if user was a merchant
+      final merchantQuery = await FirebaseFirestore.instance
+          .collection('merchants')
+          .where('user_id', isEqualTo: user.phoneNumber) // Assuming link is via phone
+          .get();
+      
+      for (final doc in merchantQuery.docs) {
+        await doc.reference.update({
+          'account_status': 'closed',
+          'email': null,
+          'siret_ninea': null,
+          'id_document_url': null,
+          'selfie_url': null,
+          'iban': null,
+          'deleted_at': FieldValue.serverTimestamp(),
+        });
+        debugPrint('[RGPD] Merchant account anonymized: ${doc.id}');
+      }
+
+      // 4. Local State Cleanup
+      _ref.read(userProvider.notifier).anonymize(anonymousId);
+      
+      // 5. Auth Account Deletion (Final Step)
+      // This will revoke access token.
+      final authService = _ref.read(authServiceProvider);
+      final authResult = await authService.deleteAccount();
+      
+      if (!authResult.success) {
+        throw Exception(authResult.error);
+      }
+
+      debugPrint('[RGPD] GDPR_DELETION_EXECUTED - User: $uid -> $anonymousId - Compte supprimé et anonymisé');
+      return true;
+
+    } catch (e) {
+      debugPrint('[RGPD] ❌ Critical error during deletion: $e');
+      // Even if it failed partialy, we return false so UI can show error
+      return false;
+    }
   }
 
   /// Get consent history

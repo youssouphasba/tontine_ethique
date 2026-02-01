@@ -1,4 +1,4 @@
-import 'package:tontetic/core/providers/user_provider.dart';
+import 'package:tontetic/core/models/user_model.dart';
 
 enum TierStatus { allowed, requiresPremium, requiresAdmin, blocked }
 

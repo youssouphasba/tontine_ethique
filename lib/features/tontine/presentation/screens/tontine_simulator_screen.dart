@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:tontetic/core/theme/app_theme.dart';
 import 'package:tontetic/core/providers/user_provider.dart';
+import 'package:tontetic/core/models/user_model.dart';
 import 'package:tontetic/features/tontine/presentation/screens/create_tontine_screen.dart';
 import 'package:tontetic/features/shop/presentation/screens/boutique_screen.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';

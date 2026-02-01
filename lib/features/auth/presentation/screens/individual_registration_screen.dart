@@ -3,15 +3,14 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:tontetic/core/theme/app_theme.dart';
 import 'package:tontetic/core/providers/user_provider.dart';
+import 'package:tontetic/core/models/user_model.dart';
 import 'package:tontetic/core/providers/consent_provider.dart';
 import 'package:tontetic/core/providers/auth_provider.dart';
 import 'package:go_router/go_router.dart';
-import 'package:tontetic/core/services/auth_service.dart';
 import 'package:tontetic/features/auth/presentation/widgets/otp_dialog.dart';
 
 
 import 'package:tontetic/core/constants/legal_texts.dart';
-import 'package:tontetic/features/dashboard/presentation/screens/dashboard_screen.dart';
 
 /// Individual Registration Screen
 /// 3-step compliant registration flow for Particuliers

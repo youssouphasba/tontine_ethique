@@ -390,7 +390,9 @@ class _CreateTontineScreenState extends ConsumerState<CreateTontineScreen> {
                      });
                      
                      // V17: Real Invite Action
-                     const inviteLink = "https://tontetic-app.web.app/join/TONT-2026-NEW";
+                     // Generate a unique dynamic invite code
+                     final inviteCode = "JOIN-${DateTime.now().millisecondsSinceEpoch}"; // In prod: Get from backend
+                     final inviteLink = "https://tontetic.com/invite/$inviteCode";
                      final message = "Rejoins ma tontine sur Tontetic ! Voici le lien : $inviteLink";
                      
                      Uri? url;
@@ -399,7 +401,6 @@ class _CreateTontineScreenState extends ConsumerState<CreateTontineScreen> {
                        url = Uri.parse("mailto:$contact?subject=Invitation Tontine&body=${Uri.encodeComponent(message)}");
                      } else {
                        // SMS intent
-                       // Normalize phone number if needed, but basic 'sms:' usually works
                        url = Uri.parse("sms:$contact?body=${Uri.encodeComponent(message)}");
                      }
                      
@@ -1159,6 +1160,7 @@ class _CreateTontineScreenState extends ConsumerState<CreateTontineScreen> {
                  isSponsored: false, // V15: Boost option removed
                  invitedContacts: _invitedContacts,
                  currency: ref.read(userProvider).currencySymbol,
+                 enterpriseId: user.organizationId, // V18: Link to Enterprise if exists
                );
                
                // Trigger Billing si premier cercle

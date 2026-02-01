@@ -375,26 +375,16 @@ class MerchantProfilePage extends ConsumerWidget {
     );
   }
 
-  // ===== REVIEWS TAB =====
   Widget _buildReviewsTab() {
-    // In production, reviews are fetched from the backend
-    final demoReviews = []; // Real reviews should be fetched from backend
-
-    return ListView(
-      padding: const EdgeInsets.all(20),
-      children: [
-        Row(
-          children: [
-            const Text('Avis clients', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
-            const Spacer(),
-            const Icon(Icons.star, color: Colors.amber, size: 20),
-            const Text(' 4.7', style: TextStyle(fontWeight: FontWeight.bold)),
-            Text(' (${demoReviews.length})', style: const TextStyle(color: Colors.grey)),
-          ],
-        ),
-        const SizedBox(height: 16),
-        ...demoReviews.map((r) => _buildReviewCard(r)),
-      ],
+    return const Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(Icons.star_outline, size: 64, color: Colors.grey),
+          SizedBox(height: 16),
+          Text('Aucun avis pour le moment', style: TextStyle(color: Colors.grey)),
+        ],
+      ),
     );
   }
 

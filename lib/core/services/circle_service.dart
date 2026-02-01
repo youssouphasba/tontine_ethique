@@ -1,8 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
-import 'package:tontetic/core/providers/tontine_provider.dart';
 import 'package:tontetic/core/models/tontine_model.dart';
-import 'package:tontetic/core/models/user_model.dart';
 import 'package:tontetic/core/services/security_service.dart';
 import 'package:tontetic/core/services/notification_service.dart';
 
@@ -277,6 +275,33 @@ class CircleService {
       );
     } catch (e) {
       debugPrint('❌ Erreur approbation demande: $e');
+      rethrow;
+    }
+  }
+
+  Future<void> rejectRequest(String requestId) async {
+    try {
+      await _db.collection('join_requests').doc(requestId).update({
+        'status': 'rejected',
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+      
+      final requestDoc = await _db.collection('join_requests').doc(requestId).get();
+      if (requestDoc.exists) {
+        final req = requestDoc.data()!;
+        final notifRef = _db.collection('users').doc(req['requesterId']).collection('notifications').doc();
+        await notifRef.set({
+          'id': notifRef.id,
+          'title': 'Demande refusée ❌',
+          'message': 'Votre demande pour rejoindre le cercle "${req['circleName']}" a été refusée.',
+          'circleId': req['circleId'],
+          'type': 'request_rejected',
+          'timestamp': FieldValue.serverTimestamp(),
+          'read': false,
+        });
+      }
+    } catch (e) {
+      debugPrint('❌ Erreur rejet demande: $e');
       rethrow;
     }
   }

@@ -4,6 +4,7 @@ import 'package:tontetic/core/theme/app_theme.dart';
 import 'package:tontetic/core/providers/account_status_provider.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:tontetic/core/providers/user_provider.dart';
+import 'package:tontetic/core/models/user_model.dart';
 import 'package:tontetic/core/services/stripe_service.dart';
 import 'package:tontetic/core/providers/auth_provider.dart';
 

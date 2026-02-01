@@ -5,6 +5,7 @@ import 'package:local_auth/local_auth.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:crypto/crypto.dart';
 import 'dart:convert';
+import 'package:flutter/foundation.dart';
 
 /// V16: Biometric & PIN Authentication Service
 /// Provides quick reconnection via:
@@ -30,6 +31,9 @@ class BiometricAuthService {
 
   /// Check if device supports biometrics
   Future<bool> isBiometricAvailable() async {
+    // Audit: Explicitly disable on Web
+    if (kIsWeb) return false;
+
     try {
       final canCheckBiometrics = await _localAuth.canCheckBiometrics;
       final isDeviceSupported = await _localAuth.isDeviceSupported();

@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:tontetic/core/theme/app_theme.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:tontetic/core/providers/user_provider.dart';
+import 'package:tontetic/core/models/user_model.dart';
 import 'package:tontetic/features/auth/presentation/screens/type_selection_screen.dart';
 import 'package:tontetic/features/auth/presentation/screens/psp_connection_screen.dart';
 import 'package:go_router/go_router.dart';
@@ -706,7 +707,7 @@ class _InvitationLandingScreenState extends ConsumerState<InvitationLandingScree
         'circleId': widget.invitationCode, 
         'circleName': _circleData?['name'] ?? widget.circleName ?? 'Cercle',
         'requesterId': user.uid,
-        'requesterName': user.displayName ?? 'Membre',
+        'requesterName': user.displayName,
         'status': 'pending',
         'timestamp': FieldValue.serverTimestamp(),
         'message': 'Joined via Invitation Link',

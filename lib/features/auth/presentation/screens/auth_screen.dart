@@ -5,9 +5,7 @@ import 'package:tontetic/core/theme/app_theme.dart';
 import 'package:tontetic/core/providers/user_provider.dart';
 import 'package:tontetic/core/providers/auth_provider.dart';
 
-import 'package:tontetic/features/auth/presentation/screens/type_selection_screen.dart';
 import 'package:tontetic/features/auth/presentation/screens/individual_registration_screen.dart';
-import 'package:tontetic/features/dashboard/presentation/screens/dashboard_screen.dart';
 import 'package:tontetic/features/auth/presentation/widgets/otp_dialog.dart';
 
 class AuthScreen extends ConsumerStatefulWidget {
@@ -25,7 +23,7 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
   String _selectedCountryCode = '+33';
 
   bool _isLoading = false;
-  bool _awaitingOtp = false;
+  final bool _awaitingOtp = false;
   String? _errorMessage;
 
   Future<void> _handleEmailLogin() async {

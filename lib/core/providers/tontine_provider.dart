@@ -3,7 +3,6 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:tontetic/core/providers/user_provider.dart';
 import 'package:tontetic/core/models/tontine_model.dart';
-import 'package:tontetic/core/models/user_model.dart';
 
 import 'package:tontetic/core/providers/auth_provider.dart';
 import 'package:tontetic/core/services/circle_service.dart';
@@ -109,6 +108,7 @@ class CircleNotifier extends StateNotifier<CircleState> {
     required bool isSponsored,
     List<String> invitedContacts = const [],
     String? currency, // V15: Explicit currency
+    String? enterpriseId, // V18: Corporate Link
   }) async {
     final user = ref.read(userProvider);
     final newCircle = TontineCircle(
@@ -128,6 +128,7 @@ class CircleNotifier extends StateNotifier<CircleState> {
       createdAt: DateTime.now(),
       memberIds: [creatorId, ...invitedContacts],
       currency: currency ?? user.zone.currency,
+      enterpriseId: enterpriseId,
     );
 
     final circleId = await ref.read(circleServiceProvider).createCircle(newCircle);
@@ -156,6 +157,10 @@ class CircleNotifier extends StateNotifier<CircleState> {
 
   Future<void> approveJoinRequest(String requestId, String circleId, String userId) async {
     await ref.read(circleServiceProvider).approveRequest(requestId, circleId, userId);
+  }
+
+  Future<void> rejectJoinRequest(String requestId) async {
+    await ref.read(circleServiceProvider).rejectRequest(requestId);
   }
 
   Future<void> finalizeMembership(String circleId, String userId) async {

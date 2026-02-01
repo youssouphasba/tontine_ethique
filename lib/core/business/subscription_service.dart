@@ -10,7 +10,7 @@ library;
 
 
 import 'package:tontetic/core/models/plan_model.dart';
-import 'package:tontetic/core/providers/user_provider.dart';
+import 'package:tontetic/core/models/user_model.dart';
 
 class SubscriptionService {
   

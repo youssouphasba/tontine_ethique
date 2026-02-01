@@ -1,15 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:tontetic/core/providers/user_provider.dart';
 import 'package:tontetic/core/theme/app_theme.dart';
 import 'package:tontetic/core/providers/localization_provider.dart';
-import 'package:tontetic/core/services/security_service.dart';
 import 'package:tontetic/features/social/data/social_provider.dart';
 import 'package:tontetic/features/social/data/contact_service.dart';
 import 'package:tontetic/features/social/data/suggestion_service.dart';
-import 'package:tontetic/features/social/presentation/screens/profile_screen.dart';
 import 'package:tontetic/features/tontine/presentation/screens/circle_details_screen.dart';
 
 class ExplorerScreen extends ConsumerStatefulWidget {

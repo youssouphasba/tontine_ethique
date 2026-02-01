@@ -30,34 +30,81 @@ class _SuperAdminScreenState extends State<SuperAdminScreen> {
       context: context,
       barrierDismissible: false,
       builder: (context) {
-        final codeController = TextEditingController();
-        return AlertDialog(
-          title: const Text('🔒 Accès Admin Pro (God Mode)'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Text('Authentification Forte Requise (2FA)'),
-              const SizedBox(height: 16),
-              TextField(
-                controller: codeController,
-                keyboardType: TextInputType.number,
-                 obscureText: true,
-                decoration: const InputDecoration(labelText: 'Code Authenticator', border: OutlineInputBorder()),
+        final passwordController = TextEditingController();
+        bool isLoading = false;
+        String? errorText;
+
+        return StatefulBuilder(
+          builder: (context, setState) {
+            return AlertDialog(
+              title: const Text('🔒 Accès Admin Sécurisé'),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Text('Veuillez confirmer votre mot de passe pour accéder au panneau d\'administration.'),
+                  const SizedBox(height: 16),
+                  TextField(
+                    controller: passwordController,
+                    obscureText: true,
+                    decoration: InputDecoration(
+                      labelText: 'Mot de passe', 
+                      errorText: errorText,
+                      border: const OutlineInputBorder()
+                    ),
+                  ),
+                ],
               ),
-            ],
-          ),
-          actions: [
-            TextButton(onPressed: () { Navigator.pop(context); Navigator.pop(context); }, child: const Text('Annuler')),
-            ElevatedButton(
-              onPressed: () {
-                if (codeController.text == '0000' || codeController.text.isNotEmpty) {
-                  setState(() => isAuthenticated = true);
-                  Navigator.pop(context);
-                }
-              },
-              child: const Text('Entrer'),
-            ),
-          ],
+              actions: [
+                TextButton(
+                  onPressed: () { 
+                    Navigator.pop(context); // Close dialog
+                    Navigator.pop(context); // Exit Admin Screen
+                  }, 
+                  child: const Text('Annuler')
+                ),
+                ElevatedButton(
+                  onPressed: isLoading ? null : () async {
+                    setState(() { isLoading = true; errorText = null; });
+                    
+                    try {
+                      final user = FirebaseAuth.instance.currentUser;
+                      if (user != null && user.email != null) {
+                        final credential = EmailAuthProvider.credential(
+                          email: user.email!, 
+                          password: passwordController.text
+                        );
+                        
+                        // Re-authenticate
+                        await user.reauthenticateWithCredential(credential);
+                        
+                        // Log Access
+                        await FirebaseFirestore.instance.collection('audit_logs').add({
+                          'action': 'ADMIN_ACCESS_GRANTED',
+                          'uid': user.uid,
+                          'timestamp': FieldValue.serverTimestamp(),
+                          'method': 'Password Re-auth'
+                        });
+
+                        if (context.mounted) {
+                           setState(() => isAuthenticated = true);
+                           Navigator.pop(context);
+                        }
+                      } else {
+                        setState(() { isLoading = false; errorText = 'Session invalide'; });
+                      }
+                    } catch (e) {
+                      if (context.mounted) {
+                        setState(() { isLoading = false; errorText = 'Mot de passe incorrect'; });
+                      }
+                    }
+                  },
+                  child: isLoading 
+                    ? const SizedBox(height: 16, width: 16, child: CircularProgressIndicator(strokeWidth: 2)) 
+                    : const Text('Confirmer'),
+                ),
+              ],
+            );
+          }
         );
       },
     );
@@ -210,8 +257,45 @@ class _AdminValidationView extends StatelessWidget {
   }
 
   Widget _buildWaiversTab(BuildContext context) {
-     // TODO: Connect to waivers collection
-    return const Center(child: Text('Aucune demande de dérogation.', style: TextStyle(color: Colors.grey)));
+    return StreamBuilder<QuerySnapshot>(
+      stream: FirebaseFirestore.instance.collection('waivers').where('status', isEqualTo: 'pending').snapshots(),
+      builder: (context, snapshot) {
+        if (snapshot.hasError) return Text('Erreur: ${snapshot.error}');
+        if (snapshot.connectionState == ConnectionState.waiting) return const Center(child: CircularProgressIndicator());
+
+        final waivers = snapshot.data?.docs ?? [];
+        if (waivers.isEmpty) return const Center(child: Text('Aucune demande de dérogation.', style: TextStyle(color: Colors.grey)));
+
+        return ListView.builder(
+          padding: const EdgeInsets.all(16),
+          itemCount: waivers.length,
+          itemBuilder: (ctx, i) {
+            final doc = waivers[i];
+            final data = doc.data() as Map<String, dynamic>;
+            return Card(
+              child: ListTile(
+                leading: const Icon(Icons.warning_amber, color: Colors.orange),
+                title: Text(data['reason'] ?? 'Demande de dérogation'),
+                subtitle: Text('Utilisateur: ${data['userId'] ?? 'Inconnu'}'),
+                trailing: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    IconButton(
+                      icon: const Icon(Icons.check, color: Colors.green),
+                      onPressed: () => FirebaseFirestore.instance.collection('waivers').doc(doc.id).update({'status': 'approved', 'reviewedBy': FirebaseAuth.instance.currentUser?.uid}),
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.close, color: Colors.red),
+                      onPressed: () => FirebaseFirestore.instance.collection('waivers').doc(doc.id).update({'status': 'rejected', 'reviewedBy': FirebaseAuth.instance.currentUser?.uid}),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      }
+    );
   }
 
   Widget _buildDisputesTab(BuildContext context) {
@@ -219,8 +303,54 @@ class _AdminValidationView extends StatelessWidget {
   }
 
   Widget _buildAdsValidationTab(BuildContext context) {
-     // TODO: Connect to ads collection
-    return const Center(child: Text('Aucune publicité à valider.', style: TextStyle(color: Colors.grey)));
+    return StreamBuilder<QuerySnapshot>(
+      stream: FirebaseFirestore.instance.collection('ad_campaigns').where('status', isEqualTo: 'pending').snapshots(),
+      builder: (context, snapshot) {
+        if (snapshot.hasError) return Text('Erreur: ${snapshot.error}');
+        if (snapshot.connectionState == ConnectionState.waiting) return const Center(child: CircularProgressIndicator());
+
+        final ads = snapshot.data?.docs ?? [];
+        if (ads.isEmpty) return const Center(child: Text('Aucune publicité à valider.', style: TextStyle(color: Colors.grey)));
+
+        return ListView.builder(
+          padding: const EdgeInsets.all(16),
+          itemCount: ads.length,
+          itemBuilder: (ctx, i) {
+            final doc = ads[i];
+            final data = doc.data() as Map<String, dynamic>;
+            return Card(
+              child: Column(
+                children: [
+                   if (data['imageUrl'] != null)
+                     SizedBox(height: 150, width: double.infinity, child: Image.network(data['imageUrl'], fit: BoxFit.cover, errorBuilder: (_,__,___) => const Icon(Icons.broken_image))),
+                   ListTile(
+                     title: Text(data['title'] ?? 'Publicité'),
+                     subtitle: Text(data['merchantName'] ?? 'Commerçant'),
+                     trailing: Row(
+                       mainAxisSize: MainAxisSize.min,
+                       children: [
+                          IconButton(
+                            icon: const Icon(Icons.check_circle, color: Colors.green, size: 32),
+                            onPressed: () => FirebaseFirestore.instance.collection('ad_campaigns').doc(doc.id).update({'status': 'active', 'validatedAt': FieldValue.serverTimestamp()}),
+                          ),
+                          IconButton(
+                            icon: const Icon(Icons.cancel, color: Colors.red, size: 32),
+                            onPressed: () => FirebaseFirestore.instance.collection('ad_campaigns').doc(doc.id).update({'status': 'rejected'}),
+                          ),
+                       ],
+                     ),
+                   ),
+                   Padding(
+                     padding: const EdgeInsets.all(8.0),
+                     child: Text(data['description'] ?? '', maxLines: 2, overflow: TextOverflow.ellipsis),
+                   )
+                ],
+              ),
+            );
+          },
+        );
+      }
+    );
   }
 
 
@@ -645,6 +775,24 @@ class _AdminCommViewState extends State<_AdminCommView> {
           ),
         ),
         const SizedBox(height: 24),
+        const Text('Historique des Diffusions', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+        StreamBuilder<QuerySnapshot>(
+           stream: FirebaseFirestore.instance.collection('broadcasts').orderBy('createdAt', descending: true).limit(5).snapshots(),
+           builder: (context, snapshot) {
+             if (snapshot.connectionState == ConnectionState.waiting) return const SizedBox.shrink();
+             final docs = snapshot.data?.docs ?? [];
+             if (docs.isEmpty) return const Text('Aucune diffusion récente.');
+             return Column(
+               children: docs.map((d) => ListTile(
+                 title: Text(d['title'] ?? 'Sans titre'),
+                 subtitle: Text(d['body'] ?? ''),
+                 trailing: Text((d['createdAt'] as Timestamp?)?.toDate().toString().substring(0,16) ?? ''),
+                 dense: true,
+               )).toList(),
+             );
+           }
+        ),
+        const SizedBox(height: 24),
         const Text('Derniers Tickets Support', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
         const SizedBox(height: 16),
         StreamBuilder<QuerySnapshot>(
@@ -772,6 +920,56 @@ class _AdminSecurityView extends ConsumerWidget {
         const Text('Contrôle d\'Accès Global', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
         SwitchListTile(title: const Text('Forcer 2FA pour tous les Admins'), value: true, onChanged: null), // Read-only
         SwitchListTile(title: const Text('Mode Maintenance (App bloquée)'), subtitle: const Text('Sauf whitelist IP'), value: false, onChanged: null), // Read-only
+        
+        const Divider(height: 40),
+        const Text('Interactions IA (Gemini)', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+        const SizedBox(height: 16),
+        StreamBuilder<QuerySnapshot>(
+          stream: FirebaseFirestore.instance.collection('ai_logs').orderBy('timestamp', descending: true).limit(10).snapshots(),
+          builder: (context, snapshot) {
+            if (snapshot.connectionState == ConnectionState.waiting) return const Center(child: CircularProgressIndicator());
+            final logs = snapshot.data?.docs ?? [];
+            if (logs.isEmpty) return const Text('Aucune interaction IA récente.');
+            
+            return Card(
+              child: ListView.separated(
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                itemCount: logs.length,
+                separatorBuilder: (_,__) => const Divider(height: 1),
+                itemBuilder: (context, index) {
+                  final log = logs[index].data() as Map<String, dynamic>;
+                  final date = (log['timestamp'] as Timestamp?)?.toDate().toString().substring(0, 16) ?? 'N/A';
+                  final status = log['status'] ?? 'unknown';
+                  return ListTile(
+                    dense: true,
+                    leading: Icon(Icons.psychology, color: status == 'success' ? Colors.purple : Colors.red),
+                    title: Text(log['query'] ?? 'Query vide', maxLines: 1, overflow: TextOverflow.ellipsis),
+                    subtitle: Text('${log['userEmail'] ?? 'Anon'} • $date'),
+                    onTap: () {
+                      showDialog(
+                        context: context, 
+                        builder: (c) => AlertDialog(
+                          title: const Text('Détail Interaction IA'),
+                          content: SingleChildScrollView(
+                            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                              const Text('Prompt:', style: TextStyle(fontWeight: FontWeight.bold)),
+                              Text(log['query'] ?? ''),
+                              const SizedBox(height: 16),
+                              const Text('Réponse:', style: TextStyle(fontWeight: FontWeight.bold)),
+                              Text(log['response'] ?? 'Pas de réponse'),
+                            ]),
+                          ),
+                          actions: [TextButton(onPressed: () => Navigator.pop(c), child: const Text('Fermer'))],
+                        )
+                      );
+                    },
+                  );
+                },
+              ),
+            );
+          }
+        ),
       ],
     );
   }

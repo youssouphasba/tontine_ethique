@@ -86,6 +86,7 @@ class WalletNotifier extends StateNotifier<WalletState> {
       title: 'Dépôt $method',
       amount: amount,
       type: 'deposit',
+      // tontineId: null for generic deposits
     );
   }
 

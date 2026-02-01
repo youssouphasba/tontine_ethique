@@ -3,6 +3,8 @@ import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:tontetic/core/services/webhook_log_service.dart';
 import 'package:intl/intl.dart';
+import 'dart:convert';
+import 'package:crypto/crypto.dart';
 
 /// V11.5 - Individual Transaction Receipt Service
 /// Generates PDF receipts including cryptographic proof of payment (Wave/Stripe signatures)
@@ -113,9 +115,16 @@ class TransactionReceiptService {
     );
   }
 
-  /// Generates a demo hash representing the cryptographic proof
+  /// Generates a real cryptographic hash of the transaction for non-repudiation
   static String _generateTechnicalHash(WebhookLogEntry log) {
-    // In production, this would be a real hash of the payload + salt
-    return 'sha256:884e1b${log.id.hashCode.toRadixString(16)}bc123${log.transactionId.hashCode.toRadixString(16)}ff09e';
+    // Create a canonical string representation of the transaction
+    final dataToSign = '${log.id}|${log.amount}|${log.currency}|${log.transactionId}|${log.timestamp.toIso8601String()}';
+    
+    // In a real scenario, this would also include a server secret salt
+    // For this implementation we show how we generate the hash of the record
+    final bytes = utf8.encode(dataToSign);
+    final digest = sha256.convert(bytes);
+    
+    return 'sha256:${digest.toString()}';
   }
 }

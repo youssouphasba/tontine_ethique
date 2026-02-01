@@ -5,6 +5,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:go_router/go_router.dart';
 import 'package:tontetic/core/business/subscription_service.dart';
 import 'package:tontetic/core/providers/user_provider.dart';
+import 'package:tontetic/core/models/user_model.dart';
 import 'package:tontetic/core/theme/app_theme.dart';
 // import 'package:tontetic/core/services/support_service.dart'; - UNUSED
 // import 'package:tontetic/core/providers/localization_provider.dart'; - UNUSED

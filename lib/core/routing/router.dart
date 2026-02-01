@@ -29,7 +29,6 @@ import '../presentation/main_shell.dart';
 import '../../features/subscription/presentation/screens/subscription_selection_screen.dart';
 import '../../features/subscription/presentation/screens/payment_success_screen.dart';
 import '../providers/auth_provider.dart';
-import '../providers/user_provider.dart';
 import '../../features/tontine/presentation/screens/connect_success_screen.dart';
 
 

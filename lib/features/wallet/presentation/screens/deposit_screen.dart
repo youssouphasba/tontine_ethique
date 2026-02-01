@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:tontetic/core/theme/app_theme.dart';
 import 'package:tontetic/core/providers/user_provider.dart';
-import 'package:tontetic/features/wallet/data/wallet_provider.dart';
+import 'package:tontetic/core/models/user_model.dart';
 import 'package:tontetic/core/services/wolof_audio_service.dart';
 import 'package:tontetic/core/services/mobile_money_service.dart';
 import 'package:tontetic/core/services/stripe_service.dart';
@@ -166,8 +166,10 @@ class _DepositScreenState extends ConsumerState<DepositScreen> {
     }
 
     if (result.success) {
-      // Mise à jour locale du solde (en production: via webhook)
-      ref.read(walletProvider.notifier).deposit(amount, _selectedMethod);
+      // SÉCURITÉ : Ne jamais mettre à jour le solde côté client pour les paiements réels.
+      // Le Webhook Stripe (ou Mobile Money) s'occupera de créditer le compte via Cloud Functions.
+      // On informe juste l'utilisateur.
+      debugPrint('Paiement initié avec succès. Attente du webhook...');
     }
 
     if (mounted) {

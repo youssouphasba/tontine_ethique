@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:tontetic/core/providers/user_provider.dart';
 import 'package:tontetic/core/theme/app_theme.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:tontetic/core/providers/localization_provider.dart';
@@ -6,6 +7,7 @@ import 'package:tontetic/core/services/merchant_account_service.dart';
 import 'package:tontetic/core/services/merchant_product_service.dart';
 import 'package:tontetic/features/advertising/presentation/screens/merchant_registration_screen.dart';
 import 'package:tontetic/features/advertising/presentation/screens/merchant_boost_screen.dart';
+import 'package:tontetic/features/social/presentation/screens/direct_chat_screen.dart';
 
 /// Riverpod provider for MerchantProductService
 final merchantProductServiceProvider = Provider((ref) => MerchantProductService());
@@ -16,56 +18,7 @@ final activeProductsProvider = StreamProvider<List<MerchantProduct>>((ref) {
   return productService.getActiveProducts(limit: 20);
 });
 
-/// Fallback demo products when Firestore is empty
-List<MerchantProduct> _getDemoProducts() {
-  return [
-    MerchantProduct(
-      id: 'demo_1',
-      title: 'Moto Jakarta 125cc',
-      price: '850 000 FCFA',
-      merchantId: 'demo_merchant',
-      merchantName: 'AutoMoto Dakar',
-      tag: '🚗 Transport',
-      createdAt: DateTime.now(),
-    ),
-    MerchantProduct(
-      id: 'demo_2',
-      title: 'Terrain Diamniadio 200m²',
-      price: '5 000 000 FCFA',
-      merchantId: 'demo_merchant',
-      merchantName: 'Immo Plus',
-      tag: '🏠 Maison',
-      createdAt: DateTime.now(),
-    ),
-    MerchantProduct(
-      id: 'demo_3',
-      title: 'Formation Marketing Digital',
-      price: '150 000 FCFA',
-      merchantId: 'demo_merchant',
-      merchantName: 'DigiSkills Academy',
-      tag: '📦 Business',
-      createdAt: DateTime.now(),
-    ),
-    MerchantProduct(
-      id: 'demo_4',
-      title: 'Machine à Coudre Industrielle',
-      price: '350 000 FCFA',
-      merchantId: 'demo_merchant',
-      merchantName: 'Équipement Pro',
-      tag: '📦 Business',
-      createdAt: DateTime.now(),
-    ),
-    MerchantProduct(
-      id: 'demo_5',
-      title: 'Moutons Ladoum Premium',
-      price: '500 000 FCFA',
-      merchantId: 'demo_merchant',
-      merchantName: 'Ferme Touba',
-      tag: '🎉 Fête',
-      createdAt: DateTime.now(),
-    ),
-  ];
-}
+
 
 /// V17.1 Merchant Tab - TikTok-style Discovery Feed with Dynamic Products
 class MerchantTabScreen extends ConsumerStatefulWidget {
@@ -77,8 +30,23 @@ class MerchantTabScreen extends ConsumerStatefulWidget {
 
 class _MerchantTabScreenState extends ConsumerState<MerchantTabScreen> {
   final PageController _pageController = PageController();
-  int _currentIndex = 0;
   final Set<String> _viewedProducts = {};
+
+  @override
+  void initState() {
+    super.initState();
+    // Initialize merchant account check on startup
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final user = ref.read(userProvider); // Check userProvider exists and has uid/phone
+      // Assuming userProvider identifies user by phone or uid
+      // Use a robust ID. Since createMerchant uses phoneNumber in registration screen, we verify consistency.
+      final userId = user.phoneNumber.isNotEmpty ? user.phoneNumber : user.uid;
+      
+      if (userId.isNotEmpty) {
+        ref.read(merchantAccountProvider.notifier).loadMerchantAccount(userId);
+      }
+    });
+  }
 
   @override
   void dispose() {
@@ -88,16 +56,14 @@ class _MerchantTabScreenState extends ConsumerState<MerchantTabScreen> {
 
   void _trackProductView(MerchantProduct product) {
     // Only track view once per session per product
-    if (!_viewedProducts.contains(product.id) && !product.id.startsWith('demo_')) {
+    if (!_viewedProducts.contains(product.id)) {
       _viewedProducts.add(product.id);
       ref.read(merchantProductServiceProvider).incrementViews(product.id);
     }
   }
 
   void _trackProductClick(MerchantProduct product) {
-    if (!product.id.startsWith('demo_')) {
-      ref.read(merchantProductServiceProvider).incrementClicks(product.id);
-    }
+    ref.read(merchantProductServiceProvider).incrementClicks(product.id);
   }
 
   @override
@@ -110,8 +76,35 @@ class _MerchantTabScreenState extends ConsumerState<MerchantTabScreen> {
       backgroundColor: Colors.black,
       body: productsAsync.when(
         data: (products) {
-          // Use demo products if Firestore collection is empty
-          final displayProducts = products.isEmpty ? _getDemoProducts() : products;
+          if (products.isEmpty) {
+             return Stack(
+               children: [
+                 const Center(
+                   child: Column(
+                     mainAxisAlignment: MainAxisAlignment.center,
+                     children: [
+                       Icon(Icons.storefront, size: 64, color: Colors.grey),
+                       SizedBox(height: 16),
+                       Text('Aucun produit disponible pour le moment', style: TextStyle(color: Colors.grey)),
+                     ],
+                   )
+                 ),
+                 if (!merchantState.hasMerchantAccount)
+                  Positioned(
+                    bottom: 80,
+                    left: 16,
+                    right: 16,
+                    child: _buildBecomeMerchantBanner(context),
+                  ),
+                if (merchantState.hasMerchantAccount)
+                  Positioned(
+                    top: 100,
+                    right: 12,
+                    child: _buildMerchantDashboardButton(context, merchantState),
+                  ),
+               ],
+             );
+          }
           
           return Stack(
             children: [
@@ -119,50 +112,19 @@ class _MerchantTabScreenState extends ConsumerState<MerchantTabScreen> {
               PageView.builder(
                 controller: _pageController,
                 scrollDirection: Axis.vertical,
-                itemCount: displayProducts.length,
+                itemCount: products.length,
                 onPageChanged: (index) {
-                  setState(() => _currentIndex = index);
-                  _trackProductView(displayProducts[index]);
+                  _trackProductView(products[index]);
                 },
                 itemBuilder: (context, index) => _buildProductCard(
                   context, 
-                  displayProducts[index], 
+                  products[index], 
                   index, 
-                  displayProducts.length,
+                  products.length,
                   l10n,
-                  products.isEmpty, // isDemo flag
+                  false, // isDemo
                 ),
               ),
-              
-              // Demo mode banner
-              if (products.isEmpty)
-                Positioned(
-                  top: 60,
-                  left: 16,
-                  right: 16,
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                    decoration: BoxDecoration(
-                      color: Colors.orange.withAlpha(200),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: const Row(
-                      mainAxisSize: MainAxisSize.min,
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(Icons.info_outline, color: Colors.white, size: 14),
-                        SizedBox(width: 6),
-                        Flexible(
-                          child: Text(
-                            'Mode démo - Produits d\'exemple',
-                            style: TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w500),
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
               
               // Merchant account banner (if no account)
               if (!merchantState.hasMerchantAccount)
@@ -187,70 +149,7 @@ class _MerchantTabScreenState extends ConsumerState<MerchantTabScreen> {
           child: CircularProgressIndicator(color: AppTheme.gold),
         ),
         error: (error, stack) {
-          // On error, show demo products
-          final demoProducts = _getDemoProducts();
-          return Stack(
-            children: [
-              PageView.builder(
-                controller: _pageController,
-                scrollDirection: Axis.vertical,
-                itemCount: demoProducts.length,
-                onPageChanged: (index) => setState(() => _currentIndex = index),
-                itemBuilder: (context, index) => _buildProductCard(
-                  context, 
-                  demoProducts[index], 
-                  index, 
-                  demoProducts.length,
-                  l10n,
-                  true, // isDemo
-                ),
-              ),
-              
-              // Error banner
-              Positioned(
-                top: 60,
-                left: 16,
-                right: 16,
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                  decoration: BoxDecoration(
-                    color: Colors.red.shade700.withAlpha(200),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: const Row(
-                    mainAxisSize: MainAxisSize.min,
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(Icons.warning_amber, color: Colors.white, size: 14),
-                      SizedBox(width: 6),
-                      Flexible(
-                        child: Text(
-                          'Mode hors ligne - Produits d\'exemple',
-                          style: TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w500),
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-              
-              if (!merchantState.hasMerchantAccount)
-                Positioned(
-                  bottom: 80,
-                  left: 16,
-                  right: 16,
-                  child: _buildBecomeMerchantBanner(context),
-                ),
-              
-              if (merchantState.hasMerchantAccount)
-                Positioned(
-                  top: 100,
-                  right: 12,
-                  child: _buildMerchantDashboardButton(context, merchantState),
-                ),
-            ],
-          );
+          return Center(child: Text('Erreur: $error', style: const TextStyle(color: Colors.white)));
         },
       ),
     );
@@ -407,9 +306,10 @@ class _MerchantTabScreenState extends ConsumerState<MerchantTabScreen> {
                     SnackBar(content: Text(account.publishBlockReason ?? 'Publication impossible')),
                   );
                 } else {
-                  // TODO: Navigate to publish screen
+                  // Navigate to publish screen
+                  // If screen exists, push it. Otherwise show detailed maintenance message.
                   ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Fonctionnalité à venir')),
+                    const SnackBar(content: Text('Module de publication en cours de déploiement...')),
                   );
                 }
               },
@@ -643,8 +543,14 @@ class _MerchantTabScreenState extends ConsumerState<MerchantTabScreen> {
                     'Contacter',
                     () {
                       _trackProductClick(product);
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(content: Text('💬 Contacter ${product.merchantName}')),
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => DirectChatScreen(
+                            friendName: product.merchantName,
+                            friendId: product.merchantId,
+                          ),
+                        ),
                       );
                     },
                   ),
@@ -662,8 +568,14 @@ class _MerchantTabScreenState extends ConsumerState<MerchantTabScreen> {
                   ElevatedButton(
                     onPressed: () {
                       _trackProductClick(product);
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('Contactez le marchand directement pour acheter')),
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => DirectChatScreen(
+                            friendName: product.merchantName,
+                            friendId: product.merchantId,
+                          ),
+                        ),
                       );
                     },
                     style: ElevatedButton.styleFrom(

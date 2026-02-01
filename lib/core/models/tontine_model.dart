@@ -59,6 +59,7 @@ class TontineCircle {
   final String currency; // V15: Dynamic Currency Support
   final List<JoinRequest> joinRequests; // V16: Requests to join
   final List<String> pendingSignatureIds; // V16: Approved but not signed yet
+  final String? enterpriseId; // V18: Link to Corporate Account
 
   TontineCircle({
     required this.id,
@@ -80,6 +81,7 @@ class TontineCircle {
     this.currentCycle = 1,
     this.joinRequests = const [],
     this.pendingSignatureIds = const [],
+    this.enterpriseId,
   });
 
   factory TontineCircle.fromFirestore(DocumentSnapshot doc) {
@@ -103,6 +105,7 @@ class TontineCircle {
       memberIds: List<String>.from(data['memberIds'] ?? []),
       currentCycle: data['currentCycle'] ?? 1,
       pendingSignatureIds: List<String>.from(data['pendingSignatureIds'] ?? []),
+      enterpriseId: data['enterpriseId'],
     );
   }
 
@@ -125,6 +128,7 @@ class TontineCircle {
       'memberIds': memberIds,
       'currentCycle': currentCycle,
       'pendingSignatureIds': pendingSignatureIds,
+      'enterpriseId': enterpriseId,
     };
   }
 
@@ -135,6 +139,7 @@ class TontineCircle {
     List<String>? memberIds,
     List<JoinRequest>? joinRequests,
     List<String>? pendingSignatureIds,
+    String? enterpriseId,
   }) {
     return TontineCircle(
       id: id ?? this.id,
@@ -156,6 +161,7 @@ class TontineCircle {
       currentCycle: currentCycle ?? this.currentCycle,
       joinRequests: joinRequests ?? this.joinRequests,
       pendingSignatureIds: pendingSignatureIds ?? this.pendingSignatureIds,
+      enterpriseId: enterpriseId ?? this.enterpriseId,
     );
   }
 

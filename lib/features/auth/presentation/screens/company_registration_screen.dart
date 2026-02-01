@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:tontetic/core/theme/app_theme.dart';
 import 'package:tontetic/core/providers/user_provider.dart';
+import 'package:tontetic/core/models/user_model.dart';
 import '../../../corporate/presentation/screens/corporate_dashboard_screen.dart';
 import 'package:tontetic/core/providers/consent_provider.dart';
 import 'package:tontetic/core/providers/account_status_provider.dart';
@@ -10,9 +11,9 @@ import 'package:tontetic/core/constants/stripe_constants.dart'; // ADDED: For St
 import 'package:tontetic/core/providers/plans_provider.dart'; // ADDED: For enterprisePlansProvider
 
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:tontetic/core/models/enterprise_model.dart'; // ADDED
+import 'package:tontetic/core/services/enterprise_service.dart'; // ADDED
 
-import 'package:go_router/go_router.dart';
-import 'package:tontetic/core/services/auth_service.dart';
 import 'package:tontetic/features/auth/presentation/widgets/otp_dialog.dart';
 
 
@@ -986,8 +987,26 @@ class _CompanyRegistrationScreenState extends ConsumerState<CompanyRegistrationS
 
     // Determine zone from selected country
     final zone = _selectedCountry == 'FR' ? UserZone.zoneEuro : UserZone.zoneFCFA;
+    final enterpriseId = 'ent_${DateTime.now().millisecondsSinceEpoch}'; // Generate Enterprise ID
 
-    // Update user to company type
+    // Create Enterprise Document
+    final enterprise = EnterpriseModel(
+      id: enterpriseId,
+      name: _raisonSocialeController.text,
+      nif: _nifController.text,
+      country: _selectedCountry,
+      address: '', // Could be added to form
+      contactEmail: _emailController.text,
+      contactPhone: '$_selectedCountryCode ${_phoneController.text}',
+      representativeName: _responsableNameController.text,
+      ownerId: result.data['uid'] ?? authService.currentUserUid!,
+      createdAt: DateTime.now(),
+      isVerified: _selectedPlan != null && _selectedPlan != 'free', // Verify if paying
+    );
+    
+    await ref.read(enterpriseServiceProvider).createEnterprise(enterprise);
+
+    // Update user to company type AND link Organization ID
     await ref.read(userProvider.notifier).updateProfile(
       name: _raisonSocialeController.text,
       address: '',
@@ -995,6 +1014,7 @@ class _CompanyRegistrationScreenState extends ConsumerState<CompanyRegistrationS
       siret: _nifController.text,
       representative: _responsableNameController.text,
       zone: zone,
+      organizationId: enterpriseId, // NEW: Link to Enterprise
     );
     
     // V17: Set selected plan with Stripe Price ID mapping

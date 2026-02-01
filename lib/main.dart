@@ -4,25 +4,18 @@ import 'package:app_links/app_links.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:firebase_core/firebase_core.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:flutter/foundation.dart';
+import 'package:intl/date_symbol_data_local.dart';
+import 'package:flutter/services.dart';
 
 import 'core/theme/app_theme.dart';
 import 'core/providers/theme_provider.dart';
-import 'core/providers/user_provider.dart';
 import 'package:tontetic/core/services/security_service.dart';
 import 'package:tontetic/core/services/stripe_service.dart';
 import 'package:tontetic/core/services/notification_service.dart';
-import 'core/services/encryption_service.dart'; // E2E
-import 'features/onboarding/presentation/screens/onboarding_screen.dart';
-import 'features/dashboard/presentation/screens/dashboard_screen.dart';
-
-import 'core/providers/auth_provider.dart';
-
-import 'package:flutter/foundation.dart';
-import 'package:intl/date_symbol_data_local.dart';
 import 'core/routing/router.dart';
-import 'package:flutter/services.dart';
+import 'core/providers/auth_provider.dart';
 import 'firebase_options.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();

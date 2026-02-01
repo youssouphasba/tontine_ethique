@@ -9,6 +9,7 @@ import 'package:tontetic/features/corporate/presentation/widgets/enterprise_supp
 import 'package:tontetic/features/corporate/presentation/screens/enterprise_subscription_screen.dart';
 import 'package:tontetic/core/providers/auth_provider.dart';
 import 'package:intl/intl.dart';
+import 'package:tontetic/core/providers/user_provider.dart';
 
 /// Corporate Dashboard Screen
 /// Complete enterprise management dashboard
@@ -123,8 +124,8 @@ class _CorporateDashboardScreenState extends ConsumerState<CorporateDashboardScr
                   child: Icon(Icons.business, color: Colors.indigo, size: 30),
                 ),
                 const SizedBox(height: 12),
-                const Text('TechCorp Sénégal', style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
-                Text('Plan Business', style: TextStyle(color: Colors.white.withValues(alpha: 0.8), fontSize: 12)),
+                Text(ref.watch(userProvider).company.isNotEmpty ? ref.watch(userProvider).company : 'Mon Entreprise', style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
+                Text(ref.watch(userProvider).organizationId ?? 'ID: Non défini', style: TextStyle(color: Colors.white.withValues(alpha: 0.8), fontSize: 12)),
               ],
             ),
           ),
@@ -197,27 +198,38 @@ class _CorporateDashboardScreenState extends ConsumerState<CorporateDashboardScr
           // Alerts from Firestore
           const Text('Alertes', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
           const SizedBox(height: 12),
-          StreamBuilder<QuerySnapshot>(
-            stream: FirebaseFirestore.instance.collection('enterprise_alerts').where('enterpriseId', isEqualTo: 'techcorp_001').limit(3).snapshots(),
-            builder: (context, snapshot) {
-              if (snapshot.hasError) return Text('Erreur: ${snapshot.error}');
-              if (snapshot.connectionState == ConnectionState.waiting) return const LinearProgressIndicator();
+          Consumer(
+            builder: (context, ref, child) {
+              final user = ref.watch(userProvider);
+              final companyId = user.organizationId;
+              
+              if (companyId == null || companyId.isEmpty) {
+                 return const Text('Aucune entreprise associée.', style: TextStyle(color: Colors.grey));
+              }
 
-              final alerts = snapshot.data?.docs ?? [];
-              if (alerts.isEmpty) return const Text('Aucune alerte récente.', style: TextStyle(color: Colors.grey, fontSize: 12));
+              return StreamBuilder<QuerySnapshot>(
+                stream: FirebaseFirestore.instance.collection('enterprise_alerts').where('enterpriseId', isEqualTo: companyId).limit(3).snapshots(),
+                builder: (context, snapshot) {
+                  if (snapshot.hasError) return Text('Erreur: ${snapshot.error}');
+                  if (snapshot.connectionState == ConnectionState.waiting) return const LinearProgressIndicator();
 
-              return Column(
-                children: alerts.map((doc) {
-                  final a = doc.data() as Map<String, dynamic>;
-                  return Padding(
-                    padding: const EdgeInsets.only(bottom: 8.0),
-                    child: _buildAlertCard(
-                      a['title'] ?? 'Alerte', 
-                      a['message'] ?? '', 
-                      a['severity'] == 'high' ? Colors.red : Colors.orange
-                    ),
+                  final alerts = snapshot.data?.docs ?? [];
+                  if (alerts.isEmpty) return const Text('Aucune alerte récente.', style: TextStyle(color: Colors.grey, fontSize: 12));
+
+                  return Column(
+                    children: alerts.map((doc) {
+                      final a = doc.data() as Map<String, dynamic>;
+                      return Padding(
+                        padding: const EdgeInsets.only(bottom: 8.0),
+                        child: _buildAlertCard(
+                          a['title'] ?? 'Alerte', 
+                          a['message'] ?? '', 
+                          a['severity'] == 'high' ? Colors.red : Colors.orange
+                        ),
+                      );
+                    }).toList(),
                   );
-                }).toList(),
+                },
               );
             },
           ),
@@ -321,9 +333,12 @@ class _CorporateDashboardScreenState extends ConsumerState<CorporateDashboardScr
   Widget _buildTontineManagement() {
     final subscription = ref.watch(subscriptionProvider);
     final canCreate = ref.watch(canCreateTontineProvider);
+    final user = ref.watch(userProvider);
     
-    // List emptied for production
-    final tontines = <_TontineData>[];
+    // Safety check for organizationId
+    if (user.organizationId == null) {
+      return const Center(child: Text("Erreur: Aucune organisation associée."));
+    }
 
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16),
@@ -354,23 +369,43 @@ class _CorporateDashboardScreenState extends ConsumerState<CorporateDashboardScr
           ),
           const SizedBox(height: 16),
 
-          // Filter tabs
-          Row(
-            children: [
-              _buildFilterChip('Toutes', true),
-              const SizedBox(width: 8),
-              _buildFilterChip('Actives', false),
-              const SizedBox(width: 8),
-              _buildFilterChip('Terminées', false),
-            ],
-          ),
-          const SizedBox(height: 16),
+          // Tontine list (Real Data)
+          StreamBuilder<QuerySnapshot>(
+            stream: FirebaseFirestore.instance
+                .collection('tontines')
+                .where('enterpriseId', isEqualTo: user.organizationId)
+                .snapshots(),
+            builder: (context, snapshot) {
+              if (snapshot.hasError) {
+                return Center(child: Text('Erreur: ${snapshot.error}'));
+              }
+              if (snapshot.connectionState == ConnectionState.waiting) {
+                return const Center(child: CircularProgressIndicator());
+              }
 
-          // Tontine list
-          if (tontines.isEmpty)
-             const Center(child: Padding(padding: EdgeInsets.all(32), child: Text('Aucune tontine active.', style: TextStyle(color: Colors.grey))))
-          else
-             ...tontines.map((t) => _buildTontineCard(t)),
+              final docs = snapshot.data?.docs ?? [];
+              if (docs.isEmpty) {
+                return const Center(child: Padding(padding: EdgeInsets.all(32), child: Text('Aucune tontine active.', style: TextStyle(color: Colors.grey))));
+              }
+
+              return Column(
+                children: docs.map((doc) {
+                  final data = doc.data() as Map<String, dynamic>;
+                  // Map Firestore data to UI model or use directly
+                  return _buildTontineCard(
+                    _TontineData(
+                      id: doc.id,
+                      name: data['name'] ?? 'Nom inconnu',
+                      department: data['purpose'] ?? 'Département', // Mapping purpose or desc
+                      members: (data['memberIds'] as List?)?.length ?? 0,
+                      amount: (data['amountPerPerson'] ?? 0).toString(),
+                      status: data['status'] ?? 'active',
+                    )
+                  );
+                }).toList(),
+              );
+            },
+          ),
         ],
       ),
     );
@@ -477,9 +512,9 @@ class _CorporateDashboardScreenState extends ConsumerState<CorporateDashboardScr
   Widget _buildEmployeeTracking() {
     final subscription = ref.watch(subscriptionProvider);
     final canAdd = ref.watch(canAddEmployeeProvider);
+    final user = ref.watch(userProvider);
     
-    // List emptied for production
-    final employees = <_EmployeeData>[];
+    if (user.organizationId == null) return const SizedBox.shrink();
 
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16),
@@ -526,11 +561,41 @@ class _CorporateDashboardScreenState extends ConsumerState<CorporateDashboardScr
           ),
           const SizedBox(height: 16),
 
-          // Employee list
-          if (employees.isEmpty)
-             const Center(child: Padding(padding: EdgeInsets.all(32), child: Text('Aucun salarié enregistré.', style: TextStyle(color: Colors.grey))))
-          else
-             ...employees.map((e) => _buildEmployeeCard(e)),
+          // Employee list (Real Data)
+          StreamBuilder<QuerySnapshot>(
+            stream: FirebaseFirestore.instance
+                .collection('enterprises')
+                .doc(user.organizationId)
+                .collection('employees')
+                .snapshots(),
+            builder: (context, snapshot) {
+              if (snapshot.hasError) return Text('Erreur: ${snapshot.error}');
+              if (snapshot.connectionState == ConnectionState.waiting) return const Center(child: CircularProgressIndicator());
+
+              final docs = snapshot.data?.docs ?? [];
+              if (docs.isEmpty) {
+                 return const Center(child: Padding(padding: EdgeInsets.all(32), child: Text('Aucun salarié enregistré.', style: TextStyle(color: Colors.grey))));
+              }
+
+              return Column(
+                children: docs.map((doc) {
+                  final data = doc.data() as Map<String, dynamic>;
+                  // We might need to fetch user details (name/email) if not fully stored in the link
+                  // Ideally, ContextProvider stores email/name in the link doc
+                  return _buildEmployeeCard(
+                    _EmployeeData(
+                      id: doc.id,
+                      name: data['name'] ?? data['email'] ?? 'Utilisateur', // Fallback
+                      email: data['email'] ?? '',
+                      department: data['department'] ?? 'Général',
+                      score: (data['trustScore'] ?? 100).toInt(),
+                      status: data['status'] ?? 'active',
+                    )
+                  );
+                }).toList(),
+              );
+            },
+          ),
         ],
       ),
     );
@@ -744,8 +809,8 @@ class _CorporateDashboardScreenState extends ConsumerState<CorporateDashboardScr
 
     return EnterpriseSupportWidget(
       companyId: subscription.companyId,
-      companyName: 'TechCorp Sénégal', // In production, get from company provider
-      requesterId: 'admin_user', // In production, get from auth provider
+      companyName: ref.watch(userProvider).company.isNotEmpty ? ref.watch(userProvider).company : 'Mon Entreprise', // Dynamic
+      requesterId: ref.watch(userProvider).uid, // Dynamic
       currentEmployees: subscription.currentEmployees,
       maxEmployees: subscription.maxEmployees,
       currentTontines: subscription.currentTontines,
@@ -1018,21 +1083,39 @@ class _NavItem {
 }
 
 class _TontineData {
+  final String id;
   final String name;
   final String department;
   final int members;
-  final int amount;
+  final String amount;
   final String status;
-  _TontineData(this.name, this.department, this.members, this.amount, this.status);
+
+  _TontineData({
+    required this.id,
+    required this.name,
+    required this.department,
+    required this.members,
+    required this.amount,
+    required this.status,
+  });
 }
 
 class _EmployeeData {
+  final String id;
   final String name;
   final String email;
   final String department;
-  final String status;
   final int score;
-  _EmployeeData(this.name, this.email, this.department, this.status, this.score);
+  final String status;
+
+  _EmployeeData({
+    required this.id,
+    required this.name,
+    required this.email,
+    required this.department,
+    required this.score,
+    required this.status,
+  });
 }
 
 class _SettingItem {

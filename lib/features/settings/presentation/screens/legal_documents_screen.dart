@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:tontetic/core/theme/app_theme.dart';
 
 class LegalDocumentsScreen extends StatelessWidget {
@@ -31,10 +31,112 @@ class LegalDocumentsScreen extends StatelessWidget {
         ),
         body: const TabBarView(
           children: [
-            _LegalTab(
+            _LegalDocumentLoader(
+              documentId: 'cgu',
               title: 'Conditions Générales d\'Utilisation',
-              updatedAt: 'Mise à jour récente',
-              content: '''
+              fallbackContent: _LegalConstants.cgu,
+            ),
+            _LegalDocumentLoader(
+              documentId: 'privacy',
+              title: 'Politique de Confidentialité',
+              fallbackContent: _LegalConstants.privacy,
+            ),
+             _LegalDocumentLoader(
+              documentId: 'financial',
+              title: 'Conditions & Architecture Financière',
+              fallbackContent: _LegalConstants.financial,
+            ),
+            _LegalDocumentLoader(
+              documentId: 'offers',
+              title: 'Conditions Offre "Pionniers"',
+              fallbackContent: _LegalConstants.offers,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _LegalDocumentLoader extends StatelessWidget {
+  final String documentId;
+  final String title;
+  final String fallbackContent;
+
+  const _LegalDocumentLoader({
+    required this.documentId,
+    required this.title,
+    required this.fallbackContent,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return FutureBuilder<DocumentSnapshot>(
+      future: FirebaseFirestore.instance.collection('legal_texts').doc(documentId).get(),
+      builder: (context, snapshot) {
+        String content = fallbackContent;
+        String updatedAt = 'Version par défaut';
+
+        if (snapshot.hasData && snapshot.data != null && snapshot.data!.exists) {
+          final data = snapshot.data!.data() as Map<String, dynamic>;
+          content = data['content'] ?? fallbackContent;
+          final timestamp = data['updated_at'] as Timestamp?;
+          if (timestamp != null) {
+            updatedAt = 'Mise à jour le ${timestamp.toDate().day}/${timestamp.toDate().month}/${timestamp.toDate().year}';
+          }
+        }
+
+        return _LegalContentView(
+          title: title,
+          updatedAt: updatedAt,
+          content: content,
+          isLoading: snapshot.connectionState == ConnectionState.waiting,
+        );
+      },
+    );
+  }
+}
+
+class _LegalContentView extends StatelessWidget {
+  final String title;
+  final String content;
+  final String updatedAt;
+  final bool isLoading;
+
+  const _LegalContentView({
+    required this.title, 
+    required this.updatedAt, 
+    required this.content,
+    this.isLoading = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return ListView(
+      padding: const EdgeInsets.all(16),
+      children: [
+        if (isLoading)
+          const LinearProgressIndicator(color: AppTheme.gold, backgroundColor: Colors.transparent),
+        const SizedBox(height: 8),
+        Text(
+          title, 
+          style: TextStyle(
+            fontSize: 22, 
+            fontWeight: FontWeight.bold, 
+            color: Theme.of(context).brightness == Brightness.dark ? AppTheme.gold : AppTheme.marineBlue,
+          ),
+        ),
+        const SizedBox(height: 8),
+        Text(updatedAt, style: const TextStyle(color: Colors.grey, fontStyle: FontStyle.italic)),
+        const Divider(height: 32),
+        Text(content, style: const TextStyle(fontSize: 14, height: 1.5)),
+      ],
+    );
+  }
+}
+
+class _LegalConstants {
+  static const String cgu = '''
 1. PRÉAMBULE
 L'application Tontetic est une plateforme technique de mise en relation et de gestion de tontines. Tontetic N'EST PAS une banque ni un établissement de crédit.
 
@@ -155,12 +257,9 @@ L'accès aux fonctionnalités de Tontetic est régi par quatre (4) formules d'ab
 TRANSITIONS DE PLAN :
 - Upgrade : Immédiat.
 - Downgrade : Programmée pour le prochain cycle. Effectif seulement si l'usage respecte les limites du plan cible ou après validation exceptionnelle par le Support Client.
-              ''',
-            ),
-            _LegalTab(
-              title: 'Politique de Confidentialité (RGPD/APD)',
-              updatedAt: 'Mise à jour récente',
-              content: '''
+  ''';
+
+  static const String privacy = '''
 1. COLLECTE DES DONNÉES
 Nous collectons vos données d'identité (KYC), de contact et de transaction pour assurer le service.
 
@@ -171,12 +270,9 @@ Dans le cadre de notre modèle "Freemium" et "Business" :
 
 3. SÉCURITÉ
 Vos données sont chiffrées de bout en bout. L'accès aux logs sensibles est restreint aux administrateurs habilités via une double authentification.
-              ''',
-            ),
-             _LegalTab(
-              title: 'Conditions & Architecture Financière',
-              updatedAt: 'Mise à jour récente',
-              content: '''
+  ''';
+
+  static const String financial = '''
 1. ARCHITECTURE "SEPA PURE" (NON-CUSTODIAL)
 Tontetic fonctionne selon un modèle strict de non-détention de fonds.
 - Les fonds ne transitent JAMAIS par les comptes bancaires de Tontetic.
@@ -197,12 +293,9 @@ Tontetic ne reçoit, ne détient et ne gère AUCUN fond des utilisateurs.
 3. FRAIS DE SERVICE
 - Offre Gratuite : Frais de 1% par transaction, supportés par l'utilisateur et perçus par le PSP.
 - Offre Premium : Abonnement mensuel fixe, transactions sans commissions pour l'utilisateur.
-              ''',
-            ),
-            _LegalTab(
-              title: 'Conditions Offre "Pionniers"',
-              updatedAt: 'Mise à jour récente',
-              content: '''
+  ''';
+
+  static const String offers = '''
 1. ÉLIGIBILITÉ
 L'offre "Pionniers" est réservée exclusivement aux 20 premiers créateurs de cercles Starter et à leurs invités, à partir du 01/01/2026.
 
@@ -217,40 +310,5 @@ Au terme des 3 mois offerts, le compte bascule automatiquement sur le paiement d
 
 4. ABSENCE D'ASSURANCE
 Cette offre ne constitue pas une assurance. La garantie Amanah est un mécanisme technique automatisé, pas un produit d'assurance.
-              ''',
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _LegalTab extends StatelessWidget {
-  final String title;
-  final String content;
-  final String updatedAt;
-
-  const _LegalTab({required this.title, required this.updatedAt, required this.content});
-
-  @override
-  Widget build(BuildContext context) {
-    return ListView(
-      padding: const EdgeInsets.all(16),
-      children: [
-        Text(
-          title, 
-          style: TextStyle(
-            fontSize: 22, 
-            fontWeight: FontWeight.bold, 
-            color: Theme.of(context).brightness == Brightness.dark ? AppTheme.gold : AppTheme.marineBlue,
-          ),
-        ),
-        const SizedBox(height: 8),
-        Text('Dernière mise à jour : $updatedAt', style: const TextStyle(color: Colors.grey, fontStyle: FontStyle.italic)),
-        const Divider(height: 32),
-        Text(content, style: const TextStyle(fontSize: 14, height: 1.5)),
-      ],
-    );
-  }
+  ''';
 }

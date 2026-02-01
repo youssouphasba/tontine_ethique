@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:tontetic/core/providers/user_provider.dart';
+import 'package:tontetic/core/models/user_model.dart';
 import 'package:tontetic/core/theme/app_theme.dart';
 import 'package:tontetic/features/dashboard/presentation/screens/dashboard_screen.dart';
 

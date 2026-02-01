@@ -3,8 +3,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:tontetic/core/theme/app_theme.dart';
 
-import 'package:tontetic/features/auth/presentation/screens/individual_registration_screen.dart';
-import 'package:tontetic/features/auth/presentation/screens/company_registration_screen.dart';
 
 /// Type Selection Screen
 /// First step: Choose between Particulier and Entreprise with detailed explanations

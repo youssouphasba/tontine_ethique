@@ -7,6 +7,7 @@ import 'package:tontetic/core/providers/user_provider.dart';
 import 'package:tontetic/core/theme/app_theme.dart';
 import 'package:tontetic/core/services/audit_service.dart';
 import 'package:tontetic/core/providers/auth_provider.dart';
+import 'package:tontetic/core/models/user_model.dart';
 import 'package:tontetic/features/tontine/presentation/widgets/signature_pad.dart';
 
 import 'package:tontetic/core/services/stripe_service.dart';

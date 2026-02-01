@@ -3,6 +3,8 @@ import 'package:flutter/foundation.dart';
 import 'package:google_generative_ai/google_generative_ai.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 // V9.0: API Key read from .env or build environment (Secure)
 String _getApiKey() {
@@ -108,11 +110,35 @@ class GeminiService {
         throw TimeoutException('API timeout');
       });
 
-      return response.text ?? _getFallbackResponse(userMessage);
+      final responseText = response.text ?? _getFallbackResponse(userMessage);
+
+      // 3. AUDIT LOGGING (Back-office Visibility)
+      // Stores user query and AI response for compliance/quality check
+      try {
+        // We use a try/catch to ensure logging failure doesn't block the UI response
+        final user = FirebaseAuth.instance.currentUser;
+        if (user != null) {
+          await FirebaseFirestore.instance.collection('ai_logs').add({
+            'userId': user.uid,
+            'userEmail': user.email,
+            'query': userMessage,
+            'response': responseText,
+            'timestamp': FieldValue.serverTimestamp(),
+            'status': 'success',
+            'model': 'gemini-2.0-flash'
+          });
+        }
+      } catch (e) {
+        debugPrint("⚠️ AI Log Failed: $e");
+      }
+
+      return responseText;
     } on TimeoutException {
+      _logError(userMessage, 'timeout');
       return _getFallbackResponse(userMessage);
     } catch (e) {
       final errorMsg = e.toString().toLowerCase();
+      _logError(userMessage, errorMsg);
       
       // V9.6: Graceful Quota Error Handling
       if (errorMsg.contains('quota') || errorMsg.contains('rate') || errorMsg.contains('limit')) {
@@ -130,6 +156,23 @@ class GeminiService {
       // Any other error: return fallback
       return _getFallbackResponse(userMessage);
     }
+  }
+
+  Future<void> _logError(String query, String error) async {
+    try {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user != null) {
+        await FirebaseFirestore.instance.collection('ai_logs').add({
+          'userId': user.uid,
+          'userEmail': user.email,
+          'query': query,
+          'response': 'ERROR: $error',
+          'timestamp': FieldValue.serverTimestamp(),
+          'status': 'error',
+          'model': 'gemini-2.0-flash'
+        });
+      }
+    } catch (_) {}
   }
   
   /// Fallback responses when API quota is exceeded

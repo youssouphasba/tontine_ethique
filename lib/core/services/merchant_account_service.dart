@@ -1,3 +1,5 @@
+import 'dart:async';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -290,6 +292,50 @@ class MerchantState {
 class MerchantAccountNotifier extends StateNotifier<MerchantState> {
   MerchantAccountNotifier() : super(const MerchantState());
 
+  StreamSubscription<QuerySnapshot>? _merchantSubscription;
+
+  @override
+  void dispose() {
+    _merchantSubscription?.cancel();
+    super.dispose();
+  }
+
+  /// Charge le compte marchand de l'utilisateur et écoute les changements d'état (Back Office)
+  void loadMerchantAccount(String userId) {
+    if (_merchantSubscription != null) return; // Déjà en écoute
+
+    state = state.copyWith(isLoading: true);
+
+    _merchantSubscription = FirebaseFirestore.instance
+        .collection('merchants')
+        .where('user_id', isEqualTo: userId)
+        .limit(1)
+        .snapshots()
+        .listen((snapshot) {
+      if (snapshot.docs.isNotEmpty) {
+        final data = snapshot.docs.first.data();
+        // Inject ID from doc if not in data, though it should be
+        data['id'] = snapshot.docs.first.id;
+        
+        try {
+          final account = MerchantAccount.fromJson(data);
+          state = state.copyWith(account: account, isLoading: false);
+          
+          debugPrint('[MERCHANT] ✅ Account loaded: ${account.id}');
+          debugPrint('  → Status: ${account.kycStatus.name} / ${account.accountStatus.name}');
+        } catch (e) {
+          debugPrint('[MERCHANT] ❌ Error parsing account: $e');
+          state = state.copyWith(error: 'Erreur de format de compte', isLoading: false);
+        }
+      } else {
+        state = state.copyWith(account: null, isLoading: false);
+      }
+    }, onError: (e) {
+      debugPrint('[MERCHANT] ❌ Firestore error: $e');
+      state = state.copyWith(error: e.toString(), isLoading: false);
+    });
+  }
+
   /// Créer un compte marchand Particulier (KYC léger)
   Future<MerchantAccount?> createParticulierAccount({
     required String userId,
@@ -316,6 +362,8 @@ class MerchantAccountNotifier extends StateNotifier<MerchantState> {
       debugPrint('  → PSP: $pspAccountId');
       debugPrint('  → Limits: CA max ${MerchantAccount.particulierCaMax}€, Offres max ${MerchantAccount.particulierOffresMax}');
 
+      await FirebaseFirestore.instance.collection('merchants').doc(account.id).set(account.toJson());
+      
       state = state.copyWith(account: account, isLoading: false);
       return account;
     } catch (e) {
@@ -331,6 +379,7 @@ class MerchantAccountNotifier extends StateNotifier<MerchantState> {
     required String siretNinea,
     required String idDocumentUrl,
     required String selfieUrl,
+    String? pspAccountId,
     String? iban,
   }) async {
     state = state.copyWith(isLoading: true, error: null);
@@ -343,6 +392,7 @@ class MerchantAccountNotifier extends StateNotifier<MerchantState> {
         kycStatus: MerchantKycStatus.pending, // KYC complet = vérification manuelle
         accountStatus: MerchantAccountStatus.active,
         email: email,
+        pspAccountId: pspAccountId,
         siretNinea: siretNinea,
         idDocumentUrl: idDocumentUrl,
         selfieUrl: selfieUrl,
@@ -354,6 +404,8 @@ class MerchantAccountNotifier extends StateNotifier<MerchantState> {
       debugPrint('  → User: $userId');
       debugPrint('  → SIRET/NINEA: $siretNinea');
       debugPrint('  → Status: PENDING (vérification manuelle requise)');
+
+      await FirebaseFirestore.instance.collection('merchants').doc(account.id).set(account.toJson());
 
       state = state.copyWith(account: account, isLoading: false);
       return account;

@@ -303,9 +303,9 @@ class AdminEnterprisesSection extends StatelessWidget {
                 const Divider(),
                 Row(
                   children: [
-                    TextButton.icon(icon: const Icon(Icons.people), label: const Text('Salariés'), onPressed: () => ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('👥 Liste des salariés de ${name}...')))),
+                    TextButton.icon(icon: const Icon(Icons.people), label: const Text('Salariés'), onPressed: () => ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('👥 Liste des salariés de $name...')))),
                     const Spacer(),
-                    OutlinedButton(onPressed: () => ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('📦 Changement de formule pour ${name}...'))), child: const Text('Changer formule')),
+                    OutlinedButton(onPressed: () => ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('📦 Changement de formule pour $name...'))), child: const Text('Changer formule')),
                   ],
                 ),
               ],

@@ -1,5 +1,4 @@
 import 'dart:convert';
-import 'dart:typed_data';
 import 'dart:math';
 import 'package:flutter/foundation.dart';
 import 'package:encrypt/encrypt.dart' as enc;
@@ -28,7 +27,9 @@ class E2EEncryptionService {
     final secureRandom = pc.FortunaRandom();
     final seed = Uint8List(32);
     final random = Random.secure();
-    for (int i = 0; i < 32; i++) seed[i] = random.nextInt(255);
+    for (int i = 0; i < 32; i++) {
+        seed[i] = random.nextInt(255);
+    }
     secureRandom.seed(pc.KeyParameter(seed));
 
     final keyGen = pc.RSAKeyGenerator()

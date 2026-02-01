@@ -10,6 +10,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 /// 
 /// PSP is shared but payment references are separate per tontine
 
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:tontetic/core/providers/auth_provider.dart';
+
 enum UserContext {
   personal,   // Tontines personnelles
   enterprise, // Tontines de l'entreprise
@@ -62,7 +65,9 @@ class ContextState {
 }
 
 class ContextNotifier extends StateNotifier<ContextState> {
-  ContextNotifier() : super(ContextState());
+  final Ref ref;
+
+  ContextNotifier(this.ref) : super(ContextState());
 
   /// Switch to personal context
   void switchToPersonal() {
@@ -89,10 +94,10 @@ class ContextNotifier extends StateNotifier<ContextState> {
   }
 
   /// Link account to a company (employee invitation accepted)
-  void linkToCompany({
+  Future<void> linkToCompany({
     required String companyId,
     required String companyName,
-  }) {
+  }) async {
     // Check if already linked
     if (state.employeeLinks.any((e) => e.companyId == companyId)) {
       debugPrint('[Context] Already linked to company $companyId');
@@ -108,6 +113,35 @@ class ContextNotifier extends StateNotifier<ContextState> {
     state = state.copyWith(
       employeeLinks: [...state.employeeLinks, newLink],
     );
+    
+    // PERSISTENCE
+    final user = ref.read(authStateProvider).value;
+    if (user != null) {
+      try {
+        await FirebaseFirestore.instance.collection('users').doc(user.uid).update({
+          'organizationId': companyId, // Defines the current employer context
+          // 'employeeLinks': ... // If supporting multiple employers, store array here
+        });
+        
+        // Also add to enterprise employees subcollection (optional but good for listing)
+        await FirebaseFirestore.instance
+            .collection('enterprises')
+            .doc(companyId)
+            .collection('employees')
+            .doc(user.uid)
+            .set({
+              'uid': user.uid,
+              'joinedAt': FieldValue.serverTimestamp(),
+              'status': 'active',
+              'role': 'employee',
+              'email': user.email ?? '',
+            });
+
+      } catch (e) {
+         debugPrint('[Context] Persistence Error: $e');
+      }
+    }
+
     debugPrint('[Context] Linked to company: $companyName ($companyId)');
   }
 
@@ -131,5 +165,5 @@ class ContextNotifier extends StateNotifier<ContextState> {
 }
 
 final contextProvider = StateNotifierProvider<ContextNotifier, ContextState>((ref) {
-  return ContextNotifier();
+  return ContextNotifier(ref);
 });

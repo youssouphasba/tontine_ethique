@@ -33,8 +33,21 @@ class AdminService {
           .count()
           .get();
 
-      // Calculate total volume using Firestore Aggregation (Mocked for build stability)
-      const totalVolume = 0.0;
+      // Calculate total volume from completed transactions
+      // Note: For large datasets, this should be done via a scheduled Cloud Function updating a stats document.
+      double totalVolume = 0.0;
+      try {
+        final transactionsSnapshot = await _firestore.collection('transactions')
+            .where('status', isEqualTo: 'completed')
+            .get();
+            
+        for (var doc in transactionsSnapshot.docs) {
+          final amount = (doc.data()['amount'] as num?)?.toDouble() ?? 0.0;
+          totalVolume += amount;
+        }
+      } catch (e) {
+        debugPrint('Error calculating volume: $e');
+      }
 
       return AdminDashboardStats(
         totalUsers: usersCount.count ?? 0,

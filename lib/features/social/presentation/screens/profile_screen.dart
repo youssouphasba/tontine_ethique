@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:share_plus/share_plus.dart'; // Import Added
 import 'package:tontetic/core/theme/app_theme.dart';
 import 'package:tontetic/core/providers/user_provider.dart';
+import 'package:tontetic/core/models/user_model.dart';
 import 'package:tontetic/core/services/security_service.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:tontetic/features/social/data/social_provider.dart';
@@ -95,7 +96,7 @@ class ProfileScreen extends ConsumerWidget {
     final jobTitle = (user.jobTitle.isNotEmpty && user.jobTitle != 'Membre') ? user.jobTitle : 'Contributeur';
     final honorScore = user.honorScore;
 
-    final followers = social.getFollowers(user.uid);
+
     final isFollowing = social.isFollowing(user.uid);
     final isMutual = social.isMutualFollow(user.uid);
 
@@ -451,9 +452,8 @@ class ProfileScreen extends ConsumerWidget {
       onTap: () {
         ref.read(socialProvider.notifier).sendMessage(
           targetName, 
-          targetName,
+          targetId,
           'Je t\'invite à rejoindre ma tontine "$circleName" !',
-          recipientId: targetId,
           isInvite: true,
           circleData: {'name': circleName, 'amount': amount},
         );

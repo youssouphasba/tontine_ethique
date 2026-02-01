@@ -11,29 +11,8 @@ import 'package:tontetic/core/providers/subscription_provider.dart';
 /// - Generate secure invitation links
 /// - Track invitation status
 
-class EmployeeInvitation {
-  final String id;
-  final String email;
-  final String? name;
-  final DateTime sentAt;
-  final InvitationStatus status;
-
-  EmployeeInvitation({
-    required this.id,
-    required this.email,
-    this.name,
-    required this.sentAt,
-    this.status = InvitationStatus.pending,
-  });
-}
-
-enum InvitationStatus {
-  pending,    // Envoyée, en attente
-  opened,     // Lien ouvert
-  accepted,   // Compte créé ou lié
-  declined,   // Refusé par le salarié
-  expired,    // Délai dépassé (7 jours)
-}
+import 'package:tontetic/core/services/invitation_service.dart';
+import 'package:tontetic/core/models/employee_invitation_model.dart';
 
 class EmployeeInvitationScreen extends ConsumerStatefulWidget {
   const EmployeeInvitationScreen({super.key});
@@ -45,7 +24,7 @@ class EmployeeInvitationScreen extends ConsumerStatefulWidget {
 class _EmployeeInvitationScreenState extends ConsumerState<EmployeeInvitationScreen> {
   final _emailController = TextEditingController();
   final _nameController = TextEditingController();
-  final List<EmployeeInvitation> _invitations = [];
+  final List<EmployeeInvitation> _invitations = []; // Removed final to allow refresh
   bool _isSending = false;
 
   @override
@@ -267,25 +246,44 @@ class _EmployeeInvitationScreenState extends ConsumerState<EmployeeInvitationScr
       return;
     }
 
-    // Envoi invitation (Direct)
+    setState(() => _isSending = true);
 
+    try {
+      final token = await ref.read(invitationServiceProvider).sendInvitation(
+        sub.companyId,
+        _emailController.text,
+        _nameController.text.isNotEmpty ? _nameController.text : null,
+      );
+      
+      // Update local list (Optimistic or re-fetch)
+      // For now, let's fetch stream in build or just add locally
+      // Ideally we should use a StreamBuilder in build() instead of local list
+      // But for quick fix:
+       final invitation = EmployeeInvitation(
+        id: 'inv_${DateTime.now().millisecondsSinceEpoch}',
+        companyId: sub.companyId,
+        email: _emailController.text,
+        name: _nameController.text.isNotEmpty ? _nameController.text : null,
+        sentAt: DateTime.now(),
+        token: token,
+      );
 
-    if (!mounted) return;
+      if (mounted) {
+        setState(() {
+          _invitations.insert(0, invitation);
+          _isSending = false;
+          _emailController.clear();
+          _nameController.clear();
+        });
+      }
 
-
-    final invitation = EmployeeInvitation(
-      id: 'inv_${DateTime.now().millisecondsSinceEpoch}',
-      email: _emailController.text,
-      name: _nameController.text.isNotEmpty ? _nameController.text : null,
-      sentAt: DateTime.now(),
-    );
-
-    setState(() {
-      _invitations.insert(0, invitation);
-      _isSending = false;
-      _emailController.clear();
-      _nameController.clear();
-    });
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isSending = false);
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Erreur: $e'), backgroundColor: Colors.red));
+      }
+      return;
+    }
 
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(content: Text('✅ Invitation envoyée !'), backgroundColor: Colors.green),

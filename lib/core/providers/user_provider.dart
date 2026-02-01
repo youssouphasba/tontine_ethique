@@ -182,6 +182,7 @@ class UserNotifier extends StateNotifier<UserState> {
     String? representative,
     String? birthDate,
     UserZone? zone,
+    String? organizationId, // ADDED
   }) async {
     // Store encrypted locally
     if (mounted) {
@@ -194,6 +195,7 @@ class UserNotifier extends StateNotifier<UserState> {
         encryptedBirthDate: birthDate != null ? SecurityService.encryptData(birthDate) : '',
         status: AccountStatus.pending,
         zone: zone ?? state.zone,
+        organizationId: organizationId ?? state.organizationId, // ADDED
       );
     }
 
@@ -206,6 +208,7 @@ class UserNotifier extends StateNotifier<UserState> {
           'userType': type.name,
           'status': AccountStatus.pending.name,
           'zone': (zone ?? state.zone).name,
+          if (organizationId != null) 'organizationId': organizationId, // ADDED
         });
         debugPrint('[USER_PROVIDER] ✅ Profile persisted to Firestore for $uid');
       } catch (e) {
@@ -380,7 +383,7 @@ class UserNotifier extends StateNotifier<UserState> {
     // 1. REAL-TIME SECURITY CHECK: Query Firestore for active circles
     try {
       final uid = state.uid;
-      if (uid == null || uid.isEmpty) {
+      if (uid.isEmpty) {
         debugPrint('[DELETION] Blocked: No UID found');
         return false;
       }

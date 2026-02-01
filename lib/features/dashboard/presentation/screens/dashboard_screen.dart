@@ -7,24 +7,17 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:intl/intl.dart';
 
 import 'package:tontetic/core/providers/user_provider.dart';
+import 'package:tontetic/core/models/user_model.dart';
 import 'package:tontetic/core/theme/app_theme.dart';
 import 'package:tontetic/core/providers/plans_provider.dart';
 import 'package:tontetic/core/business/subscription_service.dart';
-import 'package:tontetic/features/social/presentation/screens/conversations_list_screen.dart';
-import 'package:tontetic/features/tontine/presentation/screens/circle_chat_screen.dart';
-import 'package:tontetic/features/onboarding/presentation/widgets/welcome_dialog.dart';
 import 'package:tontetic/core/services/referral_service.dart';
 import 'package:tontetic/features/settings/presentation/screens/settings_screen.dart';
 import 'package:tontetic/features/shop/presentation/screens/boutique_screen.dart'; // Boutique TikTok-style
-import 'package:tontetic/features/tontine/presentation/screens/create_tontine_screen.dart';
-import 'package:tontetic/features/tontine/presentation/screens/my_circles_screen.dart';
+import 'package:tontetic/features/onboarding/presentation/widgets/welcome_dialog.dart';
 import 'package:tontetic/features/wallet/presentation/screens/wallet_tab_screen.dart';
 import 'package:share_plus/share_plus.dart'; // V10.0 Native Share
-import 'package:tontetic/features/tontine/presentation/screens/qr_invitation_screen.dart'; // V18 QR Invitation
 import 'package:tontetic/features/tontine/presentation/screens/explorer_screen.dart';
-import 'package:tontetic/features/ai/presentation/screens/smart_coach_screen.dart'; // V5.0
-import 'package:tontetic/features/tontine/presentation/screens/user_profile_screen.dart'; // V5.1 Profile
-import 'package:tontetic/features/tontine/presentation/screens/tontine_simulator_screen.dart'; // V20: Restore Simulator
 import 'package:tontetic/core/providers/localization_provider.dart';
 import 'package:tontetic/core/presentation/widgets/tts_control_toggle.dart';
 import 'package:tontetic/core/services/voice_service.dart';
@@ -120,13 +113,6 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> with SingleTi
     }
   }
 
-  void _onItemTapped(int index) {
-      setState(() {
-        _selectedIndex = index;
-      });
-      ref.read(navigationProvider.notifier).setIndex(index);
-  }
-
   @override
   Widget build(BuildContext context) {
     // Sync with Provider safe way
@@ -139,13 +125,6 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> with SingleTi
     });
 
     final l10n = ref.watch(localizationProvider);
-    List<BottomNavigationBarItem> navItems = [
-      BottomNavigationBarItem(icon: const Icon(Icons.home), label: l10n.translate('tab_home')),
-      const BottomNavigationBarItem(icon: Icon(Icons.search), label: 'Explorer'),
-      BottomNavigationBarItem(icon: const Icon(Icons.account_balance_wallet), label: l10n.translate('tab_wallet')),
-      BottomNavigationBarItem(icon: const Icon(Icons.storefront), label: 'Boutique'),
-      const BottomNavigationBarItem(icon: Icon(Icons.settings), label: 'Paramètres'),
-    ];
 
     Widget content;
     final user = ref.watch(userProvider);
@@ -825,7 +804,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> with SingleTi
             Text(
               l10n.translate('welcome_back'),
               style: TextStyle(
-                color: Colors.white.withOpacity(0.8),
+                color: Colors.white.withValues(alpha: 0.8),
                 fontSize: 12,
               ),
             ),

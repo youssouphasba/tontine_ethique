@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:tontetic/core/providers/user_provider.dart';
+import 'package:tontetic/core/models/user_model.dart';
 import 'package:tontetic/core/theme/app_theme.dart';
-import 'package:tontetic/features/auth/presentation/screens/otp_verification_screen.dart';
+import 'package:tontetic/features/auth/presentation/widgets/otp_dialog.dart';
+import 'package:tontetic/features/dashboard/presentation/screens/dashboard_screen.dart';
 
 class RegistrationScreen extends ConsumerStatefulWidget {
   const RegistrationScreen({super.key});
@@ -36,8 +38,17 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
         representative: _selectedType == UserType.company ? _representativeController.text : null,
       );
       
-      // 2. Navigation vers OTP
-      Navigator.push(context, MaterialPageRoute(builder: (_) => const OtpVerificationScreen()));
+      // 2. Navigation vers OTP (via Dialog)
+      _showOtpDialog();
+    }
+  }
+
+  void _showOtpDialog() async {
+    final user = ref.read(userProvider);
+    final result = await OtpDialog.show(context, phone: user.phoneNumber);
+
+    if (result == 'SUCCESS' && mounted) {
+       Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const DashboardScreen()));
     }
   }
 

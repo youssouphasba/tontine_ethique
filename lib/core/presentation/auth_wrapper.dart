@@ -3,7 +3,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../providers/auth_provider.dart';
 import '../providers/user_provider.dart';
 import '../services/encryption_service.dart';
-import '../../features/auth/presentation/screens/type_selection_screen.dart';
 import '../../features/dashboard/presentation/screens/dashboard_screen.dart';
 import '../../features/onboarding/presentation/screens/onboarding_screen.dart';
 

@@ -13,6 +13,9 @@ import 'package:tontetic/core/providers/localization_provider.dart';
 import 'package:tontetic/features/merchant/presentation/screens/merchant_dashboard_screen.dart';
 import 'package:tontetic/features/merchant/presentation/screens/create_merchant_account_screen.dart';
 import 'package:tontetic/core/providers/merchant_account_provider.dart';
+import 'package:tontetic/core/models/user_model.dart';
+// Added import for Delete
+import 'package:tontetic/core/providers/auth_provider.dart'; // Added provider import
 
 /// Privacy levels for profile fields
 /// - public: Visible to everyone
@@ -417,10 +420,73 @@ class _UserProfileScreenState extends ConsumerState<UserProfileScreen> {
                 ],
               ),
             ),
+            
+            const SizedBox(height: 32),
+            _buildDeleteAccountButton(),
+            const SizedBox(height: 32),
           ],
         ),
       ),
     );
+  }
+
+  Widget _buildDeleteAccountButton() {
+    return Center(
+      child: TextButton.icon(
+        onPressed: _confirmDeleteAccount,
+        icon: const Icon(Icons.delete_forever, color: Colors.red),
+        label: const Text('Supprimer mon compte (RGPD)', style: TextStyle(color: Colors.red)),
+      ),
+    );
+  }
+
+  Future<void> _confirmDeleteAccount() async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Supprimer définitivement ?'),
+        content: const Text(
+          'Cette action est irréversible. Toutes vos données seront effacées conformément au RGPD.\n\n'
+          'Êtes-vous sûr de vouloir continuer ?',
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Annuler')),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Supprimer', style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm == true) {
+      if (!mounted) return;
+      // Show loading
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (_) => const Center(child: CircularProgressIndicator()),
+      );
+
+      final authService = ref.read(authServiceProvider); 
+      try {
+        final result = await authService.deleteAccount();
+        
+        if (!mounted) return;
+        Navigator.pop(context); // Close loading
+
+        if (result.success) {
+             Navigator.of(context).pushNamedAndRemoveUntil('/', (route) => false);
+        } else {
+             ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(result.error ?? 'Erreur')));
+        }
+      } catch (e) {
+        if (!mounted) return;
+        Navigator.pop(context);
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Erreur: $e')));
+      }
+    }
   }
 
   Widget _buildEditableField({

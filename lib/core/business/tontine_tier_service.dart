@@ -1,5 +1,4 @@
-
-import 'package:tontetic/core/providers/user_provider.dart';
+import 'package:tontetic/core/models/user_model.dart';
 
 /// V17: SEPA PURE - Aucun transit par Tontetic
 /// 

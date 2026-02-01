@@ -20,6 +20,14 @@ class StripeService {
   static bool _isInitialized = false;
 
   static Future<void> initialize() async {
+    // WEB: Do not initialize flutter_stripe SDK as it relies on Platform calls unrelated to Web
+    // and we use Stripe Checkout (Redirect) for Web payments anyway.
+    if (kIsWeb) {
+      _isInitialized = true;
+      debugPrint('[STRIPE] ⚠️ WEB: Initialisation SDK skippée (Mode Redirect uniquement)');
+      return; 
+    }
+
     try {
       // Prioritize key from .env
       final envKey = dotenv.env['STRIPE_PUBLIC_KEY'];
@@ -35,7 +43,7 @@ class StripeService {
       
       _isInitialized = true;
       debugPrint('[STRIPE] ✅ Initialisé (Mode: ${envKey.startsWith('pk_live') == true ? 'PROD' : 'TEST'})');
-    } catch (e, stack) {
+    } catch (e) {
       debugPrint('[STRIPE] ❌ Erreur initialisation: $e');
       rethrow;
     }

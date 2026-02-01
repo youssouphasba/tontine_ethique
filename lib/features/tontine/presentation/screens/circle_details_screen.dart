@@ -4,13 +4,13 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:tontetic/core/theme/app_theme.dart';
 import 'package:tontetic/features/social/presentation/screens/profile_screen.dart';
-import 'package:tontetic/core/providers/user_provider.dart'; // Import UserProvider
-import 'package:tontetic/core/providers/tontine_provider.dart'; // Import CircleProvider
+import 'package:tontetic/core/providers/user_provider.dart';
+import 'package:tontetic/core/providers/tontine_provider.dart';
+import 'package:tontetic/core/models/tontine_model.dart';
 import 'package:tontetic/core/presentation/widgets/tts_control_toggle.dart';
 import 'package:tontetic/core/presentation/widgets/speaker_icon.dart';
 import 'package:tontetic/features/tontine/presentation/screens/circle_chat_screen.dart';
 import 'package:tontetic/features/tontine/presentation/screens/exit_circle_screen.dart';
-import 'package:tontetic/core/providers/auth_provider.dart';
 import 'package:tontetic/features/tontine/presentation/screens/legal_commitment_screen.dart';
 import 'package:tontetic/core/services/notification_service.dart';
 
@@ -635,9 +635,17 @@ class CircleDetailsScreen extends ConsumerWidget {
                       ),
                       IconButton(
                         icon: const Icon(Icons.cancel, color: Colors.red),
-                        onPressed: () {
-                          // TODO: Implement reject logic in CircleService
-                          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Rejet non encore implémenté')));
+                        onPressed: () async {
+                          try {
+                            await ref.read(circleProvider.notifier).rejectJoinRequest(req.id);
+                            if (context.mounted) {
+                              ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Demande rejetée')));
+                            }
+                          } catch (e) {
+                            if (context.mounted) {
+                              ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Erreur: $e')));
+                            }
+                          }
                         },
                       ),
                     ],

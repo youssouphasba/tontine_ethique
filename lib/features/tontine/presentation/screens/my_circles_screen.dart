@@ -1,29 +1,26 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:share_plus/share_plus.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:tontetic/core/theme/app_theme.dart';
 import 'package:tontetic/core/providers/user_provider.dart';
+import 'package:tontetic/core/models/user_model.dart';
+import 'package:tontetic/core/models/tontine_model.dart';
 
 import 'package:tontetic/features/social/data/social_provider.dart';
 import 'package:tontetic/features/social/data/contact_service.dart';
 import 'package:tontetic/features/social/data/suggestion_service.dart';
-import 'package:tontetic/features/social/presentation/screens/profile_screen.dart';
 import 'package:tontetic/features/social/presentation/screens/conversations_list_screen.dart';
 import 'package:tontetic/core/business/subscription_service.dart';
-import 'package:tontetic/features/tontine/presentation/screens/legal_commitment_screen.dart';
 // import 'package:tontetic/core/services/pdf_export_service.dart'; // V10.1 PDF - UNUSED
-import 'package:tontetic/core/services/notification_service.dart'; // V10.1 Notifications
+// V10.1 Notifications
 import 'package:tontetic/features/tontine/presentation/screens/qr_scanner_screen.dart';
 import 'package:tontetic/core/providers/localization_provider.dart';
 import 'package:tontetic/core/providers/tontine_provider.dart';
 import 'package:tontetic/core/providers/auth_provider.dart';
-import 'package:tontetic/features/tontine/presentation/screens/circle_chat_screen.dart';
 import 'package:tontetic/features/tontine/presentation/screens/circle_details_screen.dart'; // V16 Import
 import 'package:go_router/go_router.dart';
 import 'package:tontetic/core/models/plan_model.dart';
 import 'package:tontetic/core/providers/plans_provider.dart';
-import 'package:tontetic/core/services/security_service.dart';
 
 class MyCirclesScreen extends ConsumerWidget {
   const MyCirclesScreen({super.key});
@@ -685,8 +682,6 @@ class _ExploreTabState extends ConsumerState<_ExploreTab> {
   }
 
   Widget _buildTontineItem(Map<String, dynamic> circle, {bool isHorizontal = false}) {
-
-    
     // Safety checks
     final int currentMembers = circle['members'] ?? 0;
     final int maxMembers = circle['maxMembers'] ?? 10;
@@ -696,7 +691,6 @@ class _ExploreTabState extends ConsumerState<_ExploreTab> {
     final String location = circle['location'] ?? 'Universel';
     final String frequency = circle['frequency'] ?? 'Mensuel';
     final tags = (circle['tags'] as List<dynamic>?)?.cast<String>() ?? ['Standard'];
-    // final int requiredScore = circle['trustScoreRequired'] ?? 0; - UNUSED
 
     final bool canJoin = currentMembers < maxMembers;
     final bool trustOk = true; 
@@ -727,10 +721,7 @@ class _ExploreTabState extends ConsumerState<_ExploreTab> {
                   decoration: BoxDecoration(color: AppTheme.marineBlue.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(8)),
                   child: Text(tags.isNotEmpty ? tags[0] : 'Tontine', style: TextStyle(fontSize: 10, color: Theme.of(context).brightness == Brightness.dark ? AppTheme.gold : AppTheme.marineBlue, fontWeight: FontWeight.bold)),
                 ),
-                /* if (!trustOk) 
-                  const Tooltip(message: 'Score insuffisant', child: Icon(Icons.lock, color: Colors.orange, size: 20))
-                else */
-                  Text('$currentMembers/$maxMembers places', style: TextStyle(color: canJoin ? Colors.green : Colors.red, fontSize: 12, fontWeight: FontWeight.bold)),
+                Text('$currentMembers/$maxMembers places', style: TextStyle(color: canJoin ? Colors.green : Colors.red, fontSize: 12, fontWeight: FontWeight.bold)),
               ],
             ),
             const SizedBox(height: 12),
@@ -805,9 +796,6 @@ class _ExploreTabState extends ConsumerState<_ExploreTab> {
       ),
     );
   }
-
-
-
   void _joinTontine(Map<String, dynamic> circle) {
     final user = ref.read(userProvider);
 
@@ -823,7 +811,7 @@ class _ExploreTabState extends ConsumerState<_ExploreTab> {
             ElevatedButton(
               onPressed: () {
                 Navigator.pop(ctx);
-                // Trigger onboarding flow if needed
+                context.push('/auth');
               }, 
               child: const Text('S\'inscrire')
             ),
@@ -833,8 +821,6 @@ class _ExploreTabState extends ConsumerState<_ExploreTab> {
       return;
     }
 
-    // V17: Fetch Plan object dynamically
-    // V17: Fetch Plan object dynamically
     final plans = ref.read(activePlansProvider).valueOrNull ?? [];
     Plan currentPlan;
     try {

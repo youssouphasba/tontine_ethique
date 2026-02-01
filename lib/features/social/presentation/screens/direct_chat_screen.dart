@@ -21,7 +21,7 @@ class _DirectChatScreenState extends ConsumerState<DirectChatScreen> {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (widget.friendId != null) {
+      if (widget.friendId != null && widget.friendId != 'demo_merchant') {
         ref.read(socialProvider.notifier).listenToConversation(widget.friendName, widget.friendId!);
       }
     });
@@ -215,6 +215,12 @@ class _DirectChatScreenState extends ConsumerState<DirectChatScreen> {
     
     if (widget.friendId == null) {
        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Erreur: ID ami introuvable')));
+       return;
+    }
+
+    if (widget.friendId == 'demo_merchant') {
+       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Mode démo: message non envoyé.')));
+       _msgController.clear();
        return;
     }
 

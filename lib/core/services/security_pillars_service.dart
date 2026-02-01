@@ -7,6 +7,9 @@
 /// Toute action sensible doit être traçable, réversible ou gelable."
 library;
 
+import 'dart:convert';
+import 'package:crypto/crypto.dart';
+
 
 
 
@@ -357,13 +360,33 @@ class FinancialSecurityPillar {
     required String signature,
     required String secret,
   }) {
-    // Implémentation réelle avec HMAC-SHA256
-    // NE JAMAIS accepter un webhook sans vérification
     if (signature.isEmpty || secret.isEmpty) {
       return false;
     }
-    // TODO: Implémenter la vérification HMAC réelle
-    return true;
+    
+    try {
+      final key = utf8.encode(secret);
+      final bytes = utf8.encode(payload);
+      
+      final hmacSha256 = Hmac(sha256, key);
+      final digest = hmacSha256.convert(bytes);
+      
+      final calculatedSignature = digest.toString();
+      
+      // Constant time comparison to prevent timing attacks
+      return _constantTimeComparison(signature, calculatedSignature);
+    } catch (e) {
+      return false;
+    }
+  }
+
+  static bool _constantTimeComparison(String a, String b) {
+    if (a.length != b.length) return false;
+    int result = 0;
+    for (int i = 0; i < a.length; i++) {
+      result |= a.codeUnitAt(i) ^ b.codeUnitAt(i);
+    }
+    return result == 0;
   }
 
   /// Génère une clé d'idempotence unique

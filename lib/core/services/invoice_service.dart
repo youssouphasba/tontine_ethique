@@ -1,4 +1,5 @@
 import 'package:flutter/foundation.dart';
+import 'package:tontetic/core/services/notification_service.dart';
 
 /// Invoice Service - B2B Enterprise Invoice Generation
 /// 
@@ -174,7 +175,16 @@ class InvoiceService {
 
     _invoices[index] = _invoices[index].copyWith(status: InvoiceStatus.sent);
     debugPrint('[Invoice] Sent: ${_invoices[index].invoiceNumber}');
-    // TODO: Actually send email with PDF attachment
+    
+    // Trigger email intent 
+    // In production this would be a backend call, but for now we use client-side intent
+    // We assume the company has an email (not in model yet, so using logic placeholder)
+    NotificationService.sendInvoiceEmail(
+      email: "contact@${_invoices[index].companyName.replaceAll(' ', '').toLowerCase()}.com", 
+      invoiceNumber: _invoices[index].invoiceNumber,
+      amount: _invoices[index].total,
+      currency: _invoices[index].currency,
+    );
   }
 
   void markAsPaid(String invoiceId, PaymentMethod method, String reference) {

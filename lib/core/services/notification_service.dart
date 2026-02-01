@@ -1,10 +1,11 @@
-import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
-import 'package:tontetic/core/services/webhook_log_service.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:tontetic/core/services/webhook_log_service.dart';
+import 'dart:async';
 
 /// Service de gestion des Notifications RÉELLES
 /// - Push: Via Firebase Cloud Messaging (FCM)
@@ -28,6 +29,10 @@ class NotificationService {
       sound: true,
     );
     debugPrint('[NOTIFICATION] Permission status: ${settings.authorizationStatus}');
+
+    // 1.b Subscribe to global topic for broadcasts
+    await _messaging.subscribeToTopic('general');
+
 
     // 2. Configurer les notifs locales
     const AndroidInitializationSettings androidSettings = 
@@ -58,8 +63,20 @@ class NotificationService {
       }
     });
 
-    // 4. Background Message Handler (Must be static or top-level, defined in main usually)
+    // 4. Background Message Handler
     // FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
+
+    // 5. Token Refresh Listener
+    _messaging.onTokenRefresh.listen((newToken) async {
+       debugPrint('[NOTIFICATION] Token refreshed: $newToken');
+       final user = FirebaseAuth.instance.currentUser;
+       if (user != null) {
+         await FirebaseFirestore.instance.collection('users').doc(user.uid).update({
+           'fcmToken': newToken,
+           'lastTokenUpdate': FieldValue.serverTimestamp(),
+         });
+       }
+    });
 
     _isInitialized = true;
   }
@@ -119,6 +136,37 @@ class NotificationService {
                 'Réf: ${log.id}\n'
                 'Montant: ${log.amount} ${log.currency}\n'
                 'Statut: RÉUSSI\n\n'
+                'Cordialement,\nL\'équipe Tontetic'
+      }),
+    );
+
+    try {
+      if (await canLaunchUrl(emailLaunchUri)) {
+        await launchUrl(emailLaunchUri);
+        return true;
+      }
+    } catch (e) {
+      debugPrint("Impossible d'ouvrir l'app email: $e");
+    }
+    return false;
+  }
+
+  /// Ouvre l'app email pour envoyer une facture
+  static Future<bool> sendInvoiceEmail({
+    required String email,
+    required String invoiceNumber,
+    required double amount,
+    required String currency,
+  }) async {
+    if (email.isEmpty) return false;
+
+    final Uri emailLaunchUri = Uri(
+      scheme: 'mailto',
+      path: email,
+      query: _encodeQueryParameters(<String, String>{
+        'subject': 'Facture Tontetic - $invoiceNumber',
+        'body': 'Bonjour,\n\nVeuillez trouver ci-joint votre facture $invoiceNumber.\n\n'
+                'Montant à régler: $amount $currency\n\n'
                 'Cordialement,\nL\'équipe Tontetic'
       }),
     );

@@ -68,7 +68,7 @@ class AIConversationLoggingService {
   AIConversationLoggingService() : _firestore = FirebaseFirestore.instance;
 
   CollectionReference<Map<String, dynamic>> get _logsCollection => 
-      _firestore.collection('ai_conversation_logs');
+      _firestore.collection('ai_logs');
 
   CollectionReference<Map<String, dynamic>> get _alertsCollection => 
       _firestore.collection('admin_alerts');

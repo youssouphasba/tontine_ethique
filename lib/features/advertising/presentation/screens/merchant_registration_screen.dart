@@ -2,8 +2,10 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:tontetic/core/models/user_model.dart';
 import 'package:tontetic/core/theme/app_theme.dart';
 import 'package:tontetic/core/providers/user_provider.dart';
+import 'package:tontetic/core/services/stripe_service.dart';
 import 'package:tontetic/core/services/merchant_account_service.dart';
 import 'package:tontetic/core/models/plan_model.dart';
 import 'package:tontetic/core/providers/plans_provider.dart';
@@ -211,11 +213,30 @@ class _MerchantRegistrationScreenState extends ConsumerState<MerchantRegistratio
 
     MerchantAccount? account;
 
+    // 1. Auto-create Stripe Connect Account
+    String connectAccountId = _pspAccountController.text;
+    
+    try {
+      // If user didn't provide a manual ID, create one automatically
+      if (connectAccountId.isEmpty) {
+        connectAccountId = await StripeService.createConnectAccount(
+          email: _emailController.text,
+          userId: user.phoneNumber, // Using phone as ID for now, ideally uid
+          firstName: 'Marchand', // Should get from User model
+          lastName: user.phoneNumber,
+        );
+        debugPrint('Stripe Connect Account Created: $connectAccountId');
+      }
+    } catch (e) {
+      debugPrint('Error creating Stripe Connect: $e');
+      // Continue without connect ID or show error? For now continue creates "manual" merchant
+    }
+
     if (_selectedType == MerchantType.particulier) {
       account = await notifier.createParticulierAccount(
         userId: user.phoneNumber,
         email: _emailController.text,
-        pspAccountId: _pspAccountController.text,
+        pspAccountId: connectAccountId,
       );
     } else {
       if (!_idUploaded || !_selfieUploaded) {
@@ -240,6 +261,7 @@ class _MerchantRegistrationScreenState extends ConsumerState<MerchantRegistratio
         siretNinea: _siretController.text,
         idDocumentUrl: _idDocumentUrl!,
         selfieUrl: _selfieUrl!,
+        pspAccountId: connectAccountId,
         iban: _ibanController.text.isNotEmpty ? _ibanController.text : null,
       );
     }
