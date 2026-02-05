@@ -415,7 +415,6 @@ class _CreateMerchantAccountScreenState extends ConsumerState<CreateMerchantAcco
       // 1. Create Shop (Pending Payment)
       // This allows us to have a 'shopId' to reference in the payment
       final shopId = await ref.read(merchantAccountProvider.notifier).createShop(
-        userId: user.uid.isNotEmpty ? user.uid : user.phoneNumber,
         shopName: _shopNameController.text,
         professionalEmail: _professionalEmailController.text.isNotEmpty ? _professionalEmailController.text : null,
         category: _selectedCategory,

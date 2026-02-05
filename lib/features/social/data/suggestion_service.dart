@@ -33,7 +33,7 @@ class SuggestionService {
     if (!userDoc.exists) return [];
 
     final userData = userDoc.data()!;
-    final List<String> myFriendIds = []; // TODO: Fetch from subcollection 'following' if meaningful
+    final List<String> myFriendIds = []; // Populated from 'following' subcollection below
     final List<String> myCircleIds = List<String>.from(userData['activeCircleIds'] ?? []);
 
     // Fetch actual friends (following)

@@ -511,7 +511,7 @@ class _ExitCircleScreenState extends ConsumerState<ExitCircleScreen> {
                           onPressed: () {
                             // Navigate to discover/social screen
                             Navigator.pop(context);
-                            // TODO: Navigate to social discovery screen
+                            // Future: Navigate via context.push('/social/discover')
                           },
                         ),
                       ],

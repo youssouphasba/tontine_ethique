@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:tontetic/core/providers/user_provider.dart';
 import 'package:tontetic/core/theme/app_theme.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:tontetic/core/providers/localization_provider.dart';
@@ -187,7 +186,7 @@ class _MerchantTabScreenState extends ConsumerState<MerchantTabScreen> {
     );
   }
 
-  Widget _buildMerchantDashboardButton(BuildContext context, MerchantState state) {
+  Widget _buildMerchantDashboardButton(BuildContext context, MerchantAccountState state) {
     final account = state.account!;
     final isParticulier = account.type == MerchantType.particulier;
     

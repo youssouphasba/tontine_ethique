@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:tontetic/core/theme/app_theme.dart';
-import 'package:tontetic/core/services/merchant_account_service.dart';
+import 'package:tontetic/core/providers/merchant_account_provider.dart';
 import 'package:tontetic/core/services/stripe_service.dart';
 
 /// Écran pour booster un produit marchand
@@ -79,7 +79,7 @@ class _MerchantBoostScreenState extends ConsumerState<MerchantBoostScreen> {
   @override
   Widget build(BuildContext context) {
     final merchantState = ref.watch(merchantAccountProvider);
-    final isVerifie = merchantState.isVerifie;
+    final isVerifie = merchantState.account?.type == MerchantType.verifie;
 
     return Scaffold(
       appBar: AppBar(

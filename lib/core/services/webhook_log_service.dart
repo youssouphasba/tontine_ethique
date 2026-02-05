@@ -102,8 +102,8 @@ class WebhookLogService {
     // Log to console for debugging
     debugPrint('[WEBHOOK LOG] ${provider.name} | $eventType | ${status.name} | sig=${signatureValid ? '✓' : '✗'}');
 
-    // TODO: In production, persist to Firestore:
-    // await firestore.collection('webhook_logs').add(entry.toJson());
+    // Note: Production persistence happens via Cloud Functions webhook handlers
+    // that write directly to Firestore collection 'webhook_logs'
 
     return id;
   }

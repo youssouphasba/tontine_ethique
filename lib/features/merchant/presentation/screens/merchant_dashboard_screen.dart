@@ -837,7 +837,7 @@ class _MerchantDashboardScreenState extends ConsumerState<MerchantDashboardScree
                         final moderation = ContentModerationService();
                         final scanResult = moderation.scanText(
                           '${nameController.text} ${descController.text}',
-                          isNewMerchant: true, // TODO: Check if first product
+                          isNewMerchant: ref.read(merchantAccountProvider).productsCount == 0,
                         );
 
                         if (!scanResult.isApproved) {

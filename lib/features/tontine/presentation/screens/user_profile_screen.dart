@@ -72,8 +72,8 @@ class _UserProfileScreenState extends ConsumerState<UserProfileScreen> {
     );
     setState(() => _isEditing = false);
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Profil mis à jour ! ✅'),
+      SnackBar(
+        content: Text(ref.read(localizationProvider).translate('save_profile_success')),
         backgroundColor: Colors.green,
       ),
     );
@@ -126,8 +126,8 @@ class _UserProfileScreenState extends ConsumerState<UserProfileScreen> {
         
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Photo de profil mise à jour ! 📸'),
+            SnackBar(
+              content: Text(ref.read(localizationProvider).translate('photo_update_success')),
               backgroundColor: Colors.green,
             ),
           );
@@ -136,7 +136,7 @@ class _UserProfileScreenState extends ConsumerState<UserProfileScreen> {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text('Erreur lors de l\'upload : $e'),
+              content: Text('${l10n.translate('upload_error')} $e'),
               backgroundColor: Colors.red,
             ),
           );
@@ -163,7 +163,7 @@ class _UserProfileScreenState extends ConsumerState<UserProfileScreen> {
             TextButton.icon(
               onPressed: () => setState(() => _isEditing = false),
               icon: const Icon(Icons.close, color: Colors.white),
-              label: const Text('Annuler', style: TextStyle(color: Colors.white)),
+              label: Text(l10n.translate('cancel'), style: const TextStyle(color: Colors.white)),
             ),
           IconButton(
             icon: Icon(_isEditing ? Icons.check : Icons.edit),
@@ -242,7 +242,7 @@ class _UserProfileScreenState extends ConsumerState<UserProfileScreen> {
                       children: [
                         const Icon(Icons.public, size: 14, color: Colors.green),
                         const SizedBox(width: 4),
-                        Text('Toujours visible', style: TextStyle(fontSize: 10, color: Colors.green.shade700)),
+                        Text(l10n.translate('always_visible'), style: TextStyle(fontSize: 10, color: Colors.green.shade700)),
                       ],
                     ),
                   ),
@@ -267,11 +267,11 @@ class _UserProfileScreenState extends ConsumerState<UserProfileScreen> {
             
             // Section Bio
             _buildEditableField(
-              title: 'Bio',
+              title: l10n.translate('bio_label'),
               icon: Icons.info_outline,
               controller: _bioCtrl,
               value: user.bio,
-              placeholder: 'Parlez de vous...',
+              placeholder: l10n.translate('placeholder_bio'),
               privacy: _bioPrivacy,
               onPrivacyChanged: (p) => setState(() => _bioPrivacy = p),
               maxLines: 4,
@@ -281,11 +281,11 @@ class _UserProfileScreenState extends ConsumerState<UserProfileScreen> {
             
             // Section Métier
             _buildEditableField(
-              title: 'Métier',
+              title: l10n.translate('job_label'),
               icon: Icons.work_outline,
               controller: _jobCtrl,
               value: user.jobTitle,
-              placeholder: 'Ex: Développeur, Enseignant...',
+              placeholder: l10n.translate('placeholder_job'),
               privacy: _jobPrivacy,
               onPrivacyChanged: (p) => setState(() => _jobPrivacy = p),
             ),
@@ -294,11 +294,11 @@ class _UserProfileScreenState extends ConsumerState<UserProfileScreen> {
             
             // Section Entreprise
             _buildEditableField(
-              title: 'Entreprise',
+              title: l10n.translate('company_label'),
               icon: Icons.business_outlined,
               controller: _companyCtrl,
               value: user.company,
-              placeholder: 'Ex: Google, Microsoft...',
+              placeholder: l10n.translate('placeholder_company'),
               privacy: _companyPrivacy,
               onPrivacyChanged: (p) => setState(() => _companyPrivacy = p),
             ),
@@ -362,8 +362,8 @@ class _UserProfileScreenState extends ConsumerState<UserProfileScreen> {
                       ),
                       child: const Icon(Icons.store, color: Colors.purple),
                     ),
-                    title: Text(isMerchantMode ? 'Dashboard Marchand' : 'Accéder à ma boutique', style: const TextStyle(fontWeight: FontWeight.bold)),
-                    subtitle: const Text('Gérez vos produits et commandes'),
+                    title: Text(isMerchantMode ? l10n.translate('merchant_dashboard') : l10n.translate('access_shop'), style: const TextStyle(fontWeight: FontWeight.bold)),
+                    subtitle: Text(l10n.translate('manage_shop_desc')),
                     trailing: const Icon(Icons.arrow_forward_ios, size: 16),
                     onTap: () {
                        ref.read(merchantAccountProvider.notifier).switchToMerchant();
@@ -382,8 +382,8 @@ class _UserProfileScreenState extends ConsumerState<UserProfileScreen> {
                       ),
                       child: const Icon(Icons.storefront, color: Colors.orange),
                     ),
-                    title: const Text('Devenir Marchand', style: TextStyle(fontWeight: FontWeight.bold)),
-                    subtitle: const Text('Créez votre boutique et commencez à vendre'),
+                    title: Text(l10n.translate('become_merchant'), style: const TextStyle(fontWeight: FontWeight.bold)),
+                    subtitle: Text(l10n.translate('merchant_creation_desc')),
                     trailing: const Icon(Icons.arrow_forward_ios, size: 16),
                     onTap: () {
                        // Lazy import to avoid circular dependencies if possible, but here we need direct route
@@ -410,13 +410,13 @@ class _UserProfileScreenState extends ConsumerState<UserProfileScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text('🔒 Légende de visibilité', style: TextStyle(fontWeight: FontWeight.bold)),
+                  Text(l10n.translate('privacy_legend_title'), style: const TextStyle(fontWeight: FontWeight.bold)),
                   const SizedBox(height: 12),
-                  _buildPrivacyLegendItem(Icons.public, 'Public', 'Visible par tout le monde', Colors.green),
+                  _buildPrivacyLegendItem(Icons.public, l10n.translate('privacy_public'), 'Visible par tout le monde', Colors.green),
                   const SizedBox(height: 8),
-                  _buildPrivacyLegendItem(Icons.group, 'Followers', 'Visible uniquement par vos followers mutuels', Colors.blue),
+                  _buildPrivacyLegendItem(Icons.group, l10n.translate('privacy_followers'), 'Visible uniquement par vos followers mutuels', Colors.blue),
                   const SizedBox(height: 8),
-                  _buildPrivacyLegendItem(Icons.lock, 'Privé', 'Invisible pour les autres', Colors.red),
+                  _buildPrivacyLegendItem(Icons.lock, l10n.translate('privacy_private'), 'Invisible pour les autres', Colors.red),
                 ],
               ),
             ),
@@ -435,7 +435,7 @@ class _UserProfileScreenState extends ConsumerState<UserProfileScreen> {
       child: TextButton.icon(
         onPressed: _confirmDeleteAccount,
         icon: const Icon(Icons.delete_forever, color: Colors.red),
-        label: const Text('Supprimer mon compte (RGPD)', style: TextStyle(color: Colors.red)),
+        label: Text(l10n.translate('delete_account'), style: const TextStyle(color: Colors.red)),
       ),
     );
   }
@@ -444,17 +444,16 @@ class _UserProfileScreenState extends ConsumerState<UserProfileScreen> {
     final confirm = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Supprimer définitivement ?'),
-        content: const Text(
-          'Cette action est irréversible. Toutes vos données seront effacées conformément au RGPD.\n\n'
-          'Êtes-vous sûr de vouloir continuer ?',
+        title: Text(l10n.translate('confirm_delete_title')),
+        content: Text(
+          l10n.translate('confirm_delete_content'),
         ),
         actions: [
           TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Annuler')),
           ElevatedButton(
             style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
             onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('Supprimer', style: TextStyle(color: Colors.white)),
+            child: Text(l10n.translate('delete_confirm_btn'), style: const TextStyle(color: Colors.white)),
           ),
         ],
       ),
@@ -535,7 +534,7 @@ class _UserProfileScreenState extends ConsumerState<UserProfileScreen> {
               borderRadius: BorderRadius.circular(12),
             ),
             child: Text(
-              value.isEmpty ? 'Non renseigné' : value, 
+              value.isEmpty ? l10n.translate('not_set') : value, 
               style: TextStyle(
                 fontSize: 14, 
                 height: 1.5,

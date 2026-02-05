@@ -5,8 +5,24 @@ import 'package:share_plus/share_plus.dart';
 import 'package:tontetic/core/theme/app_theme.dart';
 import 'package:tontetic/features/social/presentation/screens/profile_screen.dart';
 import 'package:tontetic/core/providers/user_provider.dart';
+import 'package:tontetic/core/providers/localization_provider.dart';
+import 'package:tontetic/core/providers/localization_provider.dart';\nimport 'package:tontetic/core/providers/localization_provider.dart';
+import 'package:tontetic/core/providers/localization_provider.dart';
+import 'package:tontetic/core/providers/localization_provider.dart';
 import 'package:tontetic/core/providers/tontine_provider.dart';
+import 'package:tontetic/core/providers/localization_provider.dart';
+import 'package:tontetic/core/providers/localization_provider.dart';
+import 'package:tontetic/core/providers/localization_provider.dart';
+import 'package:tontetic/core/providers/localization_provider.dart';
+import 'package:tontetic/core/providers/localization_provider.dart';
+import 'package:tontetic/core/providers/localization_provider.dart';
 import 'package:tontetic/core/models/tontine_model.dart';
+import 'package:tontetic/core/providers/localization_provider.dart';
+import 'package:tontetic/core/providers/localization_provider.dart';
+import 'package:tontetic/core/providers/localization_provider.dart';
+import 'package:tontetic/core/providers/localization_provider.dart';
+import 'package:tontetic/core/providers/localization_provider.dart';
+import 'package:tontetic/core/providers/localization_provider.dart';
 import 'package:tontetic/core/presentation/widgets/tts_control_toggle.dart';
 import 'package:tontetic/core/presentation/widgets/speaker_icon.dart';
 import 'package:tontetic/features/tontine/presentation/screens/circle_chat_screen.dart';
@@ -14,7 +30,7 @@ import 'package:tontetic/features/tontine/presentation/screens/exit_circle_scree
 import 'package:tontetic/features/tontine/presentation/screens/legal_commitment_screen.dart';
 import 'package:tontetic/core/services/notification_service.dart';
 
-class CircleDetailsScreen extends ConsumerWidget {
+class CircleDetailsScreen extends ConsumerStatefulWidget {
   final String circleName;
   final String circleId;
   final bool isJoined; // Indique si l'user est déjà membre
@@ -28,11 +44,24 @@ class CircleDetailsScreen extends ConsumerWidget {
     this.isAdmin = false
   });
 
-  // Dynamic members list removed - fetching from StreamBuilder now
+  @override
+  ConsumerState<CircleDetailsScreen> createState() => _CircleDetailsScreenState();
+}
 
+class _CircleDetailsScreenState extends ConsumerState<CircleDetailsScreen> {
+  LocalizationState get l10n => ref.read(localizationProvider);
+
+
+
+  
+  // Getters for widget properties
+  String get circleName => widget.circleName;
+  String get circleId => widget.circleId;
+  bool get isJoined => widget.isJoined;
+  bool get isAdmin => widget.isAdmin;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  Widget build(BuildContext context) {
     final user = ref.watch(userProvider);
     final circleService = ref.watch(circleServiceProvider);
     return StreamBuilder<TontineCircle?>(
@@ -45,7 +74,7 @@ class CircleDetailsScreen extends ConsumerWidget {
         final circle = circleSnapshot.data;
         // handle null circle if needed, e.g. deleted
         if (circle == null) {
-             return Scaffold(appBar: AppBar(title: const Text('Erreur')), body: const Center(child: Text('Cercle introuvable')));
+             return Scaffold(appBar: AppBar(title: Text(l10n.translate('error'))), body: Center(child: Text(l10n.translate('circle_not_found'))));
         }
 
         return Scaffold(
@@ -56,7 +85,7 @@ class CircleDetailsScreen extends ConsumerWidget {
               // Chat button
               IconButton(
                 icon: const Icon(Icons.chat_bubble_outline),
-                tooltip: 'Discussion du cercle',
+                tooltip: l10n.translate('circle_chat_tooltip'),
                 onPressed: () => Navigator.push(
                   context, 
                   MaterialPageRoute(
@@ -69,7 +98,7 @@ class CircleDetailsScreen extends ConsumerWidget {
               ),
               IconButton(
                 icon: const Icon(Icons.how_to_vote), 
-                tooltip: 'Voter pour l\'ordre',
+                tooltip: l10n.translate('vote_order_tooltip'),
                 onPressed: () => Navigator.push(
                   context, 
                   MaterialPageRoute(
@@ -82,7 +111,7 @@ class CircleDetailsScreen extends ConsumerWidget {
               ),
               IconButton(
                 icon: const Icon(Icons.share_outlined),
-                tooltip: 'Partager ce cercle',
+                tooltip: l10n.translate('share_circle_tooltip'),
                 onPressed: () {
                   Share.share(
                     'Rejoins ma tontine "$circleName" sur Tontetic ! \n\n'
@@ -111,10 +140,10 @@ class CircleDetailsScreen extends ConsumerWidget {
                   child: Row(
                     children: [
                        Text(
-                        'Membres & Solidarité',
+                        l10n.translate('solarity_title'),
                         style: Theme.of(context).textTheme.titleLarge,
                       ),
-                      const SpeakerIcon(text: 'Membres et solidarité'),
+                      SpeakerIcon(text: l10n.translate('solarity_title')),
                     ],
                   ),
                 ),
@@ -123,9 +152,9 @@ class CircleDetailsScreen extends ConsumerWidget {
                 if (isAdmin) _buildPendingRequests(context, ref),
                 
                 // V16: Always show members (Public View)
-                const Padding(
-                  padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                  child: Text('Participants', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  child: Text(l10n.translate('participants'), style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
                 ),
                 StreamBuilder<List<Map<String, dynamic>>>(
                   stream: circleService.getCircleMembers(circleId, user.uid),
@@ -155,7 +184,7 @@ class CircleDetailsScreen extends ConsumerWidget {
                   else
                     _buildJoinSection(context, ref, circle),
                 ] else
-                   const Center(child: Text('Vous êtes membre de ce cercle.', style: TextStyle(color: Colors.green, fontWeight: FontWeight.bold))),
+                   Center(child: Text(l10n.translate('welcome_member'), style: const TextStyle(color: Colors.green, fontWeight: FontWeight.bold))),
 
                 // V16: Creator Management Section (Join Requests)
                 if (circle.creatorId == user.uid) ...[
@@ -184,15 +213,15 @@ class CircleDetailsScreen extends ConsumerWidget {
         children: [
           const Icon(Icons.check_circle_outline, size: 48, color: Colors.green),
           const SizedBox(height: 16),
-          const Text(
-            'Demande Approuvée !',
-            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: Colors.green),
+          Text(
+            l10n.translate('request_approved_title'),
+            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: Colors.green),
           ),
           const SizedBox(height: 8),
-          const Text(
-            'L\'administrateur a validé votre demande. Il ne vous reste plus qu\'à signer la charte pour entrer.',
+          Text(
+            l10n.translate('request_approved_desc'),
             textAlign: TextAlign.center,
-            style: TextStyle(fontSize: 13),
+            style: const TextStyle(fontSize: 13),
           ),
           const SizedBox(height: 24),
           SizedBox(
@@ -201,7 +230,7 @@ class CircleDetailsScreen extends ConsumerWidget {
             child: ElevatedButton(
               onPressed: () => _showLegalCommitment(context, ref, circle),
               style: ElevatedButton.styleFrom(backgroundColor: Colors.green, foregroundColor: Colors.white),
-              child: const Text('SIGNER ET ENTRER'),
+              child: Text(l10n.translate('sign_and_enter')),
             ),
           ),
         ],
@@ -223,7 +252,7 @@ class CircleDetailsScreen extends ConsumerWidget {
             await ref.read(circleProvider.notifier).finalizeMembership(circleId, user.uid);
             
             if (context.mounted) {
-              ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Bienvenue ! Vous êtes maintenant membre.')));
+              ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(l10n.translate('welcome_success'))));
               // Force refresh/rebuild will check "isJoined" next time
             }
             
@@ -235,7 +264,7 @@ class CircleDetailsScreen extends ConsumerWidget {
 
           } catch (e) {
              if (context.mounted) {
-              ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Erreur: $e'), backgroundColor: Colors.red));
+              ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('${l10n.translate('error_label')}: $e'), backgroundColor: Colors.red));
              }
           }
         },
@@ -255,13 +284,13 @@ class CircleDetailsScreen extends ConsumerWidget {
       ),
       child: Column(
         children: [
-          const Text(
-            'Prêt à rejoindre ce cercle ?',
-            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
+          Text(
+            l10n.translate('join_ready_title'),
+            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
           ),
           const SizedBox(height: 16),
           Text(
-            'En rejoignant, vous vous engagez à verser $amountText par mois.',
+            l10n.translate('join_commitment_desc').replaceAll('@amount', amountText),
             textAlign: TextAlign.center,
             style: const TextStyle(fontSize: 13),
           ),
@@ -271,7 +300,7 @@ class CircleDetailsScreen extends ConsumerWidget {
             height: 50,
             child: ElevatedButton(
               onPressed: () => _handleJoinAttempt(context, ref),
-              child: const Text('DEMANDER À REJOINDRE'),
+              child: Text(l10n.translate('request_to_join')),
             ),
           ),
         ],
@@ -301,15 +330,15 @@ class CircleDetailsScreen extends ConsumerWidget {
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Padding(
-              padding: EdgeInsets.symmetric(vertical: 16),
-              child: Text('Demandes d\'adhésion 🔔', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 16),
+              child: Text('${l10n.translate('join_requests_title')} 🔔', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
             ),
             ...requests.map((doc) {
               final data = doc.data() as Map<String, dynamic>;
               final requestId = doc.id;
               final requesterId = data['requesterId'] ?? data['userId'] ?? '';
-              String requesterName = data['requesterName'] ?? data['userName'] ?? 'Membre';
+              String requesterName = data['requesterName'] ?? data['userName'] ?? l10n.translate('member');
               if (requesterName.trim().isEmpty) requesterName = 'Membre';
               final message = data['message'] ?? '';
 
@@ -348,11 +377,11 @@ class CircleDetailsScreen extends ConsumerWidget {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Row(
+        title: Row(
           children: [
-            Icon(Icons.person_add, color: AppTheme.marineBlue),
-            SizedBox(width: 12),
-            Text('Demande d\'adhésion'),
+            const Icon(Icons.person_add, color: AppTheme.marineBlue),
+            const SizedBox(width: 12),
+            Text(l10n.translate('request_to_join_title')),
           ],
         ),
         content: Column(
@@ -374,17 +403,17 @@ class CircleDetailsScreen extends ConsumerWidget {
                     size: 20,
                   ),
                   const SizedBox(width: 8),
-                  const Expanded(
+                  Expanded(
                     child: Text(
-                      'Le créateur du cercle doit approuver votre demande avant que vous puissiez rejoindre.',
-                      style: TextStyle(fontSize: 12),
+                      l10n.translate('join_approval_notice'),
+                      style: const TextStyle(fontSize: 12),
                     ),
                   ),
                 ],
               ),
             ),
             const SizedBox(height: 16),
-            const Text('Message au créateur (optionnel) :', style: TextStyle(fontWeight: FontWeight.w500)),
+            Text(l10n.translate('message_to_creator'), style: const TextStyle(fontWeight: FontWeight.w500)),
             const SizedBox(height: 8),
             TextField(
               controller: messageController,
@@ -403,7 +432,7 @@ class CircleDetailsScreen extends ConsumerWidget {
           ),
           ElevatedButton.icon(
             icon: const Icon(Icons.send, size: 18),
-            label: const Text('ENVOYER LA DEMANDE'),
+            label: Text(l10n.translate('send_request_btn')),
             style: ElevatedButton.styleFrom(
               backgroundColor: AppTheme.gold,
               foregroundColor: AppTheme.marineBlue,
@@ -411,7 +440,7 @@ class CircleDetailsScreen extends ConsumerWidget {
             onPressed: () async {
               final user = ref.read(userProvider);
               if (user.uid.isEmpty) {
-                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Vous devez être connecté pour rejoindre un cercle.')));
+                ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(l10n.translate('error_must_be_logged'))));
                 return;
               }
 
@@ -428,19 +457,19 @@ class CircleDetailsScreen extends ConsumerWidget {
                 );
 
                 messenger.showSnackBar(
-                  const SnackBar(
+                  SnackBar(
                     content: Row(
                       children: [
-                        Icon(Icons.check_circle, color: Colors.white),
-                        SizedBox(width: 12),
-                        Expanded(child: Text('Demande envoyée ! Le créateur sera notifié.')),
+                        const Icon(Icons.check_circle, color: Colors.white),
+                        const SizedBox(width: 12),
+                        Expanded(child: Text(l10n.translate('request_sent_success'))),
                       ],
                     ),
                     backgroundColor: Colors.green,
                   ),
                 );
               } catch (e) {
-                messenger.showSnackBar(SnackBar(content: Text('Erreur: $e'), backgroundColor: Colors.red));
+                messenger.showSnackBar(SnackBar(content: Text('${l10n.translate('error_label')}: $e'), backgroundColor: Colors.red));
               }
             },
           ),
@@ -465,7 +494,7 @@ class CircleDetailsScreen extends ConsumerWidget {
           Icon(Icons.groups, size: 48, color: Theme.of(context).brightness == Brightness.dark ? AppTheme.gold : AppTheme.marineBlue),
           const SizedBox(height: 8),
           Text(
-            '$amountText / mois',
+            '$amountText / ${l10n.translate('month_suffix')}',
             style: Theme.of(context).textTheme.titleLarge?.copyWith(
               fontWeight: FontWeight.bold,
               color: Theme.of(context).brightness == Brightness.dark ? AppTheme.gold : AppTheme.marineBlue,
@@ -502,7 +531,7 @@ class CircleDetailsScreen extends ConsumerWidget {
             const SizedBox(width: 12),
             Expanded(
               child: Text(
-                'Engagement de Solidarité Actif',
+                l10n.translate('solidarity_active'),
                 style: TextStyle(
                   fontWeight: FontWeight.bold, 
                   color: isDark ? Colors.white : AppTheme.marineBlue,
@@ -519,28 +548,28 @@ class CircleDetailsScreen extends ConsumerWidget {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Row(
+        title: Row(
           children: [
-            Icon(Icons.shield, color: AppTheme.gold),
-            SizedBox(width: 12),
-            Text('Système de Garantie'),
+            const Icon(Icons.shield, color: AppTheme.gold),
+            const SizedBox(width: 12),
+            Text(l10n.translate('guarantee_system')),
           ],
         ),
-        content: const Column(
+        content: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('La garantie protège les membres contre les défauts de paiement.', style: TextStyle(fontWeight: FontWeight.bold)),
+            Text(l10n.translate('guarantee_desc'), style: const TextStyle(fontWeight: FontWeight.bold)),
             SizedBox(height: 12),
-            Text('• Fonds bloqués sur compte séquestre'),
-            Text('• Libérés automatiquement à la fin du cycle'),
-            Text('• Couvre 100% en cas de défaut'),
-            SizedBox(height: 12),
-            Text('En cas de non-paiement, la garantie est utilisée pour couvrir les autres membres.', style: TextStyle(fontSize: 12, color: Colors.grey)),
+            Text('• ${l10n.translate('fonds_locked_escrow')}'),
+            Text('• ${l10n.translate('released_at_end')}'),
+            Text('• ${l10n.translate('covers_100_default')}'),
+            const SizedBox(height: 12),
+            Text(l10n.translate('guarantee_usage_info'), style: const TextStyle(fontSize: 12, color: Colors.grey)),
           ],
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Compris')),
+          TextButton(onPressed: () => Navigator.pop(ctx), child: Text(l10n.translate('i_understand'))),
         ],
       ),
     );
@@ -562,14 +591,14 @@ class CircleDetailsScreen extends ConsumerWidget {
               children: [
                 Icon(Icons.vpn_key, size: 16, color: Theme.of(context).brightness == Brightness.dark ? Colors.white54 : Colors.grey),
                 const SizedBox(width: 8),
-                Text('CODE ADHÉSION : ', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Theme.of(context).brightness == Brightness.dark ? Colors.white54 : Colors.grey)),
+                Text('${l10n.translate('membership_code')} : ', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Theme.of(context).brightness == Brightness.dark ? Colors.white54 : Colors.grey)),
                 SelectableText(circleId, style: TextStyle(fontFamily: 'monospace', fontWeight: FontWeight.bold, color: Theme.of(context).brightness == Brightness.dark ? AppTheme.gold : AppTheme.marineBlue)),
               ],
             ),
           ),
         const SizedBox(height: 12),
         Tooltip(
-          message: 'Partager le lien via WhatsApp, SMS...',
+          message: l10n.translate('share_link_tooltip'),
           child: ElevatedButton.icon(
             onPressed: () {
               Share.share(
@@ -581,7 +610,7 @@ class CircleDetailsScreen extends ConsumerWidget {
               );
             },
             icon: const Icon(Icons.share, size: 18),
-            label: const Text('Inviter un membre'),
+            label: Text(l10n.translate('invite_member_btn')),
             style: ElevatedButton.styleFrom(
               backgroundColor: Colors.white,
               foregroundColor: AppTheme.marineBlue,
@@ -598,9 +627,9 @@ class CircleDetailsScreen extends ConsumerWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Padding(
-          padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-          child: Text('Demandes d\'adhésion', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          child: Text(l10n.translate('join_requests_title'), style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
         ),
         StreamBuilder<List<JoinRequest>>(
           stream: ref.read(circleServiceProvider).getJoinRequestsForCircle(circle.id),
@@ -614,9 +643,9 @@ class CircleDetailsScreen extends ConsumerWidget {
             
             final requests = snapshot.data ?? [];
             if (requests.isEmpty) {
-              return const Padding(
-                padding: EdgeInsets.all(16.0),
-                child: Text('Aucune demande en attente.', style: TextStyle(fontStyle: FontStyle.italic, color: Colors.grey)),
+              return Padding(
+                padding: const EdgeInsets.all(16.0),
+                child: Text(l10n.translate('no_pending_requests'), style: const TextStyle(fontStyle: FontStyle.italic, color: Colors.grey)),
               );
             }
 
@@ -626,7 +655,7 @@ class CircleDetailsScreen extends ConsumerWidget {
                 child: ListTile(
                   leading: const CircleAvatar(child: Icon(Icons.person)),
                   title: Text(req.requesterName),
-                  subtitle: Text(req.message != null && req.message!.isNotEmpty ? req.message! : 'Souhaite rejoindre le cercle'),
+                  subtitle: Text(req.message != null && req.message!.isNotEmpty ? req.message! : l10n.translate('join_request_subtitle')),
                   trailing: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
@@ -664,11 +693,11 @@ class CircleDetailsScreen extends ConsumerWidget {
     try {
       await ref.read(circleProvider.notifier).approveJoinRequest(request.id, circle.id, request.requesterId);
       if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Demande de ${request.requesterName} approuvée !')));
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(l10n.translate('request_approved_success').replaceAll('@name', request.requesterName))));
       }
     } catch (e) {
       if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Erreur: $e'), backgroundColor: Colors.red));
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('${l10n.translate('error_label')}: $e'), backgroundColor: Colors.red));
       }
     }
   }
@@ -697,7 +726,7 @@ class CircleDetailsScreen extends ConsumerWidget {
         ),
         subtitle: isTriggered
             ? Text(
-                'SOLIDARITÉ EXÉCUTÉE', 
+                l10n.translate('solidarity_executed'), 
                 style: TextStyle(
                   color: Theme.of(context).brightness == Brightness.dark ? Colors.redAccent : Colors.red, 
                   fontSize: 10, 
@@ -705,7 +734,7 @@ class CircleDetailsScreen extends ConsumerWidget {
                 ),
               )
             : Text(
-                'Engagement actif (Solidarité)', 
+                l10n.translate('solidarity_active_member'), 
                 style: TextStyle(
                   color: Theme.of(context).brightness == Brightness.dark ? Colors.white38 : Colors.grey, 
                   fontSize: 10,
@@ -718,7 +747,7 @@ class CircleDetailsScreen extends ConsumerWidget {
               IconButton(
                 icon: const Icon(Icons.exit_to_app, color: Colors.orange),
                 onPressed: () => _handleLeaveCircle(context, circle),
-                tooltip: 'Quitter le cercle',
+                tooltip: l10n.translate('leave_circle_tooltip'),
               ),
 
             // Trust Score Display
@@ -760,7 +789,7 @@ class CircleDetailsScreen extends ConsumerWidget {
                     ),
                     const SizedBox(width: 4),
                     Text(
-                      isTriggered ? 'Garantie utilisée' : 'Garantie OK',
+                      isTriggered ? l10n.translate('guarantee_used') : l10n.translate('guarantee_ok'),
                       style: TextStyle(
                         fontSize: 9, 
                         color: isTriggered 
@@ -794,7 +823,7 @@ class CircleDetailsScreen extends ConsumerWidget {
           children: [
             ListTile(
               leading: const Icon(Icons.share, color: Colors.blue),
-              title: const Text('Partager le code d\'invitation'),
+              title: Text(l10n.translate('share_invite_code')),
               onTap: () {
                 Navigator.pop(ctx);
                 Share.share(

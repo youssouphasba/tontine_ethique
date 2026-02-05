@@ -1,6 +1,6 @@
 # 📊 Business Plan Annexes - Document Complet
 
-> **Document V17 - Mise à jour : 08 Janvier 2026**
+> **Document V18 - Mise à jour : 05 Février 2026**
 > Annexes détaillées avec analyses stratégiques et financières
 > **Statut juridique : Auto-Entrepreneur**
 
@@ -32,11 +32,11 @@
 | Plan | Prix €/mois | Prix FCFA/mois | Tontines | Participants | Cotisation Max |
 |------|-------------|----------------|----------|--------------|----------------|
 | **Gratuit** | 0 | 0 | 1 | 5 | 500€ |
-| **Starter** | 3,99 | 2 500 | 2 | 10 | 500€ |
-| **Standard** | 6,99 | 4 500 | 3 | 15 | 500€ |
-| **Premium** | 9,99 | 6 500 | 5 | 20 | 500€ |
+| **Starter** | 2,99 | 2 000 | 2 | 10 | 500€ |
+| **Standard** | 4,99 | 3 500 | 3 | 15 | 500€ |
+| **Premium** | 6,99 | 4 500 | 5 | 20 | 500€ |
 
-> 💬 *Commentaire : Les prix sont alignés sur les standards SaaS freemium. Le plan Gratuit sert d'acquisition, Starter est le point d'entrée payant psychologiquement accessible (<5€).*
+> 💬 *Commentaire : Les prix sont alignés sur les standards SaaS freemium. Le plan Gratuit sert d'acquisition, Starter est le point d'entrée payant psychologiquement accessible (<3€).*
 
 ### A.2 Plans Entreprises (Tontetic Corporate)
 
@@ -56,8 +56,8 @@
 
 | Type | KYC Requis | Limite CA | Offres Max | Prix/mois |
 |------|------------|-----------|------------|-----------|
-| **Particulier** | Email + PSP ID | 3 000€/an | 5 | 4,99€ |
-| **Vérifié** | SIRET/NINEA + ID + Selfie | Illimité | Illimité | 9,99€ |
+| **Particulier** | Email + PSP ID | 3 000€/an | 5 | 14,99€ (Unique) |
+| **Vérifié** | SIRET/NINEA + ID + Selfie | Illimité | Illimité | 14,99€ (Unique) |
 
 > 💬 *Commentaire : Le plafond 3 000€/an pour Particulier correspond au seuil micro-BNC simplifié. Au-delà = obligation de SIRET.*
 
@@ -81,7 +81,7 @@
 | Portée maximale | **200 utilisateurs** |
 | Après 3 mois | Bascule auto forfait choisi |
 
-> 💬 *Commentaire : 20×10 = 200 utilisateurs qualifiés via bouche-à-oreille. Coût d'opportunité : 200×3×3,99€ = ~2 400€ de revenus différés.*
+> 💬 *Commentaire : 20×10 = 200 utilisateurs qualifiés via bouche-à-oreille. Coût d'opportunité : 200×3×2,99€ = ~1 800€ de revenus différés.*
 
 ---
 
@@ -91,12 +91,12 @@
 
 > **Tontetic ne touche JAMAIS l'argent des utilisateurs**
 
-| Élément | Architecture V17 |
+| Élément | Architecture V18 |
 |---------|-----------------|
 | Transit des fonds | Direct membre → bénéficiaire (via PSP) |
 | Frais de dossier | ❌ SUPPRIMÉ |
 | Assurance | ❌ NON PROPOSÉE |
-| Wallet interne | ❌ SUPPRIMÉ |
+| Portefeuille Sécurisé | ❌ SUPPRIMÉ |
 | Licence ACPR/EME/EMI | ❌ Non requise |
 
 ### B.2 Double Mandat SEPA
@@ -445,9 +445,9 @@ ADVOCACY (Ambassadeur)
 |----------|----|----|-----|
 | Utilisateurs totaux | 5 000 | 25 000 | 100 000 |
 | % Gratuit | 70% | 60% | 50% |
-| % Starter (3,99€) | 15% | 20% | 25% |
-| % Standard (6,99€) | 10% | 12% | 15% |
-| % Premium (9,99€) | 5% | 8% | 10% |
+| % Starter (2,99€) | 15% | 20% | 25% |
+| % Standard (4,99€) | 10% | 12% | 15% |
+| % Premium (6,99€) | 5% | 8% | 10% |
 | **ARPU moyen** | ~2,50€ | ~3,50€ | ~4,50€ |
 
 > 💬 *Commentaire : Distribution basée sur benchmarks SaaS freemium (60-70% gratuit Y1). ARPU augmente avec conversion progressive.*
@@ -506,7 +506,7 @@ ADVOCACY (Ambassadeur)
 | Usage actuel | 1 tontine WhatsApp famille (80€/mois) |
 | Frustrations | Pas de garantie, pas de trace écrite |
 | Objectifs | Sécuriser sa tontine, avoir des preuves |
-| **Plan probable** | Starter (3,99€) |
+| **Plan probable** | Starter (2,99€) |
 | **LTV estimée** | ~60€ (15 mois) |
 
 ### K.2 Moussa - Urbain Afrique
@@ -594,7 +594,7 @@ ADVOCACY (Ambassadeur)
 
 | Feature | Priorité | Statut |
 |---------|----------|--------|
-| Multi-langue (Wolof) | ⭐⭐ | ⬜ |
+| Multi-langue (Français/Wolof) | ⭐⭐ | ✅ Fait |
 | Notifications avancées | ⭐⭐ | ⬜ |
 | API partenaires | ⭐ | ⬜ |
 
@@ -671,7 +671,7 @@ ADVOCACY (Ambassadeur)
 
 ---
 
-*Document V17 - Généré le : 08 Janvier 2026*
+*Document V18 - Généré le : 05 Février 2026*
 *Statut : Auto-Entrepreneur Y1*
 *Les mentions [À VÉRIFIER] nécessitent validation avec données réelles.*
 *Les commentaires 💬 expliquent les choix de données.*

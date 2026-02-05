@@ -290,7 +290,7 @@ class NotificationService {
      // Idem: Le Backend écoute l'update du statut et envoie le push.
   }
 
-  // Affiche un rappel local planifié (TODO: Implémenter zonedSchedule si besoin)
+  // Shows an in-app reminder. Note: zonedSchedule can be added for scheduled notifications
   static void showPotReminder({
     required BuildContext context,
     required String circleName,

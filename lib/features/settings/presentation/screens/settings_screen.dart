@@ -342,19 +342,27 @@ class SettingsScreen extends ConsumerWidget {
             },
           ),
 
-          // App Version
+          // App Version & Legal Mention
           FutureBuilder<PackageInfo>(
             future: PackageInfo.fromPlatform(),
             builder: (context, snapshot) {
               final version = snapshot.data?.version ?? '...';
               final buildNumber = snapshot.data?.buildNumber ?? '';
               return Padding(
-                padding: const EdgeInsets.symmetric(vertical: 24),
-                child: Center(
-                  child: Text(
-                    'Tontetic v$version ($buildNumber)',
-                    style: TextStyle(color: Colors.grey[500], fontSize: 12),
-                  ),
+                padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 32),
+                child: Column(
+                  children: [
+                    Text(
+                      'Les services de paiement sont assurés par nos partenaires financiers agréés. Tontine Éthique agit en qualité de prestataire technique.',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(color: Colors.grey[600], fontSize: 10, fontStyle: FontStyle.italic),
+                    ),
+                    const SizedBox(height: 12),
+                    Text(
+                      'Tontetic v$version ($buildNumber)',
+                      style: TextStyle(color: Colors.grey[500], fontSize: 11),
+                    ),
+                  ],
                 ),
               );
             },

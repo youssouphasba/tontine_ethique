@@ -61,14 +61,14 @@ class WalletTabScreen extends ConsumerWidget {
                         Icon(Icons.verified_user, color: Colors.white70, size: 14),
                         SizedBox(width: 6),
                         Text(
-                          'Fonds chez PSP agréé (Stripe/Wave)',
-                          style: TextStyle(color: Colors.white70, fontSize: 10),
+                          l10n.translate('psp_regulatory_banner'),
+                          style: const TextStyle(color: Colors.white70, fontSize: 10),
                         ),
                       ],
                     ),
                   ),
                   const SizedBox(height: 12),
-                  const Text('Synthèse Opérations', style: TextStyle(color: Colors.white70)),
+                  Text(l10n.translate('total_balance'), style: const TextStyle(color: Colors.white70)),
                   const SizedBox(height: 8),
                   Text(
                     ref.read(userProvider.notifier).formatContent(walletState.balance),
@@ -87,7 +87,7 @@ class WalletTabScreen extends ConsumerWidget {
                         Expanded(
                           child: _buildActionButton(
                             context,
-                            'Crédit Mobile',
+                            l10n.translate('credit_mobile'),
                             Icons.phone_android,
                             Colors.green.shade600,
                             Colors.white,
@@ -100,7 +100,7 @@ class WalletTabScreen extends ConsumerWidget {
                       Expanded(
                         child: _buildActionButton(
                           context,
-                          'Blocage',
+                          l10n.translate('lock_btn'),
                           Icons.lock,
                           AppTheme.gold,
                           AppTheme.marineBlue,
@@ -116,7 +116,7 @@ class WalletTabScreen extends ConsumerWidget {
                         child: OutlinedButton.icon(
                           onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const PspConnectionScreen())),
                           icon: const Icon(Icons.account_balance_wallet, size: 16),
-                          label: const Text('Gérer mes comptes', style: TextStyle(fontSize: 11)),
+                          label: Text(l10n.translate('manage_accounts'), style: const TextStyle(fontSize: 11)),
                           style: OutlinedButton.styleFrom(
                             foregroundColor: Colors.white,
                             side: const BorderSide(color: Colors.white54),
@@ -132,9 +132,9 @@ class WalletTabScreen extends ConsumerWidget {
                       color: Colors.black.withValues(alpha: 0.2),
                       borderRadius: BorderRadius.circular(8),
                     ),
-                    child: const Text(
-                      'Tontetic = outil technique • Les fonds sont détenus par les PSP, pas par Tontetic',
-                      style: TextStyle(color: Colors.white60, fontSize: 9),
+                    child: Text(
+                      l10n.translate('bank_disclaimer_short'),
+                      style: const TextStyle(color: Colors.white60, fontSize: 9),
                       textAlign: TextAlign.center,
                     ),
                   ),
@@ -159,7 +159,7 @@ class WalletTabScreen extends ConsumerWidget {
                      decoration: BoxDecoration(color: Theme.of(context).cardColor, borderRadius: BorderRadius.circular(12), border: Border.all(color: Theme.of(context).dividerColor)),
                      child: const Center(
                        child: Text(
-                         'Données graphiques disponibles prochainement',
+                         l10n.translate('graph_soon'),
                          style: TextStyle(color: Colors.grey, fontStyle: FontStyle.italic),
                        ),
                      ),
@@ -185,8 +185,8 @@ class WalletTabScreen extends ConsumerWidget {
                              child: Column(
                                crossAxisAlignment: CrossAxisAlignment.start,
                                children: [
-                                 Text('Coffre-fort Projet', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-                                 Text('Bloquer des gains pour mon objectif', style: TextStyle(color: Colors.white70, fontSize: 12)),
+                                 Text(l10n.translate('project_vault'), style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                                 Text(l10n.translate('lock_gains_desc'), style: const TextStyle(color: Colors.white70, fontSize: 12)),
                                ],
                              ),
                            ),
@@ -251,7 +251,7 @@ class WalletTabScreen extends ConsumerWidget {
                       MaterialPageRoute(builder: (_) => const PaymentHistoryScreen())
                     ),
                     icon: const Icon(Icons.history, size: 16),
-                    label: const Text('Voir tout', style: TextStyle(fontSize: 12)),
+                    label: Text(l10n.translate('see_all'), style: const TextStyle(fontSize: 12)),
                   ),
                 ],
               ),
@@ -305,7 +305,7 @@ class WalletTabScreen extends ConsumerWidget {
                             children: [
                               Icon(Icons.download, size: 12, color: Theme.of(context).brightness == Brightness.dark ? AppTheme.gold : AppTheme.marineBlue),
                               const SizedBox(width: 4),
-                              Text('REÇU', style: TextStyle(fontSize: 10, color: Theme.of(context).brightness == Brightness.dark ? AppTheme.gold : AppTheme.marineBlue, fontWeight: FontWeight.bold)),
+                              Text(l10n.translate('receipt'), style: TextStyle(fontSize: 10, color: Theme.of(context).brightness == Brightness.dark ? AppTheme.gold : AppTheme.marineBlue, fontWeight: FontWeight.bold)),
                             ],
                           ),
                         ),
@@ -335,7 +335,7 @@ class WalletTabScreen extends ConsumerWidget {
 
   void _downloadReceipt(BuildContext context, WidgetRef ref, dynamic transaction) async {
     // 1. Show Loading
-    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Génération du reçu sécurisé (PDF)...'), duration: Duration(seconds: 1)));
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(ref.read(localizationProvider).translate('generating_receipt')), duration: const Duration(seconds: 1)));
 
     final currentUser = ref.read(userProvider);
 
@@ -372,20 +372,20 @@ class WalletTabScreen extends ConsumerWidget {
       showDialog(
         context: context,
         builder: (c) => AlertDialog(
-          title: const Text('📋 Reçu Sécurisé'),
+          title: Text(ref.read(localizationProvider).translate('secure_receipt')),
           content: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
               const Icon(Icons.picture_as_pdf, size: 100, color: Colors.blueGrey),
               const SizedBox(height: 16),
-              const Text('Votre preuve cryptographique de paiement a été générée avec succès.'),
+              Text(ref.read(localizationProvider).translate('receipt_success')),
               const SizedBox(height: 8),
               Text('Réf: ${logEntry.id}', style: const TextStyle(fontSize: 10, fontStyle: FontStyle.italic)),
             ],
           ),
           actions: [
-            TextButton(onPressed: () => Navigator.pop(c), child: const Text('Ouvrir (Aperçu)')),
-            ElevatedButton(onPressed: () => Navigator.pop(c), child: const Text('Partager')),
+            TextButton(onPressed: () => Navigator.pop(c), child: Text(ref.read(localizationProvider).translate('open_preview'))),
+            ElevatedButton(onPressed: () => Navigator.pop(c), child: Text(ref.read(localizationProvider).translate('share'))),
           ],
         ),
       );

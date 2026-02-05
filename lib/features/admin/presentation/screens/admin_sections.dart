@@ -158,7 +158,7 @@ class AdminMerchantsSection extends StatelessWidget {
                 Row(
                   children: [
                     TextButton.icon(icon: const Icon(Icons.visibility), label: const Text('Voir produits'), onPressed: () {
-                      // TODO: Navigate to products with filter
+                      // Future: Navigate to products list with shopId filter
                     }),
                     const Spacer(),
                     if (status == 'pending')

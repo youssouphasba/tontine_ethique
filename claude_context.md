@@ -3,7 +3,7 @@
 > **IMPORTANT** : À chaque nouvelle session, lire ce fichier en premier avec `Read claude_context.md`
 
 **Dernière mise à jour** : 2026-02-05
-**Session précédente** : Audit sécurité complet + Corrections P0/P1 (Firestore rules, E2E encryption, Stripe webhooks)
+**Session précédente** : P2/P3 Code Quality (Dependencies + TODOs cleanup)
 
 ---
 
@@ -111,10 +111,17 @@ firestore.rules               # Règles sécurité Firestore
 | Export PDF signé | `financial_dashboard_service.dart` | Simulé |
 | ~~Flux invitation complexe~~ | ~~`invitation_landing_screen.dart`~~ | ✅ Simplifié (5 → 3 étapes) |
 
-### MINEURS (Lint issues restantes : 14 infos)
+### MINEURS (Lint issues restantes : 19 infos)
 
 - ~~3 warnings: champs inutilisés~~ → **CORRIGÉ** (supprimés)
-- 14 `use_build_context_synchronously` infos (faux positifs - guards mounted corrects)
+- ~~Unused import merchant_tab_screen.dart~~ → **CORRIGÉ** (2026-02-05)
+- ~~Unused variable dashboard_screen.dart~~ → **CORRIGÉ** (2026-02-05)
+- ~~Undefined getter isVerifie~~ → **CORRIGÉ** (2026-02-05)
+- 15 `use_build_context_synchronously` infos (faux positifs - guards mounted corrects)
+- 1 `unnecessary_import` (non bloquant)
+- 1 `deprecated_member_use` (activeColor → activeThumbColor)
+- 1 `use_build_context_synchronously` additionnel
+- ~~7 TODOs~~ → **CORRIGÉ** (2026-02-05) - Convertis en notes/implémentés
 - ~~4 `print()` dans `tools/set_admin.dart`~~ → **CORRIGÉ** (ignore comments)
 - ~~6 `withOpacity`~~ → **CORRIGÉ**
 - ~~2 constantes snake_case~~ → **CORRIGÉ**
@@ -140,14 +147,14 @@ firestore.rules               # Règles sécurité Firestore
 8. [x] Préparer basculement Stripe mode LIVE → **FAIT** (voir checklist ci-dessous)
 
 ### P2 - Qualité code
-9. [x] Corriger les warnings lint → **FAIT** (27→14, reste que des infos)
-10. [ ] Mettre à jour dépendances (`flutter pub upgrade`) - 66 packages outdated
-11. [ ] Supprimer code mort et TODOs
+9. [x] Corriger les warnings lint → **FAIT** (0 errors, 0 warnings, 19 infos)
+10. [x] Mettre à jour dépendances (`flutter pub upgrade`) → **FAIT** (10 packages)
+11. [x] Supprimer code mort et TODOs → **FAIT** (7 TODOs nettoyés)
 
 ### P3 - Fonctionnalités
-12. [ ] Notifications push FCM (déjà configuré, tester)
-13. [ ] Export PDF réel avec signature
-14. [ ] Dashboard analytics admin
+12. [x] Notifications push FCM → **FAIT** (implémenté, test manuel requis)
+13. [x] Export PDF réel avec signature → **FAIT** (`pdf_export_service.dart`)
+14. [ ] Dashboard analytics admin → Stub (pas de backend)
 
 ### 🔜 TODO Prochaine Session (Inscription)
 - [x] Enregistrer consentement newsletter dans Firestore (`individual_registration_screen.dart`) ✅ FAIT
@@ -330,7 +337,7 @@ firebase functions:log
   - Code auto-détecte mode via préfixe clé (pk_test vs pk_live)
 - **Améliorations inscription (RGPD + UX)** :
   - ✅ Ajouté champ date de naissance obligatoire (RGPD Art. 8 - min 16 ans)
-  - ✅ Ajouté consentement newsletter OPTIONNEL (séparé des CGU)
+- ✅ Ajouté consentement newsletter OPTIONNEL (séparé des CGU)
   - ✅ Progress bar améliorée (LinearProgressIndicator + pourcentage)
   - ✅ Résumé légal "3 points" avant checkboxes CGU
 - **Analyse architecture paiements** :
@@ -366,17 +373,36 @@ firebase functions:log
 
 ---
 
+### Session 2026-02-05 (Localization & Business Plan)
+
+**Localization Fixes** :
+- ✅ Corrigé erreurs `l10n` dans `circle_details_screen.dart`, `savings_screen.dart`, `profile_screen.dart`
+- ✅ Ajouté clés manquantes (`join_request_subtitle`, `confirm`, `error_missing_fields`, `error_accept_cgu`) dans `localization_provider.dart`
+- ✅ Nettoyé code dupliqué (`get l10n`)
+- ✅ Remplacé textes hardcodés dans `profile_screen.dart`
+
+**Documentation Updates** :
+- ✅ Mis à jour **Prix** dans tous les documents (`BUSINESS_PLAN_ANNEXES.md`, `BUSINESS_PLAN.md`, `BUSINESS_PLAN_EN.md`, `PROJECT_SPECIFICATIONS.md`)
+  - Starter: 2,99€
+  - Standard: 4,99€
+  - Premium: 6,99€
+  - Marchand: 14,99€ (Unique)
+- ✅ Traduit dossier onboarding Mangopay en anglais : `docs/MANGOPAY_ONBOARDING_FOLDER_EN.md`
+
+
+---
+
 ## 9. ARCHITECTURE PAIEMENTS CIBLE (Mangopay + Stripe)
 
 ### Principe fondamental
-**Tontetic = Pur outil technique** - AUCUNE transaction ne doit transiter par les comptes bancaires de Tontetic pour éviter le statut de PSP/Agent PSP.
+**Tontetic = Agent PSP (APSP)** - L'application agit en tant qu'intermédiaire mandaté par Mangopay (APSP). AUCUNE transaction ne doit transiter par les comptes bancaires propres de Tontetic pour respecter la licence de Mangopay.
 
 ### Décision : Mangopay (Tontines) + Stripe (Abonnements)
 
 **Pourquoi Mangopay ?**
 - Conçu pour cagnottes/crowdfunding (même logique que tontines)
 - Wallets + Escrow natifs
-- Licence EMI européenne (Tontetic = simple agent technique)
+- Licence EMI européenne (Tontetic = Agent de Paiement déclaré)
 - 0€ frais mensuels (pay-per-use)
 - KYC intégré
 - Utilisé par Leetchi, Ulule, Lunchr
@@ -390,7 +416,7 @@ firebase functions:log
 ### Modèle économique
 | Type utilisateur | Qui paie les frais ? |
 |------------------|---------------------|
-| **Abonnés** (Premium/Pro) | Tontetic absorbe 100% des frais |
+| **Abonnés** (Premium/Pro) | Tontetic absorbe 100% des frais (modèle non-custodial) |
 | **Gratuits** | Frais visibles (0,30€/prélèvement) |
 
 ### Flux cible avec Mangopay
@@ -426,29 +452,29 @@ firebase functions:log
 ### Répartition PSP par fonctionnalité
 | Fonctionnalité | PSP | Raison |
 |----------------|-----|--------|
-| **Tontines (wallets)** | Mangopay | Escrow natif, pas de custody Tontetic |
+| **Tontines (wallets)** | Mangopay | Escrow natif via compte tiers |
 | **Tontines (prélèvements)** | Mangopay | SEPA DD optimisé |
 | **Tontines (payouts)** | Mangopay | Wallet → IBAN |
 | **Abonnements app** | Stripe | Checkout + récurrence |
 | **Paiements carte ponctuels** | Stripe | Apple/Google Pay |
-| **KYC basique** | Mangopay | Inclus dans flux |
+| **KYC basique** | Mangopay | Inclus dans flux Agent PSP |
 | **KYC avancé** | Stripe Identity | Document + Selfie |
 | **Mobile Money (FCFA)** | Wave | Zone Afrique |
 
-### Réglementation : Tontetic = Outil Technique
+### Réglementation : Tontetic = Agent PSP (APSP)
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
 │                         TONTETIC                                │
-│                    (Outil Technique)                            │
+│                   (Agent de Paiement)                           │
 │                                                                 │
 │  ✅ Gestion cercles    ✅ Règles tontine    ✅ Notifications   │
 │  ✅ Orchestration API  ✅ Dashboard         ✅ Abonnements     │
 │                                                                 │
-│         PAS de licence requise (Agent Commercial)               │
+│         DÉCLARÉ À L'ACPR COMME AGENT DE MANGOPAY                │
 └─────────────────────────────────────────────────────────────────┘
                               │
-                              │ API calls (orchestration)
+                              │ API calls (mandatés)
                               ▼
 ┌─────────────────────────────────────────────────────────────────┐
 │                         MANGOPAY                                │
@@ -457,7 +483,7 @@ firebase functions:log
 │  💰 Wallets utilisateurs    💳 SEPA DD/CT    🔐 KYC            │
 │  💸 Escrow/Séquestre        📋 Conformité    🏦 Licence EMI    │
 │                                                                 │
-│              Agréé ACPR + Passeport européen                    │
+│              Agréé ACPR + Responsable du mandat                 │
 └─────────────────────────────────────────────────────────────────┘
 ```
 

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:tontetic/core/theme/app_theme.dart';
 import 'package:tontetic/core/providers/user_provider.dart';
+import 'package:tontetic/core/providers/localization_provider.dart';
 import 'package:tontetic/core/models/user_model.dart';
 import 'package:tontetic/core/services/wolof_audio_service.dart';
 import 'package:tontetic/core/services/mobile_money_service.dart';
@@ -24,6 +25,9 @@ class _DepositScreenState extends ConsumerState<DepositScreen> {
   String _successMessage = '';
 
   final double _fixedFee = 200; // Frais fixes FCFA
+
+  // Helper getter for localization
+  LocalizationState get l10n => ref.read(localizationProvider);
 
   // Méthodes de paiement pour l'Afrique uniquement
   final List<Map<String, dynamic>> _methods = [
@@ -49,7 +53,7 @@ class _DepositScreenState extends ConsumerState<DepositScreen> {
     final amount = double.tryParse(_amountController.text);
     if (amount == null || amount <= 0) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Veuillez entrer un montant valide')),
+        SnackBar(content: Text(l10n.translate('error_invalid_amount'))),
       );
       return;
     }
@@ -61,15 +65,15 @@ class _DepositScreenState extends ConsumerState<DepositScreen> {
       context: context,
       barrierDismissible: false,
       builder: (ctx) => AlertDialog(
-        title: const Text('Confirmer la Transaction'),
+        title: Text(l10n.translate('confirm_transaction')),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            _buildSummaryRow('Montant', ref.read(userProvider.notifier).formatContent(amount)),
-            _buildSummaryRow('Frais Fixes', ref.read(userProvider.notifier).formatContent(_fixedFee)),
+            _buildSummaryRow(l10n.translate('amount_label'), ref.read(userProvider.notifier).formatContent(amount)),
+            _buildSummaryRow(l10n.translate('transaction_fee'), ref.read(userProvider.notifier).formatContent(_fixedFee)),
             const Divider(),
-            _buildSummaryRow('Total Débité', ref.read(userProvider.notifier).formatContent(amount + _fixedFee), isBold: true),
+            _buildSummaryRow(l10n.translate('total_debited'), ref.read(userProvider.notifier).formatContent(amount + _fixedFee), isBold: true),
             const SizedBox(height: 16),
             Container(
               padding: const EdgeInsets.all(12),
@@ -83,7 +87,7 @@ class _DepositScreenState extends ConsumerState<DepositScreen> {
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text(
-                      'Vous allez recevoir une notification $_selectedMethod pour confirmer.',
+                      l10n.translate('notification_info').replaceAll('@method', _selectedMethod),
                       style: TextStyle(fontSize: 12, color: Colors.blue.shade700),
                     ),
                   ),
@@ -93,11 +97,11 @@ class _DepositScreenState extends ConsumerState<DepositScreen> {
           ],
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Annuler')),
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text(l10n.translate('cancel'))),
           ElevatedButton(
             onPressed: () => Navigator.pop(ctx, true),
             style: ElevatedButton.styleFrom(backgroundColor: AppTheme.marineBlue),
-            child: const Text('Confirmer', style: TextStyle(color: Colors.white)),
+            child: Text(l10n.translate('confirm'), style: const TextStyle(color: Colors.white)),
           ),
         ],
       ),
@@ -189,7 +193,7 @@ class _DepositScreenState extends ConsumerState<DepositScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Crédit Mobile Money'),
+        title: Text(l10n.translate('deposit_title')),
         backgroundColor: AppTheme.marineBlue,
         foregroundColor: Colors.white,
       ),
@@ -203,9 +207,9 @@ class _DepositScreenState extends ConsumerState<DepositScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
-            'Combien souhaitez-vous créditer ?',
-            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+          Text(
+            l10n.translate('deposit_amount_q'),
+            style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
           ),
           const SizedBox(height: 16),
           TextField(
@@ -224,9 +228,9 @@ class _DepositScreenState extends ConsumerState<DepositScreen> {
           ),
           const SizedBox(height: 32),
           
-          const Text(
-            'Choisir le moyen de paiement',
-            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+          Text(
+            l10n.translate('choose_payment_method'),
+            style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
           ),
           const SizedBox(height: 16),
           ..._methods.map((method) => _buildMethodRadio(method)),
@@ -243,12 +247,12 @@ class _DepositScreenState extends ConsumerState<DepositScreen> {
             ),
             child: Column(
               children: [
-                _buildSummaryRow('Montant', _amountController.text.isEmpty ? '-' : ref.read(userProvider.notifier).formatContent(double.tryParse(_amountController.text)!)),
+                _buildSummaryRow(l10n.translate('amount_label'), _amountController.text.isEmpty ? '-' : ref.read(userProvider.notifier).formatContent(double.tryParse(_amountController.text)!)),
                 const SizedBox(height: 8),
-                _buildSummaryRow('Frais de service', ref.read(userProvider.notifier).formatContent(_fixedFee)),
+                _buildSummaryRow(l10n.translate('service_fees'), ref.read(userProvider.notifier).formatContent(_fixedFee)),
                 const Divider(),
                 _buildSummaryRow(
-                  'Total', 
+                  l10n.translate('total_label'), 
                   _amountController.text.isEmpty ? '-' : ref.read(userProvider.notifier).formatContent((double.tryParse(_amountController.text)!) + _fixedFee), 
                   isBold: true,
                   color: Theme.of(context).brightness == Brightness.dark ? AppTheme.gold : AppTheme.marineBlue,
@@ -258,7 +262,7 @@ class _DepositScreenState extends ConsumerState<DepositScreen> {
           ),
           const SizedBox(height: 8),
           Text(
-            '* Frais de l\'opérateur. Tontetic ne prélève aucun pourcentage.',
+            l10n.translate('operator_fees_notice'),
             style: TextStyle(fontSize: 11, color: Colors.grey.shade600),
           ),
 
@@ -272,7 +276,7 @@ class _DepositScreenState extends ConsumerState<DepositScreen> {
                 foregroundColor: Colors.white,
                 padding: const EdgeInsets.symmetric(vertical: 16),
               ),
-              child: Text('Payer avec $_selectedMethod', style: const TextStyle(fontSize: 18)),
+              child: Text(l10n.translate('pay_with').replaceAll('@method', _selectedMethod), style: const TextStyle(fontSize: 18)),
             ),
           ),
         ],
@@ -344,9 +348,9 @@ class _DepositScreenState extends ConsumerState<DepositScreen> {
         children: [
           const CircularProgressIndicator(color: AppTheme.gold),
           const SizedBox(height: 24),
-          Text('Connexion à $_selectedMethod...', style: TextStyle(fontSize: 18, color: Theme.of(context).brightness == Brightness.dark ? AppTheme.gold : AppTheme.marineBlue)),
+          Text(l10n.translate('connecting_to').replaceAll('@method', _selectedMethod), style: TextStyle(fontSize: 18, color: Theme.of(context).brightness == Brightness.dark ? AppTheme.gold : AppTheme.marineBlue)),
           const SizedBox(height: 8),
-          const Text('Veuillez patienter', style: TextStyle(color: Colors.grey)),
+          Text(l10n.translate('please_wait'), style: const TextStyle(color: Colors.grey)),
         ],
       ),
     );
@@ -363,9 +367,9 @@ class _DepositScreenState extends ConsumerState<DepositScreen> {
             children: [
               const Icon(Icons.check_circle, color: AppTheme.gold, size: 80),
               const SizedBox(height: 32),
-              const Text(
-                'Paiement Initié !',
-                style: TextStyle(color: Colors.white, fontSize: 28, fontWeight: FontWeight.bold),
+              Text(
+                l10n.translate('payment_initiated'),
+                style: const TextStyle(color: Colors.white, fontSize: 28, fontWeight: FontWeight.bold),
               ),
               const SizedBox(height: 8),
               Text(
@@ -383,15 +387,15 @@ class _DepositScreenState extends ConsumerState<DepositScreen> {
                 ),
                 child: Column(
                   children: [
-                    Text('Montant', style: TextStyle(color: Colors.grey[600])),
+                    Text(l10n.translate('amount_label'), style: TextStyle(color: Colors.grey[600])),
                     const SizedBox(height: 8),
                     Text(
                       ref.read(userProvider.notifier).formatContent(double.tryParse(_amountController.text)!),
                       style: const TextStyle(fontSize: 32, fontWeight: FontWeight.bold, color: AppTheme.marineBlue),
                     ),
                     const Divider(height: 32),
-                    _buildTicketRow('Méthode', _selectedMethod),
-                    _buildTicketRow('Date', '${DateTime.now().day}/${DateTime.now().month}/${DateTime.now().year}'),
+                    _buildTicketRow(l10n.translate('ticket_method'), _selectedMethod),
+                    _buildTicketRow(l10n.translate('ticket_date'), '${DateTime.now().day}/${DateTime.now().month}/${DateTime.now().year}'),
                   ],
                 ),
               ),
@@ -404,7 +408,7 @@ class _DepositScreenState extends ConsumerState<DepositScreen> {
                   side: const BorderSide(color: Colors.white),
                   padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
                 ),
-                child: const Text('Retour au Portefeuille'),
+                child: Text(l10n.translate('return_to_wallet')),
               ),
             ],
           ),

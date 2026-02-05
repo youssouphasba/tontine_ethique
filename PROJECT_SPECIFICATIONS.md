@@ -22,8 +22,8 @@ Ce document résume l'architecture, les règles métier et l'identité de l'appl
 
 L'application repose sur un modèle "Freemium" adapté aux deux zones géographiques cibles.
 
-*   **Zone Euro (France...)** : Abonnement à **9,99 € / mois**.
-*   **Zone FCFA (Sénégal...)** : Abonnement à **2 000 FCFA / mois**.
+*   **Zone Euro (France...)** : Abonnement à partir de **2,99 € / mois** (Starter).
+*   **Zone FCFA (Sénégal...)** : Abonnement à partir de **2 000 FCFA / mois**.
 
 **Avantages Premium** :
 *   Accès aux paliers de cotisation élevés.

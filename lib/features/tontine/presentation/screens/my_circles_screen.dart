@@ -548,6 +548,7 @@ class _ExploreTabState extends ConsumerState<_ExploreTab> {
   String _selectedObjective = 'Pour vous';
   final List<String> _filters = ['Pour vous', 'Proximité', '🏠 Maison', '🚗 Transport', '📦 Business', '📚 Éducation', '💰 Épargne'];
   bool _showListView = false; // Toggle between TikTok feed and list view
+  // ignore: unused_field
   bool _legalWarningShown = false;
 
   @override
@@ -573,15 +574,12 @@ class _ExploreTabState extends ConsumerState<_ExploreTab> {
       context: context,
       barrierDismissible: false,
       builder: (context) => AlertDialog(
-        title: const Text('Avertissement Technologique'),
-        content: const Text(
-          'Tontetic est un prestataire technique. Les cercles affichés ici sont créés par des utilisateurs indépendants. '
-          'L\'Éditeur ne garantit pas la solvabilité des participants. En continuant, vous reconnaissez que Tontetic n\'est pas un service financier.'
-        ),
+        title: Text(l10n.translate('tech_warning_title')),
+        content: Text(l10n.translate('tech_warning_content')),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text('J\'AI COMPRIS ET J\'ACCEPTE'),
+            child: Text(l10n.translate('ok')),
           ),
         ],
       ),
@@ -689,11 +687,11 @@ class _ExploreTabState extends ConsumerState<_ExploreTab> {
         Container(
           width: double.infinity,
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-          color: Colors.amber.withAlpha(200),
-          child: const Text(
-            'Plateforme technique uniquement. Tontetic ne gère pas les fonds.',
+          color: Colors.amber.withValues(alpha: 0.8),
+          child: Text(
+            l10n.translate('tech_banner_text'),
             textAlign: TextAlign.center,
-            style: TextStyle(color: Colors.black, fontSize: 10, fontWeight: FontWeight.bold),
+            style: const TextStyle(color: Colors.black, fontSize: 10, fontWeight: FontWeight.bold),
           ),
         ),
 

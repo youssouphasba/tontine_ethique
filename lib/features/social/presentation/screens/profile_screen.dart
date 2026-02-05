@@ -3,6 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:share_plus/share_plus.dart'; // Import Added
 import 'package:tontetic/core/theme/app_theme.dart';
 import 'package:tontetic/core/providers/user_provider.dart';
+import 'package:tontetic/core/providers/localization_provider.dart';
+import 'package:tontetic/core/providers/localization_provider.dart';
 import 'package:tontetic/core/models/user_model.dart';
 import 'package:tontetic/core/services/security_service.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -19,6 +21,7 @@ class ProfileScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final l10n = ref.read(localizationProvider);
     // If viewing own profile, show enhanced editable UserProfileScreen
     if (isMe) {
       return const UserProfileScreen();
@@ -83,12 +86,12 @@ class ProfileScreen extends ConsumerWidget {
            );
         }
 
-        return _buildContent(context, ref, otherUser);
+        return _buildContent(context, ref, otherUser, l10n);
       },
     );
   }
 
-  Widget _buildContent(BuildContext context, WidgetRef ref, UserState user) {
+  Widget _buildContent(BuildContext context, WidgetRef ref, UserState user, LocalizationState l10n) {
     final social = ref.watch(socialProvider);
     final displayName = user.displayName.isEmpty ? userName : user.displayName;
     final photoUrl = user.photoUrl; // REAL: No more pravatar fallback
@@ -102,7 +105,7 @@ class ProfileScreen extends ConsumerWidget {
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(isMe ? 'Mon Profil' : 'Profil de $displayName'),
+        title: Text(isMe ? l10n.translate('profile_my') : '${l10n.translate('profile_of')}$displayName'),
         // Theme handles colors now
         actions: [
           if (!isMe)
@@ -149,18 +152,18 @@ class ProfileScreen extends ConsumerWidget {
                     mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                     children: [
                       GestureDetector(
-                        onTap: () => _showHonorScoreExplanation(context, honorScore),
-                        child: _buildStatItem('Honor Score', '$honorScore/5 ⭐', Icons.verified, null),
+                        onTap: () => _showHonorScoreExplanation(context, honorScore.toDouble(), ref),
+                        child: _buildStatItem(l10n.translate('honor_score'), '$honorScore/5 ⭐', Icons.verified, null),
                       ),
                       GestureDetector(
                         onTap: () => _showFollowersList(context, ref, displayName, 'followers'),
-                        child: _buildStatItem('Abonnés', social.getFollowers(user.uid).toString(), Icons.people, null),
+                        child: _buildStatItem(l10n.translate('followers'), social.getFollowers(user.uid).toString(), Icons.people, null),
                       ),
                       GestureDetector(
                         onTap: () => _showFollowersList(context, ref, displayName, 'following'),
-                        child: _buildStatItem('Abonnements', social.following.length.toString(), Icons.person_add, null),
+                        child: _buildStatItem(l10n.translate('following_stat'), social.following.length.toString(), Icons.person_add, null),
                       ),
-                      _buildStatItem('Tontines', user.activeCirclesCount.toString(), Icons.account_balance, null),
+                      _buildStatItem(l10n.translate('tontines_stat'), user.activeCirclesCount.toString(), Icons.account_balance, null),
                     ],
                   ),
                   if (isMutual) ...[
@@ -172,12 +175,12 @@ class ProfileScreen extends ConsumerWidget {
                         borderRadius: BorderRadius.circular(20),
                         border: Border.all(color: AppTheme.gold),
                       ),
-                      child: const Row(
+                        child: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          Icon(Icons.handshake, color: AppTheme.gold, size: 16),
-                          SizedBox(width: 8),
-                          Text('Ami Mutuel 🤝', style: TextStyle(color: AppTheme.gold, fontWeight: FontWeight.bold, fontSize: 12)),
+                          const Icon(Icons.handshake, color: AppTheme.gold, size: 16),
+                          const SizedBox(width: 8),
+                          Text(l10n.translate('mutual_friend'), style: const TextStyle(color: AppTheme.gold, fontWeight: FontWeight.bold, fontSize: 12)),
                         ],
                       ),
                     ),
@@ -192,7 +195,7 @@ class ProfileScreen extends ConsumerWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text('À propos', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppTheme.marineBlue)),
+                  Text(l10n.translate('about_title'), style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppTheme.marineBlue)),
                   const SizedBox(height: 8),
                   Text(
                     bio,
@@ -213,7 +216,7 @@ class ProfileScreen extends ConsumerWidget {
                         child: ElevatedButton.icon(
                           onPressed: () => _showInviteDialog(context, ref, userName, user.uid),
                           icon: const Icon(Icons.mail_outline),
-                          label: const Text('Inviter à une tontine'),
+                          label: Text(l10n.translate('invite_to_tontine')),
                           style: ElevatedButton.styleFrom(
                             backgroundColor: AppTheme.gold,
                             foregroundColor: AppTheme.marineBlue,
@@ -236,7 +239,7 @@ class ProfileScreen extends ConsumerWidget {
                             const SizedBox(width: 12),
                             Expanded(
                               child: Text(
-                                'Suivez-vous mutuellement pour débloquer les invitations privées.',
+                                l10n.translate('mutual_follow_warning'),
                                 style: TextStyle(
                                   fontSize: 13, 
                                   color: Theme.of(context).brightness == Brightness.dark ? Colors.white60 : Colors.grey[600],
@@ -269,7 +272,7 @@ class ProfileScreen extends ConsumerWidget {
                                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                               ),
                               child: Text(
-                                isFollowing ? 'Abonné' : 'Suivre',
+                                isFollowing ? l10n.translate('following_btn') : l10n.translate('follow_btn'),
                                 style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
                               ),
                             ),
@@ -315,7 +318,8 @@ class ProfileScreen extends ConsumerWidget {
     );
   }
 
-  void _showHonorScoreExplanation(BuildContext context, double score) {
+  void _showHonorScoreExplanation(BuildContext context, double score, WidgetRef ref) {
+    final l10n = ref.read(localizationProvider);
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     showModalBottomSheet(
@@ -348,12 +352,12 @@ class ProfileScreen extends ConsumerWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Text(
-                        'Score d\'Honneur',
-                        style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                      Text(
+                        l10n.translate('honor_score'), // Keeping title as label or translating
+                        style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
                       ),
                       Text(
-                        'Score affiché : ${score.toStringAsFixed(1)}/5',
+                        'Score : ${score.toStringAsFixed(1)}/5',
                         style: const TextStyle(color: AppTheme.gold, fontWeight: FontWeight.w600),
                       ),
                     ],
@@ -383,7 +387,7 @@ class ProfileScreen extends ConsumerWidget {
                       Icon(Icons.info_outline, color: isDark ? AppTheme.gold : Colors.blue.shade700, size: 20),
                       const SizedBox(width: 8),
                       Text(
-                        'Qu\'est-ce que c\'est ?',
+                        l10n.translate('what_is_it'),
                         style: TextStyle(
                           fontWeight: FontWeight.bold,
                           color: isDark ? AppTheme.gold : Colors.blue.shade700,
@@ -393,7 +397,7 @@ class ProfileScreen extends ConsumerWidget {
                   ),
                   const SizedBox(height: 12),
                   Text(
-                    'Le Score d\'Honneur reflète la fiabilité d\'un membre dans ses paiements de cotisations.',
+                    l10n.translate('honor_score_desc'),
                     style: TextStyle(
                       fontSize: 13,
                       color: isDark ? Colors.white70 : Colors.black87,
@@ -414,7 +418,7 @@ class ProfileScreen extends ConsumerWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text('Formule de calcul', style: TextStyle(fontWeight: FontWeight.bold)),
+                  Text(l10n.translate('calculation_formula'), style: const TextStyle(fontWeight: FontWeight.bold)),
                   const SizedBox(height: 8),
                   Container(
                     padding: const EdgeInsets.all(12),
@@ -434,7 +438,7 @@ class ProfileScreen extends ConsumerWidget {
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    'Les nouveaux membres commencent à 4.0/5.',
+                    l10n.translate('new_member_start'),
                     style: TextStyle(fontSize: 12, color: isDark ? Colors.white60 : Colors.grey[600]),
                   ),
                 ],
@@ -444,7 +448,7 @@ class ProfileScreen extends ConsumerWidget {
             const SizedBox(height: 16),
 
             // Interpretation
-            _buildScoreInterpretation(score, isDark),
+            _buildScoreInterpretation(score, isDark, l10n),
 
             const SizedBox(height: 20),
 
@@ -455,7 +459,7 @@ class ProfileScreen extends ConsumerWidget {
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(
-                    'Conformément au RGPD Art. 22, vous pouvez contacter dpo@tontetic.app pour toute question.',
+                    l10n.translate('rgpd_contact'),
                     style: TextStyle(fontSize: 11, color: Colors.grey[600]),
                   ),
                 ),
@@ -468,26 +472,26 @@ class ProfileScreen extends ConsumerWidget {
     );
   }
 
-  Widget _buildScoreInterpretation(double score, bool isDark) {
+  Widget _buildScoreInterpretation(double score, bool isDark, LocalizationState l10n) {
     String label;
     String description;
     Color color;
 
     if (score >= 4.5) {
-      label = 'Excellent';
-      description = 'Ce membre a un historique de paiements exemplaire.';
+      label = l10n.translate('score_excellent');
+      description = l10n.translate('excellent_desc');
       color = Colors.green;
     } else if (score >= 4.0) {
-      label = 'Très bien';
-      description = 'Ce membre est généralement fiable.';
+      label = l10n.translate('score_very_good');
+      description = l10n.translate('very_good_desc');
       color = Colors.lightGreen;
     } else if (score >= 3.0) {
-      label = 'Acceptable';
-      description = 'Quelques retards occasionnels dans l\'historique.';
+      label = l10n.translate('score_acceptable');
+      description = l10n.translate('acceptable_desc');
       color = Colors.orange;
     } else {
-      label = 'À surveiller';
-      description = 'Des retards fréquents ont été constatés.';
+      label = l10n.translate('score_warning');
+      description = l10n.translate('warning_desc');
       color = Colors.red;
     }
 
@@ -531,6 +535,7 @@ class ProfileScreen extends ConsumerWidget {
   }
 
   void _showFollowersList(BuildContext context, WidgetRef ref, String userName, String type) {
+    final l10n = ref.read(localizationProvider);
     final currentUser = ref.read(userProvider);
     final userId = this.userId ?? currentUser.uid;
     
@@ -567,7 +572,7 @@ class ProfileScreen extends ConsumerWidget {
                   }
                   
                   if (snapshot.hasError) {
-                    return Center(child: Text('Erreur: ${snapshot.error}'));
+                    return Center(child: Text('${l10n.translate('error_label')}: ${snapshot.error}'));
                   }
                   
                   final docs = snapshot.data?.docs ?? [];
@@ -576,8 +581,8 @@ class ProfileScreen extends ConsumerWidget {
                     return Center(
                       child: Text(
                         type == 'followers' 
-                            ? 'Aucun abonné pour le moment' 
-                            : 'Vous ne suivez personne',
+                            ? l10n.translate('no_followers') 
+                            : l10n.translate('no_following'),
                         style: const TextStyle(color: Colors.grey),
                       ),
                     );
@@ -619,7 +624,7 @@ class ProfileScreen extends ConsumerWidget {
                                   ref.read(socialProvider.notifier).toggleFollow(targetUserId);
                                   Navigator.pop(ctx);
                                 },
-                                child: const Text('Ne plus suivre'),
+                                child: Text(l10n.translate('unfollow')),
                               )
                             : null,
                         onTap: () {
@@ -641,6 +646,7 @@ class ProfileScreen extends ConsumerWidget {
   }
 
   void _showInviteDialog(BuildContext context, WidgetRef ref, String targetName, String targetId) {
+    final l10n = ref.read(localizationProvider);
     showModalBottomSheet(
       context: context,
       shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
@@ -650,7 +656,7 @@ class ProfileScreen extends ConsumerWidget {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text('Choisir une tontine', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+            Text(l10n.translate('choose_tontine'), style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
             const SizedBox(height: 16),
             _buildInviteCircleOption(ctx, ref, targetName, targetId, 'Épargne Tabaski 2025', 50000),
             _buildInviteCircleOption(ctx, ref, targetName, targetId, 'Business Women Dakar', 25000),
@@ -677,7 +683,7 @@ class ProfileScreen extends ConsumerWidget {
         );
         Navigator.pop(context);
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Invitation envoyée à $targetName !')),
+          SnackBar(content: Text(ref.read(localizationProvider).translate('invitation_sent_success').replaceAll('@name', targetName))),
         );
       },
     );

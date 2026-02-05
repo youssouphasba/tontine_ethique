@@ -27,8 +27,8 @@ class WolofAudioService {
   /// Bloc 2: Logique d'intégration mobile
   Future<bool> speakWolof(String text) async {
     try {
-      // CACHING DISABLED FOR WEB COMPATIBILITY (dart:io issue)
-      // TODO: Re-implement caching using Universal IO or Hive
+      // Note: Caching disabled for web compatibility (dart:io unavailable)
+      // Can be re-enabled on mobile using Hive or path_provider
       
       debugPrint("Anta is processing: $text");
       final audioBytes = await fetchWolofVoice(text);

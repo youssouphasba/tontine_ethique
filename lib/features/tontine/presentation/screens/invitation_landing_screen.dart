@@ -37,6 +37,7 @@ class _InvitationLandingScreenState extends ConsumerState<InvitationLandingScree
   bool _requestSubmitted = false;
 
   Map<String, dynamic>? _circleData;
+  // ignore: unused_field
   String _requestId = '';
   String? _errorMessage;
   bool _isLoading = true;

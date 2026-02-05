@@ -464,7 +464,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> with SingleTi
           const SizedBox(width: 12),
           Expanded(
             child: GestureDetector(
-              onTap: () => _showHonorScoreExplanation(user.honorScore),
+              onTap: () => _showHonorScoreExplanation(user.honorScore.toDouble()),
               child: _buildKPIItem('Honneur', '${user.honorScore}/5 ⭐', Icons.trending_up, AppTheme.gold, hasInfo: true),
             ),
           ),
@@ -474,7 +474,6 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> with SingleTi
   }
 
   void _showHonorScoreExplanation(double score) {
-    final l10n = ref.read(localizationProvider);
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     showModalBottomSheet(

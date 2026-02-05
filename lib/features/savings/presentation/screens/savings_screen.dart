@@ -3,6 +3,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import 'package:tontetic/core/theme/app_theme.dart';
 import 'package:tontetic/core/providers/user_provider.dart';
+import 'package:tontetic/core/providers/localization_provider.dart';
+import 'package:tontetic/core/providers/localization_provider.dart';
+import 'package:tontetic/core/providers/localization_provider.dart';
 import 'package:tontetic/core/constants/legal_texts.dart';
 import 'package:tontetic/features/savings/data/locked_savings_provider.dart';
 
@@ -14,11 +17,18 @@ class SavingsScreen extends ConsumerStatefulWidget {
 }
 
 class _SavingsScreenState extends ConsumerState<SavingsScreen> {
+  LocalizationState get l10n => ref.read(localizationProvider);
+
+  // Helper for localization
+
+
   final _amountController = TextEditingController();
   final _objectiveController = TextEditingController();
   DateTime? _unlockDate;
   SavingsPurpose _selectedPurpose = SavingsPurpose.personalProject;
   bool _disclaimerAccepted = false;
+
+
 
   Future<void> _selectDate(BuildContext context) async {
     final DateTime? picked = await showDatePicker(
@@ -26,9 +36,9 @@ class _SavingsScreenState extends ConsumerState<SavingsScreen> {
       initialDate: DateTime.now().add(const Duration(days: 30)),
       firstDate: DateTime.now().add(const Duration(days: 1)),
       lastDate: DateTime.now().add(const Duration(days: 365 * 2)),
-      helpText: 'Date de déblocage (IMMUTABLE)',
-      confirmText: 'Confirmer',
-      cancelText: 'Annuler',
+      helpText: l10n.translate('unlock_date_immutable'),
+      confirmText: l10n.translate('confirm'),
+      cancelText: l10n.translate('cancel'),
       builder: (context, child) {
         return Theme(
           data: ThemeData.light().copyWith(
@@ -50,15 +60,15 @@ class _SavingsScreenState extends ConsumerState<SavingsScreen> {
   Future<void> _createLockedSavings() async {
     if (_amountController.text.isEmpty || _unlockDate == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Veuillez remplir montant et date.')),
+        SnackBar(content: Text(l10n.translate('error_missing_fields'))),
       );
       return;
     }
 
     if (!_disclaimerAccepted) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Veuillez accepter les conditions légales.'),
+        SnackBar(
+          content: Text(l10n.translate('error_accept_cgu')),
           backgroundColor: Colors.orange,
         ),
       );
@@ -74,20 +84,20 @@ class _SavingsScreenState extends ConsumerState<SavingsScreen> {
       context: context,
       barrierDismissible: false,
       builder: (ctx) => AlertDialog(
-        title: const Row(
+        title: Row(
           children: [
-            Icon(Icons.warning_amber, color: Colors.orange),
-            SizedBox(width: 8),
-            Text('⚠️ Confirmation Finale'),
+            const Icon(Icons.warning_amber, color: Colors.orange),
+            const SizedBox(width: 8),
+            Text(l10n.translate('confirm_title')),
           ],
         ),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text(
-              'ATTENTION : Ces paramètres seront IMMUTABLES',
-              style: TextStyle(fontWeight: FontWeight.bold, color: Colors.red),
+            Text(
+              l10n.translate('immutable_params_warning'),
+              style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.red),
             ),
             const SizedBox(height: 16),
             _buildConfirmRow('Montant', ref.read(userProvider.notifier).formatContent(amount)),
@@ -101,10 +111,9 @@ class _SavingsScreenState extends ConsumerState<SavingsScreen> {
                 borderRadius: BorderRadius.circular(8),
                 border: Border.all(color: Theme.of(context).brightness == Brightness.dark ? Colors.orange.withValues(alpha: 0.4) : Colors.orange),
               ),
-              child: const Text(
-                'Aucune modification possible après validation.\n'
-                'Déblocage automatique à la date prévue.',
-                style: TextStyle(fontSize: 12),
+              child: Text(
+                l10n.translate('no_mod_after_val'),
+                style: const TextStyle(fontSize: 12),
               ),
             ),
           ],
@@ -112,12 +121,12 @@ class _SavingsScreenState extends ConsumerState<SavingsScreen> {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Annuler'),
+            child: Text(l10n.translate('cancel')),
           ),
           ElevatedButton(
             onPressed: () => Navigator.pop(ctx, true),
             style: ElevatedButton.styleFrom(backgroundColor: AppTheme.marineBlue),
-            child: const Text('CONFIRMER (IRRÉVERSIBLE)'),
+            child: Text(l10n.translate('block_funds_btn')),
           ),
         ],
       ),
@@ -136,8 +145,8 @@ class _SavingsScreenState extends ConsumerState<SavingsScreen> {
 
     if (savings != null && mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('✅ Épargne bloquée créée avec succès !'),
+        SnackBar(
+          content: Text(l10n.translate('savings_success')),
           backgroundColor: Colors.green,
         ),
       );
@@ -172,7 +181,7 @@ class _SavingsScreenState extends ConsumerState<SavingsScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Blocage Volontaire'),
+        title: Text(l10n.translate('savings_title')),
         backgroundColor: AppTheme.marineBlue,
       ),
       body: SafeArea(
@@ -198,9 +207,9 @@ class _SavingsScreenState extends ConsumerState<SavingsScreen> {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            const Text('Blocage Volontaire de Fonds', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 18)),
+                            Text(l10n.translate('savings_header_title'), style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 18)),
                             Text(
-                              'Total bloqué : ${ref.read(userProvider.notifier).formatContent(savingsState.totalLocked)}',
+                              '${l10n.translate('total_locked')} ${ref.read(userProvider.notifier).formatContent(savingsState.totalLocked)}',
                               style: const TextStyle(color: AppTheme.gold, fontSize: 14),
                             ),
                           ],
@@ -215,14 +224,14 @@ class _SavingsScreenState extends ConsumerState<SavingsScreen> {
                       color: Colors.black.withValues(alpha: 0.2),
                       borderRadius: BorderRadius.circular(8),
                     ),
-                    child: const Row(
+                    child: Row(
                       children: [
-                        Icon(Icons.info_outline, color: Colors.white70, size: 16),
-                        SizedBox(width: 8),
+                        const Icon(Icons.info_outline, color: Colors.white70, size: 16),
+                        const SizedBox(width: 8),
                         Expanded(
                           child: Text(
-                            'Fonds chez PSP (Stripe/Wave) • Aucun intérêt • Aucun rendement',
-                            style: TextStyle(color: Colors.white70, fontSize: 11),
+                            l10n.translate('savings_footer_info'),
+                            style: const TextStyle(color: Colors.white70, fontSize: 11),
                           ),
                         ),
                       ],
@@ -236,28 +245,28 @@ class _SavingsScreenState extends ConsumerState<SavingsScreen> {
 
             // Blocages actifs
             if (savingsState.activeSavings.isNotEmpty) ...[
-              const Text('Fonds Bloqués Actifs', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+              Text(l10n.translate('locked_funds_active'), style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
               const SizedBox(height: 12),
               ...savingsState.activeSavings.map((s) => _buildActiveSavingsCard(s)),
               const SizedBox(height: 24),
             ],
 
             // Formulaire nouveau blocage
-            Text('Nouveau Blocage Volontaire', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Theme.of(context).brightness == Brightness.dark ? Colors.white : Colors.black87)),
+            Text(l10n.translate('new_locked_savings'), style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Theme.of(context).brightness == Brightness.dark ? Colors.white : Colors.black87)),
             const SizedBox(height: 16),
 
             // Type
             DropdownButtonFormField<SavingsPurpose>(
               initialValue: _selectedPurpose,
-              decoration: const InputDecoration(
-                labelText: 'Type de blocage',
-                border: OutlineInputBorder(),
-                prefixIcon: Icon(Icons.category),
+              decoration: InputDecoration(
+                labelText: l10n.translate('locked_type'),
+                border: const OutlineInputBorder(),
+                prefixIcon: const Icon(Icons.category),
               ),
-              items: const [
-                DropdownMenuItem(value: SavingsPurpose.personalProject, child: Text('Projet Personnel (Tabaski, rentrée...)')),
-                DropdownMenuItem(value: SavingsPurpose.tontineGuarantee, child: Text('Garantie Tontine (1 cotisation)')),
-                DropdownMenuItem(value: SavingsPurpose.tontineContributions, child: Text('Préfinancement Cotisations')),
+              items: [
+                DropdownMenuItem(value: SavingsPurpose.personalProject, child: Text(l10n.translate('locked_purpose_personal'))),
+                DropdownMenuItem(value: SavingsPurpose.tontineGuarantee, child: Text(l10n.translate('locked_purpose_guarantee'))),
+                DropdownMenuItem(value: SavingsPurpose.tontineContributions, child: Text(l10n.translate('locked_purpose_contributions'))),
               ],
               onChanged: (v) => setState(() => _selectedPurpose = v!),
             ),
@@ -267,10 +276,10 @@ class _SavingsScreenState extends ConsumerState<SavingsScreen> {
             // Objectif
             TextField(
               controller: _objectiveController,
-              decoration: const InputDecoration(
-                labelText: 'Nom du projet (ex: Tabaski 2026)',
-                border: OutlineInputBorder(),
-                prefixIcon: Icon(Icons.flag),
+              decoration: InputDecoration(
+                labelText: l10n.translate('project_name_label'),
+                border: const OutlineInputBorder(),
+                prefixIcon: const Icon(Icons.flag),
               ),
             ),
 
@@ -281,7 +290,7 @@ class _SavingsScreenState extends ConsumerState<SavingsScreen> {
               controller: _amountController,
               keyboardType: TextInputType.number,
               decoration: InputDecoration(
-                labelText: 'Montant à bloquer (${user.zone.currency})',
+                labelText: l10n.translate('amount_to_lock').replaceAll('@currency', user.zone.currency),
                 border: const OutlineInputBorder(),
                 prefixIcon: const Icon(Icons.attach_money),
               ),
@@ -305,8 +314,8 @@ class _SavingsScreenState extends ConsumerState<SavingsScreen> {
                     Expanded(
                       child: Text(
                         _unlockDate == null
-                            ? 'Déblocage (IMMUTABLE)'
-                            : 'Déblocage : ${DateFormat('dd/MM/yyyy').format(_unlockDate!)}',
+                            ? l10n.translate('unlock_date_immutable')
+                            : '${l10n.translate('unlock_label')} : ${DateFormat('dd/MM/yyyy').format(_unlockDate!)}',
                         style: TextStyle(
                             fontSize: 14,
                             color: _unlockDate == null 
@@ -358,9 +367,9 @@ class _SavingsScreenState extends ConsumerState<SavingsScreen> {
                   CheckboxListTile(
                     value: _disclaimerAccepted,
                     onChanged: (v) => setState(() => _disclaimerAccepted = v!),
-                    title: const Text(
-                      'J\'accepte l\'Article 4 CGU - Blocage Volontaire (IRRÉVOCABLE)',
-                      style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold),
+                    title: Text(
+                      l10n.translate('cgu_article_4_accept'),
+                      style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold),
                     ),
                     controlAffinity: ListTileControlAffinity.leading,
                     activeColor: AppTheme.marineBlue,
@@ -377,7 +386,7 @@ class _SavingsScreenState extends ConsumerState<SavingsScreen> {
               child: ElevatedButton.icon(
                 onPressed: _disclaimerAccepted ? _createLockedSavings : null,
                 icon: const Icon(Icons.lock),
-                label: const Text('BLOQUER CES FONDS (IRRÉVERSIBLE)'),
+                label: Text(l10n.translate('block_funds_btn')),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: _disclaimerAccepted ? AppTheme.marineBlue : Colors.grey,
                   foregroundColor: Colors.white,
@@ -406,7 +415,7 @@ class _SavingsScreenState extends ConsumerState<SavingsScreen> {
           children: [
             Text(ref.read(userProvider.notifier).formatContent(savings.amount)),
             Text(
-              'Bloqué jusqu\'au ${DateFormat('dd/MM/yyyy').format(savings.unlockDate)}',
+              '${l10n.translate('locked_until')} ${DateFormat('dd/MM/yyyy').format(savings.unlockDate)}',
               style: TextStyle(fontSize: 11, color: savings.isUnlockDue ? Colors.green : Colors.grey),
             ),
           ],
@@ -418,7 +427,7 @@ class _SavingsScreenState extends ConsumerState<SavingsScreen> {
             borderRadius: BorderRadius.circular(12),
           ),
           child: Text(
-            savings.isUnlockDue ? 'Libéré' : 'J-${savings.daysUntilUnlock}',
+            savings.isUnlockDue ? l10n.translate('released') : 'J-${savings.daysUntilUnlock}',
             style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold),
           ),
         ),
@@ -451,9 +460,9 @@ class _SavingsScreenState extends ConsumerState<SavingsScreen> {
                 ),
               ),
               const SizedBox(height: 16),
-              const Text(
-                'CONDITIONS GÉNÉRALES D\'UTILISATION',
-                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+              Text(
+                l10n.translate('cgu_title'),
+                style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
               ),
               const SizedBox(height: 8),
               const Text(
@@ -476,7 +485,7 @@ class _SavingsScreenState extends ConsumerState<SavingsScreen> {
                 child: ElevatedButton(
                   onPressed: () => Navigator.pop(ctx),
                   style: ElevatedButton.styleFrom(backgroundColor: AppTheme.marineBlue),
-                  child: const Text('J\'ai compris'),
+                  child: Text(l10n.translate('i_understand')),
                 ),
               ),
             ],

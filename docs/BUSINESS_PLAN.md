@@ -1,6 +1,6 @@
 # 📊 Business Plan - Tontetic
 
-> **Document V17 - Mise à jour : 07 Janvier 2026**
+> **Document V18 - Mise à jour : 05 Février 2026**
 > Architecture SEPA Pure + Système Marchand + CGU Harmonisées
 
 ---
@@ -27,25 +27,25 @@
 |----------|--------|
 | Plans Particuliers | 4 (Gratuit → Premium) |
 | Plans Entreprises | 7 (Starter → Unlimited) |
-| Prix max Particulier | 9,99€/mois |
+| Prix max Particulier | 6,99€/mois |
 | Prix max Entreprise | Sur devis |
 | Marchés cibles | Zone Euro + Zone FCFA |
 | Modèle | Freemium + Abonnements + Boost Marchand |
 
 ---
 
-## 2. Architecture Technique (V17)
+## 2. Architecture Technique (V18)
 
 ### 2.1 SEPA Pure - Principe Fondamental
 
 > **Tontetic ne touche JAMAIS les fonds des utilisateurs**
 
-| Élément | Architecture V17 |
+| Élément | Architecture V18 |
 |---------|-----------------|
 | Transit des fonds | Direct membre → bénéficiaire (via PSP) |
 | Frais de dossier | ❌ **SUPPRIMÉ** |
 | Assurance | ❌ **NON PROPOSÉE** |
-| Wallet interne | ❌ **SUPPRIMÉ** |
+| Portefeuille Sécurisé | ❌ **SUPPRIMÉ** |
 | Licence ACPR/EME/EMI | ❌ **Non requise** |
 | Statut juridique | Prestataire technique (LCEN Art.6) |
 
@@ -84,9 +84,9 @@
 | Plan | Prix €/mois | Prix FCFA/mois | Tontines | Participants |
 |------|-------------|----------------|----------|--------------|
 | **Gratuit** | 0 | 0 | 1 | 5 |
-| **Starter** | 3,99 | 2 500 | 2 | 10 |
-| **Standard** | 6,99 | 4 500 | 3 | 15 |
-| **Premium** | 9,99 | 6 500 | 5 | 20 |
+| **Starter** | 2,99 | 2 500 | 2 | 10 |
+| **Standard** | 4,99 | 4 500 | 3 | 15 |
+| **Premium** | 6,99 | 6 500 | 5 | 20 |
 
 **Cotisation max : 500€**
 
@@ -104,12 +104,12 @@
 
 **Cotisation max Entreprise : 200€**
 
-### 3.4 Système Marchand (V17)
+### 3.4 Système Marchand (V18)
 
 | Type Marchand | KYC | Limite CA | Offres | Prix/mois |
 |---------------|-----|-----------|--------|-----------|
-| **Particulier** | Light (email + PSP ID) | 3 000€/an | 5 max | 4,99€ |
-| **Vérifié** | Complet (SIRET + ID) | Illimité | Illimité | 9,99€ |
+| **Particulier** | Light (email + PSP ID) | 3 000€/an | 5 max | 14,99€ (Unique) |
+| **Vérifié** | Complet (SIRET + ID) | Illimité | Illimité | 14,99€ (Unique) |
 
 **Revenus Boost :**
 | Option | Prix | Durée |
@@ -132,7 +132,7 @@
 
 ---
 
-## 4. Cadre Juridique (CGU Harmonisées V17)
+## 4. Cadre Juridique (CGU Harmonisées V18)
 
 ### 4.1 Structure CGU
 
@@ -150,7 +150,7 @@
 | Prestataire technique LCEN | ✅ CGU + UI disclaimers |
 | Pas établissement de paiement | ✅ Architecture SEPA Pure |
 | Pas détention de fonds | ✅ Transit direct PSP |
-| Interdiction wallet interne | ✅ UI "Synthèse PSP" |
+| Interdiction wallet interne | ✅ UI "Portefeuille Sécurisé" |
 | Garantie = autorisation | ✅ `sepa_guarantee_service.dart` |
 | IA = pas conseil financier | ✅ `gemini_service.dart` |
 
@@ -190,7 +190,7 @@ lib/features/
 ├── social/         # Partage social
 ├── subscription/   # Abonnements (Particuliers + Entreprises)
 ├── tontine/        # Cœur métier
-└── wallet/         # Synthèse PSP (pas wallet interne)
+└── wallet/         # Portefeuille Sécurisé (Agent PSP)
 ```
 
 ---
@@ -273,5 +273,5 @@ lib/features/
 
 ---
 
-*Document V17 - Généré le : 07 Janvier 2026*
+*Document V18 - Généré le : 05 Février 2026*
 *Basé sur : Analyse du code source Tontetic + Audit CGU*

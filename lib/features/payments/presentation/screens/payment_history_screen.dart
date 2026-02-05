@@ -3,6 +3,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:tontetic/core/theme/app_theme.dart';
 import 'package:tontetic/core/providers/user_provider.dart';
+import 'package:tontetic/core/providers/localization_provider.dart';
 import 'package:intl/intl.dart';
 
 /// Payment History Screen
@@ -23,13 +24,14 @@ class _PaymentHistoryScreenState extends ConsumerState<PaymentHistoryScreen> {
   @override
   Widget build(BuildContext context) {
     final user = ref.watch(userProvider);
+    final l10n = ref.watch(localizationProvider);
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
 
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Historique des Paiements'),
+        title: Text(l10n.translate('payment_history_title')),
         backgroundColor: isDark ? Colors.black : AppTheme.marineBlue,
         foregroundColor: Colors.white,
       ),
@@ -88,7 +90,7 @@ class _PaymentHistoryScreenState extends ConsumerState<PaymentHistoryScreen> {
                     Expanded(
                       child: _buildSummaryCard(
                         icon: Icons.arrow_downward,
-                        label: 'Reçu',
+                        label: l10n.translate('filter_received'),
                         amount: totalReceived,
                         color: Colors.green,
                         isDark: isDark,
@@ -98,7 +100,7 @@ class _PaymentHistoryScreenState extends ConsumerState<PaymentHistoryScreen> {
                     Expanded(
                       child: _buildSummaryCard(
                         icon: Icons.arrow_upward,
-                        label: 'Payé',
+                        label: l10n.translate('filter_paid'),
                         amount: totalPaid,
                         color: Colors.orange,
                         isDark: isDark,
@@ -114,13 +116,13 @@ class _PaymentHistoryScreenState extends ConsumerState<PaymentHistoryScreen> {
                 padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                 child: Row(
                   children: [
-                    _buildFilterChip('all', 'Tout', isDark),
+                    _buildFilterChip('all', l10n.translate('filter_all'), isDark),
                     const SizedBox(width: 8),
-                    _buildFilterChip('received', 'Reçu', isDark),
+                    _buildFilterChip('received', l10n.translate('filter_received'), isDark),
                     const SizedBox(width: 8),
-                    _buildFilterChip('paid', 'Payé', isDark),
+                    _buildFilterChip('paid', l10n.translate('filter_paid'), isDark),
                     const SizedBox(width: 8),
-                    _buildFilterChip('failed', 'Échoué', isDark),
+                    _buildFilterChip('failed', l10n.translate('filter_failed'), isDark),
                   ],
                 ),
               ),
@@ -135,7 +137,7 @@ class _PaymentHistoryScreenState extends ConsumerState<PaymentHistoryScreen> {
                             Icon(Icons.receipt_long, size: 64, color: Colors.grey[400]),
                             const SizedBox(height: 16),
                             Text(
-                              'Aucune transaction',
+                              l10n.translate('no_transactions'),
                               style: TextStyle(
                                 fontSize: 16,
                                 color: Colors.grey[600],
@@ -348,7 +350,7 @@ class _PaymentHistoryScreenState extends ConsumerState<PaymentHistoryScreen> {
                     borderRadius: BorderRadius.circular(4),
                   ),
                   child: Text(
-                    isFailed ? 'Échoué' : 'Réussi',
+                    isFailed ? ref.read(localizationProvider).translate('tx_status_failed') : ref.read(localizationProvider).translate('tx_status_success'),
                     style: TextStyle(
                       fontSize: 10,
                       color: isFailed ? Colors.red : Colors.green,
@@ -366,6 +368,7 @@ class _PaymentHistoryScreenState extends ConsumerState<PaymentHistoryScreen> {
 
   void _showTransactionDetails(Map<String, dynamic> tx) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final l10n = ref.read(localizationProvider);
     
     showModalBottomSheet(
       context: context,
@@ -392,7 +395,7 @@ class _PaymentHistoryScreenState extends ConsumerState<PaymentHistoryScreen> {
               ),
               const SizedBox(height: 24),
               Text(
-                'Détails de la Transaction',
+                l10n.translate('tx_details_title'),
                 style: TextStyle(
                   fontSize: 20,
                   fontWeight: FontWeight.bold,
@@ -400,21 +403,21 @@ class _PaymentHistoryScreenState extends ConsumerState<PaymentHistoryScreen> {
                 ),
               ),
               const SizedBox(height: 24),
-              _buildDetailRow('Cercle', tx['circleName'], isDark),
-              _buildDetailRow('Numéro de Pot', '#${tx['potNumber']}', isDark),
-              _buildDetailRow('Type', tx['type'] == 'received' ? 'Réception' : 'Contribution', isDark),
-              _buildDetailRow('Montant', '${tx['amount']} ${tx['currency']}', isDark),
-              _buildDetailRow('Date', DateFormat('dd MMMM yyyy à HH:mm', 'fr_FR').format(tx['date']), isDark),
-              _buildDetailRow('Statut', tx['status'] == 'success' ? '✓ Réussi' : '✗ Échoué', isDark),
+              _buildDetailRow(l10n.translate('tx_circle'), tx['circleName'], isDark),
+              _buildDetailRow(l10n.translate('tx_pot_number'), '#${tx['potNumber']}', isDark),
+              _buildDetailRow(l10n.translate('tx_type'), tx['type'] == 'received' ? l10n.translate('tx_type_received') : l10n.translate('tx_type_contribution'), isDark),
+              _buildDetailRow(l10n.translate('tx_amount'), '${tx['amount']} ${tx['currency']}', isDark),
+              _buildDetailRow(l10n.translate('tx_date'), DateFormat('dd MMMM yyyy à HH:mm', 'fr_FR').format(tx['date']), isDark),
+              _buildDetailRow(l10n.translate('tx_status'), tx['status'] == 'success' ? '✓ ${l10n.translate('tx_status_success')}' : '✗ ${l10n.translate('tx_status_failed')}', isDark),
               if (tx['errorReason'] != null)
-                _buildDetailRow('Raison', tx['errorReason'], isDark),
+                _buildDetailRow(l10n.translate('tx_reason'), tx['errorReason'], isDark),
               const SizedBox(height: 24),
               SizedBox(
                 width: double.infinity,
                 child: ElevatedButton.icon(
                   onPressed: () => Navigator.pop(context),
                   icon: const Icon(Icons.close),
-                  label: const Text('Fermer'),
+                  label: Text(l10n.translate('close')),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: AppTheme.marineBlue,
                     foregroundColor: Colors.white,
