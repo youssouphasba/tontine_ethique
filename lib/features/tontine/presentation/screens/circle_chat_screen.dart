@@ -5,6 +5,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:tontetic/core/theme/app_theme.dart';
 import 'package:tontetic/core/providers/user_provider.dart';
 import 'package:tontetic/core/services/storage_service.dart';
+import 'package:tontetic/core/services/message_encryption_service.dart';
+import 'package:tontetic/core/services/security_service.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:record/record.dart';
 import 'package:audioplayers/audioplayers.dart';
@@ -36,15 +38,45 @@ class _CircleChatScreenState extends ConsumerState<CircleChatScreen> {
   final AudioRecorder _audioRecorder = AudioRecorder();
   final AudioPlayer _audioPlayer = AudioPlayer(); // For playback
   bool _isRecording = false;
-  String? _recordingPath;
-  
+
   // Upload State
   bool _isUploading = false;
 
   @override
   void initState() {
     super.initState();
-    // Preload permissions if possible or wait for action
+    // Initialize E2E encryption for this circle
+    _initializeEncryption();
+  }
+
+  /// Initialize E2E encryption for this circle (load key from secure storage)
+  Future<void> _initializeEncryption() async {
+    try {
+      final user = ref.read(userProvider);
+      final isAvailable = await MessageEncryptionService.isEncryptionAvailable(widget.circleId);
+
+      if (!isAvailable) {
+        // Try to load encryption key from Firestore
+        final keyDoc = await FirebaseFirestore.instance
+            .collection('tontines')
+            .doc(widget.circleId)
+            .collection('e2e_keys')
+            .doc(user.uid)
+            .get();
+
+        if (keyDoc.exists) {
+          final encryptedSecret = keyDoc.data()?['encryptedSecret'];
+          if (encryptedSecret != null) {
+            // Decrypt using SecurityService (symmetric decryption)
+            final secret = SecurityService.decryptData(encryptedSecret);
+            await MessageEncryptionService.setCircleSecret(widget.circleId, secret);
+            debugPrint('E2E encryption initialized for circle ${widget.circleId}');
+          }
+        }
+      }
+    } catch (e) {
+      debugPrint('E2E initialization error: $e');
+    }
   }
 
   @override
@@ -84,6 +116,22 @@ class _CircleChatScreenState extends ConsumerState<CircleChatScreen> {
       ),
       body: Column(
         children: [
+          // E2E Encryption indicator banner
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            color: Colors.green.withValues(alpha: 0.1),
+            child: const Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(Icons.lock, color: Colors.green, size: 14),
+                SizedBox(width: 6),
+                Text(
+                  'Messages chiffrés de bout en bout',
+                  style: TextStyle(fontSize: 11, color: Colors.green, fontWeight: FontWeight.w500),
+                ),
+              ],
+            ),
+          ),
           // Voting reminder banner
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
@@ -165,23 +213,8 @@ class _CircleChatScreenState extends ConsumerState<CircleChatScreen> {
                      final data = docs[index].data() as Map<String, dynamic>;
                      final user = ref.read(userProvider);
                      final isMe = data['senderId'] == user.uid;
-                     
-                     // Adapter for _buildMessageBubble
-                     final msgMap = {
-                       'id': docs[index].id,
-                       'senderId': data['senderId'],
-                       'senderName': data['senderName'] ?? 'Membre',
-                       'text': data['text'] ?? '',
-                       'type': data['type'] ?? 'text',
-                       'url': data['url'],
-                       'fileName': data['fileName'],
-                       'timestamp': data['timestamp'] != null 
-                           ? (data['timestamp'] as Timestamp).toDate() 
-                           : DateTime.now(),
-                       'isMe': isMe,
-                     };
-                     
-                     return _buildMessageBubble(msgMap);
+
+                     return _buildEncryptedMessageItem(data, docs[index].id, isMe);
                   },
                 );
               },
@@ -279,6 +312,102 @@ class _CircleChatScreenState extends ConsumerState<CircleChatScreen> {
     );
   }
 
+
+  /// Build a message item, handling decryption for encrypted messages
+  Widget _buildEncryptedMessageItem(Map<String, dynamic> data, String docId, bool isMe) {
+    final isEncrypted = data['isEncrypted'] == true;
+    final messageType = data['type'] ?? 'text';
+
+    if (!isEncrypted) {
+      // Plaintext message (legacy or fallback)
+      final msgMap = {
+        'id': docId,
+        'senderId': data['senderId'],
+        'senderName': data['senderName'] ?? 'Membre',
+        'text': data['text'] ?? '',
+        'type': messageType,
+        'url': data['url'],
+        'fileName': data['fileName'],
+        'timestamp': data['timestamp'] != null
+            ? (data['timestamp'] as Timestamp).toDate()
+            : DateTime.now(),
+        'isMe': isMe,
+      };
+      return _buildMessageBubble(msgMap);
+    }
+
+    // Encrypted message - use FutureBuilder to decrypt
+    return FutureBuilder<Map<String, String?>>(
+      future: _decryptMessageContent(data),
+      builder: (context, snapshot) {
+        String displayText;
+        String? decryptedUrl;
+
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          displayText = '🔓 Déchiffrement...';
+        } else if (snapshot.hasError) {
+          displayText = '🔒 Message chiffré (impossible de déchiffrer)';
+        } else {
+          displayText = snapshot.data?['text'] ?? '';
+          decryptedUrl = snapshot.data?['url'];
+        }
+
+        final msgMap = {
+          'id': docId,
+          'senderId': data['senderId'],
+          'senderName': data['senderName'] ?? 'Membre',
+          'text': displayText,
+          'type': messageType,
+          'url': decryptedUrl, // Decrypted URL for media
+          'fileName': data['fileName'],
+          'timestamp': data['timestamp'] != null
+              ? (data['timestamp'] as Timestamp).toDate()
+              : DateTime.now(),
+          'isMe': isMe,
+          'isEncrypted': true,
+        };
+        return _buildMessageBubble(msgMap);
+      },
+    );
+  }
+
+  /// Decrypt an encrypted message (text and/or URL)
+  Future<Map<String, String?>> _decryptMessageContent(Map<String, dynamic> data) async {
+    final result = <String, String?>{};
+
+    try {
+      // Decrypt text message
+      final encryptedData = data['encrypted'] as Map<String, dynamic>?;
+      if (encryptedData != null) {
+        final encryptedMsg = EncryptedMessage.fromJson(encryptedData);
+        final decrypted = await MessageEncryptionService.decrypt(
+          encryptedMessage: encryptedMsg,
+          circleId: widget.circleId,
+        );
+        result['text'] = decrypted.message;
+      } else {
+        result['text'] = data['text'] ?? '';
+      }
+
+      // Decrypt URL for media messages
+      final encryptedUrlData = data['encryptedUrl'] as Map<String, dynamic>?;
+      if (encryptedUrlData != null) {
+        final encryptedUrl = EncryptedMessage.fromJson(encryptedUrlData);
+        final decryptedUrl = await MessageEncryptionService.decrypt(
+          encryptedMessage: encryptedUrl,
+          circleId: widget.circleId,
+        );
+        result['url'] = decryptedUrl.message;
+      } else {
+        result['url'] = data['url'];
+      }
+
+      return result;
+    } catch (e) {
+      debugPrint('Decryption error: $e');
+      rethrow;
+    }
+  }
 
   Widget _buildMessageBubble(Map<String, dynamic> message) {
     final isMe = message['isMe'] as bool;
@@ -396,12 +525,27 @@ class _CircleChatScreenState extends ConsumerState<CircleChatScreen> {
                       ],
                     ),
                   const SizedBox(height: 4),
-                  Text(
-                    _formatTime(timestamp),
-                    style: TextStyle(
-                      fontSize: 10,
-                      color: isMe ? Colors.white60 : Colors.grey,
-                    ),
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      // E2E encryption indicator
+                      if (message['isEncrypted'] == true)
+                        Padding(
+                          padding: const EdgeInsets.only(right: 4),
+                          child: Icon(
+                            Icons.lock,
+                            size: 10,
+                            color: isMe ? Colors.white60 : Colors.grey,
+                          ),
+                        ),
+                      Text(
+                        _formatTime(timestamp),
+                        style: TextStyle(
+                          fontSize: 10,
+                          color: isMe ? Colors.white60 : Colors.grey,
+                        ),
+                      ),
+                    ],
                   ),
                 ],
               ),
@@ -430,17 +574,44 @@ class _CircleChatScreenState extends ConsumerState<CircleChatScreen> {
     _messageController.clear(); // Optimistic clear
 
     try {
+      // Check if encryption is available for this circle
+      final isEncrypted = await MessageEncryptionService.isEncryptionAvailable(widget.circleId);
+
+      Map<String, dynamic> messageData;
+
+      if (isEncrypted) {
+        // Encrypt the message
+        final encryptedMsg = await MessageEncryptionService.encrypt(
+          message: text,
+          circleId: widget.circleId,
+          senderId: user.uid,
+        );
+
+        messageData = {
+          'senderId': user.uid,
+          'senderName': user.displayName.isNotEmpty ? user.displayName : 'Membre',
+          'encrypted': encryptedMsg.toJson(), // Store encrypted payload
+          'type': 'text',
+          'isEncrypted': true,
+          'timestamp': FieldValue.serverTimestamp(),
+        };
+      } else {
+        // Fallback: Store plaintext (for backwards compatibility during migration)
+        messageData = {
+          'senderId': user.uid,
+          'senderName': user.displayName.isNotEmpty ? user.displayName : 'Membre',
+          'text': text,
+          'type': 'text',
+          'isEncrypted': false,
+          'timestamp': FieldValue.serverTimestamp(),
+        };
+      }
+
       await FirebaseFirestore.instance
           .collection('tontines')
           .doc(widget.circleId)
           .collection('messages')
-          .add({
-        'senderId': user.uid,
-        'senderName': user.displayName.isNotEmpty ? user.displayName : 'Membre',
-        'text': text,
-        'type': 'text',
-        'timestamp': FieldValue.serverTimestamp(),
-      });
+          .add(messageData);
       // Scroll handled by StreamBuilder listener
     } catch (e) {
       if (mounted) {
@@ -462,7 +633,6 @@ class _CircleChatScreenState extends ConsumerState<CircleChatScreen> {
         await _audioRecorder.start(const RecordConfig(), path: path);
         setState(() {
           _isRecording = true;
-          _recordingPath = path;
         });
       }
     } catch (e) {
@@ -507,22 +677,50 @@ class _CircleChatScreenState extends ConsumerState<CircleChatScreen> {
     try {
       final fileName = '${DateTime.now().millisecondsSinceEpoch}_${file.uri.pathSegments.last}';
       final path = 'tontines/${widget.circleId}/chat/$fileName';
-      
+
       final downloadUrl = await storage.uploadFile(path, file);
-      
+
+      // Check if encryption is available
+      final isEncrypted = await MessageEncryptionService.isEncryptionAvailable(widget.circleId);
+
+      Map<String, dynamic> messageData;
+
+      if (isEncrypted) {
+        // Encrypt the URL and metadata
+        final encryptedUrlData = await MessageEncryptionService.encrypt(
+          message: downloadUrl,
+          circleId: widget.circleId,
+          senderId: user.uid,
+        );
+
+        messageData = {
+          'senderId': user.uid,
+          'senderName': user.displayName.isNotEmpty ? user.displayName : 'Membre',
+          'type': type,
+          'encryptedUrl': encryptedUrlData.toJson(), // Encrypted URL
+          'fileName': type == 'file' ? file.uri.pathSegments.last : null,
+          'isEncrypted': true,
+          'timestamp': FieldValue.serverTimestamp(),
+        };
+      } else {
+        // Fallback: plaintext URL
+        messageData = {
+          'senderId': user.uid,
+          'senderName': user.displayName.isNotEmpty ? user.displayName : 'Membre',
+          'type': type,
+          'url': downloadUrl,
+          'fileName': type == 'file' ? file.uri.pathSegments.last : null,
+          'isEncrypted': false,
+          'timestamp': FieldValue.serverTimestamp(),
+        };
+      }
+
       await FirebaseFirestore.instance
           .collection('tontines')
           .doc(widget.circleId)
           .collection('messages')
-          .add({
-        'senderId': user.uid,
-        'senderName': user.displayName.isNotEmpty ? user.displayName : 'Membre',
-        'type': type,
-        'url': downloadUrl,
-        'fileName': type == 'file' ? file.uri.pathSegments.last : null,
-        'timestamp': FieldValue.serverTimestamp(),
-      });
-      
+          .add(messageData);
+
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -575,8 +773,13 @@ class _CircleChatScreenState extends ConsumerState<CircleChatScreen> {
             Text('❌ Pas de propos offensants'),
             SizedBox(height: 16),
             Text(
-              '⚠️ Les messages sont archivés pour la transparence.',
-              style: TextStyle(fontSize: 12, fontStyle: FontStyle.italic),
+              '🔒 Messages chiffrés de bout en bout (E2E).',
+              style: TextStyle(fontSize: 12, fontStyle: FontStyle.italic, color: Colors.green),
+            ),
+            SizedBox(height: 4),
+            Text(
+              'Seuls les membres du cercle peuvent lire les messages.',
+              style: TextStyle(fontSize: 11, fontStyle: FontStyle.italic, color: Colors.grey),
             ),
           ],
         ),

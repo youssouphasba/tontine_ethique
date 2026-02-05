@@ -17,6 +17,39 @@ class AuthResult {
   AuthResult({required this.success, this.error, this.message, this.data, this.isNewUser = false});
 }
 
+/// Session OTP avec expiration automatique
+class OtpSession {
+  final String verificationId;
+  final String phoneNumber;
+  final DateTime createdAt;
+  final DateTime expiresAt;
+
+  OtpSession({
+    required this.verificationId,
+    required this.phoneNumber,
+    required this.createdAt,
+    required this.expiresAt,
+  });
+
+  bool get isExpired => DateTime.now().isAfter(expiresAt);
+
+  /// Durée de vie d'une session OTP (10 minutes)
+  static const Duration sessionDuration = Duration(minutes: 10);
+
+  factory OtpSession.create({
+    required String verificationId,
+    required String phoneNumber,
+  }) {
+    final now = DateTime.now();
+    return OtpSession(
+      verificationId: verificationId,
+      phoneNumber: phoneNumber,
+      createdAt: now,
+      expiresAt: now.add(sessionDuration),
+    );
+  }
+}
+
 // Service d'authentification centralisé
 // Gère l'inscription, la connexion et la session utilisateure
 class AuthService {
@@ -25,7 +58,37 @@ class AuthService {
   late final FirebaseFirestore _db = FirebaseFirestore.instance;
   late final GoogleSignIn _googleSignIn = GoogleSignIn();
 
-  String? _verificationId;
+  /// Sessions OTP par numéro de téléphone (évite race condition)
+  final Map<String, OtpSession> _otpSessions = {};
+
+  /// Nettoie les sessions expirées
+  void _cleanupExpiredSessions() {
+    _otpSessions.removeWhere((phone, session) => session.isExpired);
+  }
+
+  /// Récupère une session OTP valide pour un numéro
+  OtpSession? _getValidSession(String phoneNumber) {
+    _cleanupExpiredSessions();
+    final session = _otpSessions[phoneNumber];
+    if (session != null && !session.isExpired) {
+      return session;
+    }
+    return null;
+  }
+
+  /// Stocke une nouvelle session OTP
+  void _storeSession(String phoneNumber, String verificationId) {
+    _cleanupExpiredSessions();
+    _otpSessions[phoneNumber] = OtpSession.create(
+      verificationId: verificationId,
+      phoneNumber: phoneNumber,
+    );
+  }
+
+  /// Supprime une session après utilisation
+  void _removeSession(String phoneNumber) {
+    _otpSessions.remove(phoneNumber);
+  }
 
   /// Stream de l'état de l'utilisateur
   Stream<User?> get userStream => _auth.authStateChanges();
@@ -87,7 +150,7 @@ class AuthService {
   Future<AuthResult> sendOtp(String phoneNumber) async {
     try {
       final comp = Completer<AuthResult>();
-      
+
       await _auth.verifyPhoneNumber(
         phoneNumber: phoneNumber,
         verificationCompleted: (PhoneAuthCredential credential) async {
@@ -98,11 +161,15 @@ class AuthService {
           comp.complete(AuthResult(success: false, error: _mapFirebaseError(e.code)));
         },
         codeSent: (String verificationId, int? resendToken) {
-          _verificationId = verificationId;
-          comp.complete(AuthResult(success: true, message: 'Code envoyé au $phoneNumber'));
+          _storeSession(phoneNumber, verificationId);
+          comp.complete(AuthResult(
+            success: true,
+            message: 'Code envoyé au $phoneNumber',
+            data: {'phoneNumber': phoneNumber}, // Retourne le numéro pour validateOtp
+          ));
         },
         codeAutoRetrievalTimeout: (String verificationId) {
-          _verificationId = verificationId;
+          _storeSession(phoneNumber, verificationId);
         },
       );
 
@@ -113,23 +180,28 @@ class AuthService {
   }
 
   /// Valide l'OTP sans créer de profil complet (juste vérification)
-  Future<AuthResult> validateOtp(String smsCode) async {
+  /// [phoneNumber] doit correspondre au numéro utilisé lors de sendOtp
+  Future<AuthResult> validateOtp(String smsCode, {required String phoneNumber}) async {
     try {
-       if (_verificationId == null) {
-        return AuthResult(success: false, error: 'Session expirée');
+      final session = _getValidSession(phoneNumber);
+      if (session == null) {
+        return AuthResult(success: false, error: 'Session expirée ou invalide');
       }
 
       final credential = PhoneAuthProvider.credential(
-        verificationId: _verificationId!,
+        verificationId: session.verificationId,
         smsCode: smsCode,
       );
 
       // Verify by attempting sign-in (creates a temporary anonymous-like session or real phone session)
       await _auth.signInWithCredential(credential);
-      
+
+      // Supprimer la session après utilisation réussie
+      _removeSession(phoneNumber);
+
       // If successful, we sign out immediately to allow email registration
       await _auth.signOut();
-      
+
       return AuthResult(success: true);
     } on FirebaseAuthException catch (e) {
       return AuthResult(success: false, error: _mapFirebaseError(e.code));
@@ -147,16 +219,22 @@ class AuthService {
         phoneNumber: phoneNumber,
         verificationCompleted: (PhoneAuthCredential credential) async {
           await _auth.signInWithCredential(credential);
+          // Nettoyer la session après auto-vérification
+          _removeSession(phoneNumber);
         },
         verificationFailed: (FirebaseAuthException e) {
           comp.complete(AuthResult(success: false, error: _mapFirebaseError(e.code)));
         },
         codeSent: (String verificationId, int? resendToken) {
-          _verificationId = verificationId;
-          comp.complete(AuthResult(success: true, message: 'Code envoyé au $phoneNumber'));
+          _storeSession(phoneNumber, verificationId);
+          comp.complete(AuthResult(
+            success: true,
+            message: 'Code envoyé au $phoneNumber',
+            data: {'phoneNumber': phoneNumber},
+          ));
         },
         codeAutoRetrievalTimeout: (String verificationId) {
-          _verificationId = verificationId;
+          _storeSession(phoneNumber, verificationId);
         },
       );
 
@@ -169,20 +247,24 @@ class AuthService {
   /// Vérifie le code OTP reçu par SMS
   Future<AuthResult> verifyOtp({required String phone, required String token}) async {
     try {
-      if (_verificationId == null) {
+      final session = _getValidSession(phone);
+      if (session == null) {
         return AuthResult(success: false, error: 'Session de vérification expirée');
       }
 
       final credential = PhoneAuthProvider.credential(
-        verificationId: _verificationId!,
+        verificationId: session.verificationId,
         smsCode: token,
       );
 
       final userCredential = await _auth.signInWithCredential(credential);
 
+      // Supprimer la session après utilisation réussie
+      _removeSession(phone);
+
       // Créer profil si nouveau
       if (userCredential.user != null && userCredential.additionalUserInfo!.isNewUser) {
-         await _createUserProfile(
+        await _createUserProfile(
           uid: userCredential.user!.uid,
           email: '',
           fullName: 'Utilisateur $phone',
@@ -228,7 +310,7 @@ class AuthService {
           return AuthResult(success: false, error: 'Connexion annulée');
         }
 
-        debugPrint('DEBUG_AUTH: Google user obtained: ${googleUser.email}');
+        debugPrint('DEBUG_AUTH: Google user obtained successfully');
         
         // Step 2: Get authentication tokens with timeout
         debugPrint('DEBUG_AUTH: Getting authentication tokens...');
@@ -255,7 +337,7 @@ class AuthService {
         userCredential = await _auth.signInWithCredential(credential);
       }
       
-      debugPrint('DEBUG_AUTH: Firebase auth successful! User: ${userCredential.user?.email}');
+      debugPrint('DEBUG_AUTH: Firebase auth successful!');
 
       bool isNewUser = false;
       if (userCredential.user != null) {
@@ -383,21 +465,45 @@ class AuthService {
   }
 
   /// Traduction des erreurs Firebase
+  /// NOTE: Messages génériques pour éviter l'énumération d'utilisateurs (sécurité)
   String _mapFirebaseError(String code) {
     switch (code) {
-      case 'user-not-found': return 'Aucun utilisateur trouvé pour cet email.';
-      case 'wrong-password': return 'Mot de passe incorrect.';
-      case 'invalid-credential': return 'Email ou mot de passe incorrect.'; // New Firebase error code
-      case 'email-already-in-use': return 'Cet email est déjà utilisé.';
-      case 'invalid-email': return 'Email non valide.';
-      case 'weak-password': return 'Le mot de passe est trop faible.';
-      case 'operation-not-allowed': return 'Opération non autorisée.';
-      case 'invalid-verification-code': return 'Code de vérification invalide.';
-      case 'invalid-verification-id': return 'ID de vérification invalide.';
-      case 'too-many-requests': return 'Trop de tentatives. Réessayez plus tard.';
-      case 'network-request-failed': return 'Erreur réseau. Vérifiez votre connexion.';
-      case 'user-disabled': return 'Ce compte a été désactivé.';
-      default: return 'Une erreur de sécurité est survenue ($code).';
+      // Connexion - Messages génériques pour éviter l'énumération
+      case 'user-not-found':
+      case 'wrong-password':
+      case 'invalid-credential':
+        return 'Email ou mot de passe incorrect.';
+
+      // Inscription
+      case 'email-already-in-use':
+        return 'Un compte existe déjà avec cette adresse. Connectez-vous ou réinitialisez votre mot de passe.';
+      case 'invalid-email':
+        return 'Format d\'email invalide.';
+      case 'weak-password':
+        return 'Le mot de passe ne respecte pas les critères de sécurité.';
+
+      // Vérification téléphone
+      case 'invalid-verification-code':
+        return 'Code de vérification incorrect ou expiré.';
+      case 'invalid-verification-id':
+        return 'Session de vérification expirée. Veuillez renvoyer le code.';
+
+      // Limites et accès
+      case 'too-many-requests':
+        return 'Trop de tentatives. Veuillez patienter quelques minutes.';
+      case 'operation-not-allowed':
+        return 'Cette méthode de connexion n\'est pas activée.';
+      case 'user-disabled':
+        return 'Ce compte a été suspendu. Contactez le support.';
+
+      // Réseau
+      case 'network-request-failed':
+        return 'Erreur de connexion. Vérifiez votre réseau.';
+
+      default:
+        // Ne pas exposer le code d'erreur technique
+        debugPrint('AUTH_ERROR: Unhandled Firebase error code: $code');
+        return 'Une erreur est survenue. Veuillez réessayer.';
     }
   }
 

@@ -5,24 +5,22 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:tontetic/core/providers/user_provider.dart';
 import 'package:tontetic/core/models/user_model.dart';
 import 'package:tontetic/features/auth/presentation/screens/type_selection_screen.dart';
-import 'package:tontetic/features/auth/presentation/screens/psp_connection_screen.dart';
 import 'package:go_router/go_router.dart';
 import 'package:tontetic/features/tontine/presentation/screens/legal_commitment_screen.dart';
 
-/// V15: Invitation Landing Flow
-/// Secure multi-step process for joining a tontine via invitation link
-/// 
-/// Steps:
-/// 1. Circle presentation (no payment mention)
-/// 2. Login or signup
-/// 3. Contract signing (no banking info)
-/// 4. Creator approval wait
-/// 5. PSP connection (only after approval)
+/// V16: Simplified Invitation Landing Flow (3 steps)
+///
+/// Simplified flow for better UX:
+/// 1. Présentation + Contrat (combined) - Shows all info upfront + contract signing
+/// 2. Connexion - Login/signup if needed
+/// 3. Terminé - Request submitted, user notified via push when approved
+///
+/// PSP connection is triggered via deep link from push notification after approval.
 
 class InvitationLandingScreen extends ConsumerStatefulWidget {
   final String invitationCode;
   final String? circleName;
-  
+
   const InvitationLandingScreen({
     super.key,
     required this.invitationCode,
@@ -36,10 +34,8 @@ class InvitationLandingScreen extends ConsumerStatefulWidget {
 class _InvitationLandingScreenState extends ConsumerState<InvitationLandingScreen> {
   int _currentStep = 0;
   bool _contractSigned = false;
+  bool _requestSubmitted = false;
 
-  bool _isApproved = false;
-  
-  // Data should be fetched via invitationCode
   Map<String, dynamic>? _circleData;
   String _requestId = '';
   String? _errorMessage;
@@ -65,11 +61,11 @@ class _InvitationLandingScreenState extends ConsumerState<InvitationLandingScree
 
       if (doc.exists && mounted) {
         final data = doc.data()!;
-        
-        // Fetch creator details for avatar and score
+
+        // Fetch creator details
         String creatorAvatar = '👤';
         int creatorScore = 100;
-        
+
         try {
           final creatorId = data['creatorId'];
           if (creatorId != null) {
@@ -88,11 +84,13 @@ class _InvitationLandingScreenState extends ConsumerState<InvitationLandingScree
           setState(() {
             _circleData = {
               'name': data['name'] ?? 'Cercle sans nom',
+              'amount': data['amount'] ?? 0,
               'estimatedAmount': '${data['amount'] ?? 0}',
               'currency': data['currency'] ?? 'FCFA',
               'frequency': data['frequency'] ?? 'Mensuel',
               'orderType': data['orderType'] ?? 'Aléatoire',
               'creatorName': data['creatorName'] ?? 'Un membre',
+              'creatorId': data['creatorId'],
               'creatorAvatar': creatorAvatar,
               'creatorScore': creatorScore,
               'objective': data['objective'] ?? 'Épargne solidaire',
@@ -111,7 +109,7 @@ class _InvitationLandingScreenState extends ConsumerState<InvitationLandingScree
     } catch (e) {
       if (mounted) {
         setState(() {
-          _errorMessage = 'Une erreur est survenue lors du chargement : ${e.toString()}';
+          _errorMessage = 'Une erreur est survenue : ${e.toString()}';
           _isLoading = false;
         });
       }
@@ -136,96 +134,127 @@ class _InvitationLandingScreenState extends ConsumerState<InvitationLandingScree
     }
 
     if (_errorMessage != null) {
-      return Scaffold(
-        body: Center(
-          child: Padding(
-            padding: const EdgeInsets.all(24.0),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                const Icon(Icons.error_outline, size: 64, color: Colors.red),
-                const SizedBox(height: 24),
-                Text(
-                  _errorMessage!,
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(fontSize: 16),
-                ),
-                const SizedBox(height: 32),
-                SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton(
-                    onPressed: () => Navigator.pop(context),
-                    child: const Text('RETOUR'),
-                  ),
-                ),
-                TextButton(
-                  onPressed: _fetchCircleDetails,
-                  child: const Text('RÉESSAYER'),
-                ),
-              ],
-            ),
-          ),
-        ),
-      );
+      return _buildErrorScreen();
     }
 
-    // Assuming localizationProvider exists and is imported
-    // final l10n = ref.watch(localizationProvider); 
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       body: SafeArea(
         child: Column(
           children: [
-            // Progress indicator
             _buildProgressIndicator(),
-            
-            // Content
-            Expanded(
-              child: _buildCurrentStep(),
-            ),
+            Expanded(child: _buildCurrentStep()),
           ],
         ),
       ),
     );
   }
 
+  Widget _buildErrorScreen() {
+    return Scaffold(
+      body: Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24.0),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Icon(Icons.error_outline, size: 64, color: Colors.red),
+              const SizedBox(height: 24),
+              Text(
+                _errorMessage!,
+                textAlign: TextAlign.center,
+                style: const TextStyle(fontSize: 16),
+              ),
+              const SizedBox(height: 32),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text('RETOUR'),
+                ),
+              ),
+              TextButton(
+                onPressed: _fetchCircleDetails,
+                child: const Text('RÉESSAYER'),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   Widget _buildProgressIndicator() {
-    final steps = ['Découverte', 'Contrat', 'Compte', 'Validation', 'Paiement'];
-    
+    // Simplified: 3 steps instead of 5
+    final steps = ['Présentation', 'Connexion', 'Terminé'];
+    final progress = (_currentStep + 1) / steps.length;
+
     return Container(
       padding: const EdgeInsets.all(16),
-      color: Colors.white,
+      decoration: BoxDecoration(
+        color: Theme.of(context).cardColor,
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.05),
+            blurRadius: 4,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
       child: Column(
         children: [
+          // Progress bar
+          ClipRRect(
+            borderRadius: BorderRadius.circular(4),
+            child: LinearProgressIndicator(
+              value: progress,
+              backgroundColor: Colors.grey.shade200,
+              valueColor: const AlwaysStoppedAnimation<Color>(AppTheme.gold),
+              minHeight: 6,
+            ),
+          ),
+          const SizedBox(height: 12),
+          // Step indicators
           Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: List.generate(steps.length, (index) {
               final isCompleted = index < _currentStep;
               final isCurrent = index == _currentStep;
-              
-              return Expanded(
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: Container(
-                        height: 4,
-                        decoration: BoxDecoration(
-                          color: isCompleted || isCurrent 
-                            ? AppTheme.gold 
-                            : Colors.grey.shade300,
-                          borderRadius: BorderRadius.circular(2),
-                        ),
-                      ),
+
+              return Row(
+                children: [
+                  Container(
+                    width: 24,
+                    height: 24,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: isCompleted ? Colors.green : (isCurrent ? AppTheme.gold : Colors.grey.shade300),
                     ),
-                    if (index < steps.length - 1) const SizedBox(width: 4),
-                  ],
-                ),
+                    child: Center(
+                      child: isCompleted
+                          ? const Icon(Icons.check, size: 14, color: Colors.white)
+                          : Text(
+                              '${index + 1}',
+                              style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.bold,
+                                color: isCurrent ? AppTheme.marineBlue : Colors.grey,
+                              ),
+                            ),
+                    ),
+                  ),
+                  const SizedBox(width: 4),
+                  Text(
+                    steps[index],
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: isCurrent ? FontWeight.bold : FontWeight.normal,
+                      color: isCurrent ? AppTheme.marineBlue : Colors.grey,
+                    ),
+                  ),
+                ],
               );
             }),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            steps[_currentStep],
-            style: TextStyle(fontWeight: FontWeight.bold, color: Theme.of(context).brightness == Brightness.dark ? AppTheme.gold : AppTheme.marineBlue),
           ),
         ],
       ),
@@ -235,111 +264,84 @@ class _InvitationLandingScreenState extends ConsumerState<InvitationLandingScree
   Widget _buildCurrentStep() {
     switch (_currentStep) {
       case 0:
-        return _buildStep1Discovery();
+        return _buildStep1PresentationAndContract();
       case 1:
-        return _buildStep2Contract();
+        return _buildStep2Auth();
       case 2:
-        return _buildStep3Auth();
-      case 3:
-        return _buildStep4Approval();
-      case 4:
-        return _buildStep5PSP();
+        return _buildStep3Complete();
       default:
-        return _buildStep1Discovery();
+        return _buildStep1PresentationAndContract();
     }
   }
 
-  /// STEP 1: Circle Discovery - No payment mention
-  Widget _buildStep1Discovery() {
+  /// STEP 1: Présentation + Contrat (Combined)
+  /// Shows circle info WITH amount upfront + contract signing
+  Widget _buildStep1PresentationAndContract() {
     return SingleChildScrollView(
-      padding: const EdgeInsets.all(24),
+      padding: const EdgeInsets.all(20),
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Welcome banner
-          Container(
-            padding: const EdgeInsets.all(24),
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                colors: [AppTheme.marineBlue, AppTheme.marineBlue.withValues(alpha: 0.8)],
-              ),
-              borderRadius: BorderRadius.circular(16),
-            ),
-            child: Column(
-              children: [
-                const Icon(Icons.mail_outline, size: 48, color: Colors.white),
-                const SizedBox(height: 16),
-                const Text(
-                  'Vous avez été invité(e) !',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 22,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  '${_circleData!['creatorName']} vous invite à rejoindre son cercle d\'épargne solidaire.',
-                  style: const TextStyle(color: Colors.white70),
-                  textAlign: TextAlign.center,
-                ),
-              ],
-            ),
-          ),
-          
-          const SizedBox(height: 24),
-          
-          // Creator profile
-          _buildCreatorCard(),
-          
-          const SizedBox(height: 24),
-          
-          // Circle info (NO amounts shown)
-          _buildCircleInfoCard(),
-          
-          const SizedBox(height: 24),
-          
+          // Welcome banner with creator info
+          _buildWelcomeBanner(),
+          const SizedBox(height: 20),
+
+          // Circle details with amount visible immediately
+          _buildCircleDetailsCard(),
+          const SizedBox(height: 20),
+
+          // Amount highlight
+          _buildAmountCard(),
+          const SizedBox(height: 20),
+
           // Trust indicators
           _buildTrustIndicators(),
-          
-          const SizedBox(height: 32),
-          
-          // CTA
+          const SizedBox(height: 24),
+
+          // Contract section
+          _buildContractSection(),
+          const SizedBox(height: 24),
+
+          // CTA Button
           SizedBox(
             width: double.infinity,
-            height: 50,
+            height: 52,
             child: ElevatedButton(
               style: ElevatedButton.styleFrom(
-                backgroundColor: AppTheme.gold,
+                backgroundColor: _contractSigned ? AppTheme.gold : Colors.grey.shade400,
                 foregroundColor: AppTheme.marineBlue,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
               ),
-              onPressed: () => setState(() => _currentStep = 1),
-              child: const Text('DÉCOUVRIR LE CERCLE'),
+              onPressed: _contractSigned ? _proceedToAuth : null,
+              child: Text(
+                _contractSigned ? 'CONTINUER' : 'SIGNEZ LE CONTRAT POUR CONTINUER',
+                style: const TextStyle(fontWeight: FontWeight.bold),
+              ),
             ),
           ),
-          
           const SizedBox(height: 12),
-          
-          TextButton(
-            onPressed: () => context.go('/'),
-            child: const Text('Non merci'),
+
+          Center(
+            child: TextButton(
+              onPressed: () => context.go('/'),
+              child: const Text('Non merci, retour à l\'accueil'),
+            ),
           ),
         ],
       ),
     );
   }
 
-  Widget _buildCreatorCard() {
+  Widget _buildWelcomeBanner() {
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.05),
-            blurRadius: 10,
-          ),
-        ],
+        gradient: LinearGradient(
+          colors: [AppTheme.marineBlue, AppTheme.marineBlue.withValues(alpha: 0.85)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(16),
       ),
       child: Row(
         children: [
@@ -348,7 +350,7 @@ class _InvitationLandingScreenState extends ConsumerState<InvitationLandingScree
             backgroundColor: AppTheme.gold,
             child: Text(
               _circleData!['creatorAvatar'],
-              style: const TextStyle(fontSize: 28),
+              style: const TextStyle(fontSize: 24),
             ),
           ),
           const SizedBox(width: 16),
@@ -356,20 +358,28 @@ class _InvitationLandingScreenState extends ConsumerState<InvitationLandingScree
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  _circleData!['creatorName'],
-                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                const Text(
+                  'Vous êtes invité(e) !',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
                 const SizedBox(height: 4),
+                Text(
+                  '${_circleData!['creatorName']} vous invite à rejoindre son cercle.',
+                  style: const TextStyle(color: Colors.white70, fontSize: 13),
+                ),
+                const SizedBox(height: 6),
                 Row(
                   children: [
-                    const Icon(Icons.verified, size: 16, color: Colors.green),
+                    const Icon(Icons.verified, size: 14, color: Colors.greenAccent),
                     const SizedBox(width: 4),
-                    const Text('Profil vérifié', style: TextStyle(fontSize: 12, color: Colors.green)),
-                    const SizedBox(width: 12),
-                    const Icon(Icons.star, size: 16, color: AppTheme.gold),
-                    const SizedBox(width: 4),
-                    Text('Score: ${_circleData!['creatorScore']}%', style: const TextStyle(fontSize: 12)),
+                    Text(
+                      'Score: ${_circleData!['creatorScore']}%',
+                      style: const TextStyle(color: Colors.white70, fontSize: 11),
+                    ),
                   ],
                 ),
               ],
@@ -380,61 +390,34 @@ class _InvitationLandingScreenState extends ConsumerState<InvitationLandingScree
     );
   }
 
-  Widget _buildCircleInfoCard() {
+  Widget _buildCircleDetailsCard() {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: Theme.of(context).cardColor,
         borderRadius: BorderRadius.circular(12),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.05),
-            blurRadius: 10,
-          ),
-        ],
+        border: Border.all(color: Colors.grey.shade200),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
-              Icon(Icons.circle, color: Theme.of(context).brightness == Brightness.dark ? AppTheme.gold : AppTheme.marineBlue),
-              const SizedBox(width: 12),
+              Icon(Icons.people_alt, color: AppTheme.marineBlue),
+              const SizedBox(width: 10),
               Expanded(
                 child: Text(
                   _circleData!['name'],
-                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
+                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 17),
                 ),
               ),
             ],
           ),
-          const Divider(height: 24),
-          _buildInfoRow(Icons.flag, 'Objectif', _circleData!['objective']),
-          _buildInfoRow(Icons.people, 'Participants', '${_circleData!['memberCount']}/${_circleData!['maxMembers']} membres'),
-          _buildInfoRow(Icons.calendar_today, 'Fréquence', _circleData!['frequency']),
-          _buildInfoRow(Icons.how_to_vote, 'Ordre des tours', _circleData!['orderType']),
-          
-          // Note: No amount shown at this step
-          const SizedBox(height: 12),
-          Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: Colors.blue.shade50,
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: const Row(
-              children: [
-                Icon(Icons.info_outline, color: Colors.blue, size: 20),
-                SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    'Les détails financiers seront présentés à l\'étape suivante.',
-                    style: TextStyle(fontSize: 12, color: Colors.blue),
-                  ),
-                ),
-              ],
-            ),
-          ),
+          const Divider(height: 20),
+          _buildInfoRow(Icons.flag_outlined, 'Objectif', _circleData!['objective']),
+          _buildInfoRow(Icons.group_outlined, 'Participants', '${_circleData!['memberCount']}/${_circleData!['maxMembers']}'),
+          _buildInfoRow(Icons.calendar_today_outlined, 'Fréquence', _circleData!['frequency']),
+          _buildInfoRow(Icons.shuffle, 'Ordre', _circleData!['orderType']),
         ],
       ),
     );
@@ -442,13 +425,47 @@ class _InvitationLandingScreenState extends ConsumerState<InvitationLandingScree
 
   Widget _buildInfoRow(IconData icon, String label, String value) {
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 6),
+      padding: const EdgeInsets.symmetric(vertical: 5),
       child: Row(
         children: [
           Icon(icon, size: 18, color: Colors.grey),
-          const SizedBox(width: 12),
-          Text('$label : ', style: const TextStyle(color: Colors.grey)),
-          Expanded(child: Text(value, style: const TextStyle(fontWeight: FontWeight.w500))),
+          const SizedBox(width: 10),
+          Text('$label : ', style: TextStyle(color: Colors.grey.shade600, fontSize: 13)),
+          Expanded(
+            child: Text(value, style: const TextStyle(fontWeight: FontWeight.w500, fontSize: 13)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildAmountCard() {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: AppTheme.gold.withValues(alpha: 0.15),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppTheme.gold, width: 1.5),
+      ),
+      child: Column(
+        children: [
+          const Text(
+            'Cotisation requise',
+            style: TextStyle(color: Colors.grey, fontSize: 13),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            '${_circleData!['estimatedAmount']} ${_circleData!['currency']}',
+            style: TextStyle(
+              fontSize: 32,
+              fontWeight: FontWeight.bold,
+              color: AppTheme.marineBlue,
+            ),
+          ),
+          Text(
+            'par ${(_circleData!['frequency'] as String).toLowerCase()}',
+            style: const TextStyle(color: Colors.grey, fontSize: 13),
+          ),
         ],
       ),
     );
@@ -460,7 +477,7 @@ class _InvitationLandingScreenState extends ConsumerState<InvitationLandingScree
       children: [
         _buildTrustBadge(Icons.security, 'Sécurisé'),
         _buildTrustBadge(Icons.gavel, 'Légal'),
-        _buildTrustBadge(Icons.people, 'Solidaire'),
+        _buildTrustBadge(Icons.account_balance, 'Garanti'),
       ],
     );
   }
@@ -469,145 +486,193 @@ class _InvitationLandingScreenState extends ConsumerState<InvitationLandingScree
     return Column(
       children: [
         Container(
-          padding: const EdgeInsets.all(12),
+          padding: const EdgeInsets.all(10),
           decoration: BoxDecoration(
             color: AppTheme.marineBlue.withValues(alpha: 0.1),
             shape: BoxShape.circle,
           ),
-          child: Icon(icon, color: Theme.of(context).brightness == Brightness.dark ? AppTheme.gold : AppTheme.marineBlue),
+          child: Icon(icon, color: AppTheme.marineBlue, size: 22),
         ),
-        const SizedBox(height: 8),
-        Text(label, style: const TextStyle(fontSize: 12)),
+        const SizedBox(height: 6),
+        Text(label, style: const TextStyle(fontSize: 11, color: Colors.grey)),
       ],
     );
   }
 
-  /// STEP 2: Contract Signing (Using Official LegalCommitmentScreen)
-  Widget _buildStep2Contract() {
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(24),
+  Widget _buildContractSection() {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: _contractSigned ? Colors.green.shade50 : Colors.orange.shade50,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: _contractSigned ? Colors.green : Colors.orange,
+          width: 1,
+        ),
+      ),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Amount reveal
-          Container(
-            padding: const EdgeInsets.all(20),
-            decoration: BoxDecoration(
-              color: AppTheme.gold.withValues(alpha: 0.2),
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: AppTheme.gold),
-            ),
-            child: Column(
-              children: [
-                const Text('Montant de la cotisation', style: TextStyle(color: Colors.grey)),
-                const SizedBox(height: 8),
-                Text(
-                  '${_circleData!['estimatedAmount']} ${_circleData!['currency']}',
-                  style: TextStyle(
-                    fontSize: 32,
-                    fontWeight: FontWeight.bold,
-                    color: Theme.of(context).brightness == Brightness.dark ? AppTheme.gold : AppTheme.marineBlue,
-                  ),
+          Row(
+            children: [
+              Icon(
+                _contractSigned ? Icons.check_circle : Icons.description,
+                color: _contractSigned ? Colors.green : Colors.orange,
+                size: 28,
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      _contractSigned ? 'Contrat signé ✓' : 'Engagement légal requis',
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 15,
+                        color: _contractSigned ? Colors.green.shade700 : Colors.orange.shade800,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      _contractSigned
+                          ? 'Mandats SEPA et engagements enregistrés'
+                          : 'Mandats SEPA A & B + Clause pénale',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: _contractSigned ? Colors.green.shade600 : Colors.orange.shade700,
+                      ),
+                    ),
+                  ],
                 ),
-                Text('par ${_circleData!['frequency'].toLowerCase()}', style: const TextStyle(color: Colors.grey)),
-              ],
-            ),
+              ),
+            ],
           ),
-          
-          const SizedBox(height: 32),
-          
-          if (_contractSigned) ...[
-             Container(
-               padding: const EdgeInsets.all(16),
-               decoration: BoxDecoration(
-                 color: Colors.green.withValues(alpha: 0.1),
-                 borderRadius: BorderRadius.circular(12),
-                 border: Border.all(color: Colors.green),
-               ),
-               child: const Row(
-                 children: [
-                   Icon(Icons.check_circle, color: Colors.green, size: 32),
-                   SizedBox(width: 16),
-                   Expanded(
-                     child: Column(
-                       crossAxisAlignment: CrossAxisAlignment.start,
-                       children: [
-                         Text('Contrat Signé', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.green)),
-                         Text('Vos mandats SEPA et engagements ont été enregistrés.', style: TextStyle(fontSize: 12)),
-                       ],
-                     ),
-                   ),
-                 ],
-               ),
-             ),
-             const SizedBox(height: 24),
-          ] else ...[
-             const Text(
-              'Pour rejoindre ce cercle, vous devez lire et signer le contrat d\'engagement légal complet (Mandats SEPA A & B + Clause Pénale).',
-              textAlign: TextAlign.center,
-              style: TextStyle(height: 1.5),
-            ),
-            const SizedBox(height: 24),
-             SizedBox(
+          if (!_contractSigned) ...[
+            const SizedBox(height: 16),
+            SizedBox(
               width: double.infinity,
-              height: 50,
               child: OutlinedButton.icon(
-                icon: const Icon(Icons.description),
-                label: const Text('LIRE ET SIGNER LE CONTRAT'),
+                icon: const Icon(Icons.edit_document),
+                label: const Text('LIRE ET SIGNER'),
                 style: OutlinedButton.styleFrom(
-                  side: BorderSide(color: AppTheme.marineBlue),
-                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  foregroundColor: Colors.orange.shade800,
+                  side: BorderSide(color: Colors.orange.shade800),
+                  padding: const EdgeInsets.symmetric(vertical: 12),
                 ),
-                onPressed: () {
-                   // Parse amount
-                   final amountStr = _circleData!['estimatedAmount'].toString();
-                   final amount = double.tryParse(amountStr.replaceAll(RegExp(r'[^0-9.]'), '')) ?? 0.0;
-                   
-                   Navigator.push(
-                     context,
-                     MaterialPageRoute(
-                       builder: (_) => LegalCommitmentScreen(
-                         amount: amount,
-                         currency: _circleData!['currency'],
-                         onAccepted: () {
-                           Navigator.pop(context); // Close contract
-                           setState(() => _contractSigned = true);
-                         },
-                       ),
-                     ),
-                   );
-                },
+                onPressed: _openContractScreen,
               ),
             ),
-            const SizedBox(height: 24),
           ],
+        ],
+      ),
+    );
+  }
+
+  void _openContractScreen() {
+    final amount = (_circleData!['amount'] as num).toDouble();
+
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => LegalCommitmentScreen(
+          amount: amount,
+          currency: _circleData!['currency'],
+          onAccepted: () {
+            Navigator.pop(context);
+            if (mounted) {
+              setState(() => _contractSigned = true);
+            }
+          },
+        ),
+      ),
+    );
+  }
+
+  void _proceedToAuth() {
+    final user = ref.read(userProvider);
+    if (user.status != AccountStatus.guest) {
+      // Already logged in, submit request directly
+      _submitJoinRequest();
+    } else {
+      // Need to login/signup
+      setState(() => _currentStep = 1);
+    }
+  }
+
+  /// STEP 2: Authentication
+  Widget _buildStep2Auth() {
+    final user = ref.watch(userProvider);
+    final isLoggedIn = user.status != AccountStatus.guest;
+
+    if (isLoggedIn) {
+      // Auto-submit once logged in
+      Future.microtask(() => _submitJoinRequest());
+      return const Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            CircularProgressIndicator(),
+            SizedBox(height: 16),
+            Text('Envoi de votre demande...'),
+          ],
+        ),
+      );
+    }
+
+    return Padding(
+      padding: const EdgeInsets.all(24),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(
+            Icons.account_circle,
+            size: 80,
+            color: AppTheme.marineBlue,
+          ),
+          const SizedBox(height: 24),
+          const Text(
+            'Connectez-vous pour continuer',
+            style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: 12),
+          const Text(
+            'Un compte Tontetic est nécessaire pour rejoindre ce cercle.',
+            style: TextStyle(color: Colors.grey),
+            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: 32),
 
           SizedBox(
             width: double.infinity,
-            height: 50,
+            height: 52,
             child: ElevatedButton.icon(
-              icon: const Icon(Icons.person_add),
-              label: const Text('CRÉER UN COMPTE / REJOINDRE'),
+              icon: const Icon(Icons.login),
+              label: const Text('SE CONNECTER / CRÉER UN COMPTE'),
               style: ElevatedButton.styleFrom(
-                backgroundColor: _contractSigned ? AppTheme.gold : Colors.grey,
-                foregroundColor: _contractSigned ? AppTheme.marineBlue : Colors.white,
+                backgroundColor: AppTheme.marineBlue,
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
               ),
-              onPressed: _contractSigned
-                ? () {
-                    // Check if already logged in
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const TypeSelectionScreen()),
+                ).then((_) {
+                  // Check if logged in after returning
+                  if (mounted) {
                     final user = ref.read(userProvider);
                     if (user.status != AccountStatus.guest) {
                       _submitJoinRequest();
-                    } else {
-                      setState(() => _currentStep = 2);
                     }
                   }
-                : null,
+                });
+              },
             ),
           ),
-          
-          const SizedBox(height: 12),
-          
+
+          const SizedBox(height: 16),
+
           TextButton.icon(
             icon: const Icon(Icons.arrow_back),
             label: const Text('Retour'),
@@ -618,243 +683,52 @@ class _InvitationLandingScreenState extends ConsumerState<InvitationLandingScree
     );
   }
 
-  /// STEP 3: Authentication (Triggered after contract)
-  Widget _buildStep3Auth() {
-    final user = ref.watch(userProvider);
-    final isLoggedIn = user.status != AccountStatus.guest;
-    
-    if (isLoggedIn) {
-      // Auto-submit request once logged in
-      Future.microtask(() => _submitJoinRequest());
-      return const Center(child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          CircularProgressIndicator(),
-          SizedBox(height: 16),
-          Text('Finalisation de la demande...'),
-        ],
-      ));
-    }
-    
-    return Padding(
-      padding: const EdgeInsets.all(24),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(Icons.account_circle, size: 80, color: Theme.of(context).brightness == Brightness.dark ? AppTheme.gold : AppTheme.marineBlue),
-          const SizedBox(height: 24),
-          const Text(
-            'Connectez-vous pour continuer',
-            style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
-            textAlign: TextAlign.center,
-          ),
-          const SizedBox(height: 12),
-          const Text(
-            'Un compte est nécessaire pour rejoindre le cercle.',
-            style: TextStyle(color: Colors.grey),
-            textAlign: TextAlign.center,
-          ),
-          const SizedBox(height: 32),
-          
-          SizedBox(
-            width: double.infinity,
-            height: 50,
-            child: ElevatedButton(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppTheme.marineBlue,
-              ),
-              onPressed: () {
-                // Navigate to login/signup
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (_) => const TypeSelectionScreen()),
-                ).then((_) {
-                  // Check if logged in after returning
-                  final user = ref.read(userProvider);
-                  if (user.status != AccountStatus.guest) {
-                    // Will auto-submit via the check at top of build
-                  }
-                });
-              },
-              child: const Text('SE CONNECTER / CRÉER UN COMPTE'),
-            ),
-          ),
-          
-          const SizedBox(height: 16),
-          
-          TextButton.icon(
-            icon: const Icon(Icons.arrow_back),
-            label: const Text('Retour'),
-            onPressed: () => setState(() => _currentStep = 1),
-          ),
-        ],
-      ),
-    );
-  }
-
   Future<void> _submitJoinRequest() async {
-     try {
-      final user = ref.read(userProvider);
-      
-      // Prevent duplicate submissions
-      if (_requestId.isNotEmpty) {
-         setState(() => _currentStep = 3);
-         return;
-      }
+    if (_requestSubmitted) {
+      setState(() => _currentStep = 2);
+      return;
+    }
 
-      // Submit request
+    try {
+      final user = ref.read(userProvider);
+
+      // Submit join request to Firestore
       final docRef = await FirebaseFirestore.instance.collection('join_requests').add({
-        'circleId': widget.invitationCode, 
+        'circleId': widget.invitationCode,
         'circleName': _circleData?['name'] ?? widget.circleName ?? 'Cercle',
         'requesterId': user.uid,
         'requesterName': user.displayName,
+        'requesterEmail': user.email,
         'status': 'pending',
+        'contractSigned': true,
         'timestamp': FieldValue.serverTimestamp(),
-        'message': 'Joined via Invitation Link',
+        'message': 'Demande via lien d\'invitation',
       });
-      
+
       if (mounted) {
         setState(() {
           _requestId = docRef.id;
-          _currentStep = 3;
+          _requestSubmitted = true;
+          _currentStep = 2;
         });
       }
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Erreur: $e')));
-    }
-  }
-
-
-  Widget _buildContractPoint(String text) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4),
-      child: Text(text, style: const TextStyle(height: 1.5)),
-    );
-  }
-
-  /// STEP 4: Waiting for Creator Approval
-  Widget _buildStep4Approval() {
-    if (_isApproved) {
-      Future.microtask(() => setState(() => _currentStep = 4));
-      return const Center(child: CircularProgressIndicator());
-    }
-    
-    return StreamBuilder<DocumentSnapshot>(
-      stream: _requestId.isNotEmpty 
-          ? FirebaseFirestore.instance.collection('join_requests').doc(_requestId).snapshots()
-          : null,
-      builder: (context, snapshot) {
-        if (snapshot.hasData && snapshot.data!.exists) {
-          final data = snapshot.data!.data() as Map<String, dynamic>;
-          if (data['status'] == 'approved') {
-            // Auto-advance to next step
-            WidgetsBinding.instance.addPostFrameCallback((_) {
-               if (mounted && !_isApproved) {
-                 setState(() {
-                   _isApproved = true;
-                   _currentStep = 4;
-                 });
-               }
-            });
-          } else if (data['status'] == 'rejected') {
-             return Center(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-               const Icon(Icons.cancel, size: 64, color: Colors.red),
-               const SizedBox(height: 16),
-               const Text('Demande refusée', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
-               const SizedBox(height: 8),
-               TextButton(onPressed: () => Navigator.pop(context), child: const Text('Retour'))
-             ]));
-          }
-        }
-
-        return Padding(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              // Animated waiting indicator
-              Container(
-                padding: const EdgeInsets.all(32),
-                decoration: BoxDecoration(
-                  color: Colors.orange.shade50,
-                  shape: BoxShape.circle,
-                ),
-                child: const Icon(Icons.hourglass_top, size: 64, color: Colors.orange),
-              ),
-              const SizedBox(height: 32),
-              
-              const Text(
-                'En attente de validation',
-                style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
-              ),
-              const SizedBox(height: 12),
-              Text(
-                '${_circleData!['creatorName']} doit valider votre demande d\'adhésion.',
-                style: const TextStyle(color: Colors.grey),
-                textAlign: TextAlign.center,
-              ),
-              
-              const SizedBox(height: 32),
-              
-              Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: Colors.grey.shade200),
-                ),
-                child: Column(
-                  children: [
-                    Row(
-                      children: [
-                        Icon(Icons.notifications_active, color: Theme.of(context).brightness == Brightness.dark ? AppTheme.gold : AppTheme.marineBlue),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Text(
-                            'Vous recevrez une notification dès que ${_circleData!['creatorName']} validera votre demande.',
-                            style: const TextStyle(fontSize: 13),
-                          ),
-                        ),
-                      ],
-                    ),
-                    const Divider(height: 24),
-                    Row(
-                      children: [
-                        const Icon(Icons.timer, color: Colors.grey),
-                        const SizedBox(width: 12),
-                        const Text('Délai moyen : ', style: TextStyle(color: Colors.grey)),
-                        const Text('< 24h', style: TextStyle(fontWeight: FontWeight.bold)),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-              
-              const SizedBox(height: 32),
-              
-              const Text('Vous serez notifié par SMS/email.', style: TextStyle(color: Colors.grey, fontSize: 12)),
-              
-              const SizedBox(height: 16),
-              
-              TextButton(
-                onPressed: () => Navigator.pop(context),
-                child: const Text('Retour à l\'accueil'),
-              ),
-            ],
-          ),
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Erreur: ${e.toString()}')),
         );
-      },
-    );
+      }
+    }
   }
 
-  /// STEP 5: PSP Connection (Only after approval)
-  Widget _buildStep5PSP() {
+  /// STEP 3: Complete - Request submitted, wait for approval notification
+  Widget _buildStep3Complete() {
     return Padding(
       padding: const EdgeInsets.all(24),
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          // Success badge
+          // Success animation/icon
           Container(
             padding: const EdgeInsets.all(24),
             decoration: BoxDecoration(
@@ -864,95 +738,94 @@ class _InvitationLandingScreenState extends ConsumerState<InvitationLandingScree
             child: const Icon(Icons.check_circle, size: 64, color: Colors.green),
           ),
           const SizedBox(height: 24),
-          
+
           const Text(
-            'Demande acceptée ! 🎉',
-            style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+            'Demande envoyée !',
+            style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
           ),
           const SizedBox(height: 12),
+
           Text(
-            '${_circleData!['creatorName']} a validé votre adhésion au cercle.',
-            style: const TextStyle(color: Colors.grey),
+            'Votre demande pour rejoindre "${_circleData!['name']}" a été envoyée à ${_circleData!['creatorName']}.',
+            style: const TextStyle(color: Colors.grey, fontSize: 15),
             textAlign: TextAlign.center,
           ),
-          
+
           const SizedBox(height: 32),
-          
-          // PSP connection info
+
+          // What happens next
           Container(
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
-              color: AppTheme.marineBlue.withValues(alpha: 0.1),
+              color: Colors.blue.shade50,
               borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: Colors.blue.shade200),
             ),
             child: Column(
               children: [
                 Row(
                   children: [
-                    Icon(Icons.account_balance, color: Theme.of(context).brightness == Brightness.dark ? AppTheme.gold : AppTheme.marineBlue),
+                    Icon(Icons.notifications_active, color: Colors.blue.shade700),
                     const SizedBox(width: 12),
                     const Expanded(
                       child: Text(
-                        'Dernière étape : Connectez votre compte bancaire',
-                        style: TextStyle(fontWeight: FontWeight.bold),
+                        'Prochaine étape',
+                        style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
                       ),
                     ),
                   ],
                 ),
-                const Divider(height: 24),
+                const SizedBox(height: 12),
                 const Text(
-                  'Vous serez redirigé vers notre partenaire de paiement sécurisé (Stripe/Wave) pour configurer les prélèvements.',
-                  style: TextStyle(fontSize: 13, color: Colors.grey),
+                  'Vous recevrez une notification dès que votre demande sera acceptée. '
+                  'Vous pourrez alors configurer votre moyen de paiement.',
+                  style: TextStyle(fontSize: 13),
                 ),
                 const SizedBox(height: 12),
-                const Row(
+                Row(
                   children: [
-                    Icon(Icons.lock, size: 16, color: Colors.green),
-                    SizedBox(width: 8),
-                    Text(
-                      'Vos données bancaires ne sont jamais stockées par Tontetic.',
-                      style: TextStyle(fontSize: 11, color: Colors.green),
+                    const Icon(Icons.timer_outlined, size: 18, color: Colors.grey),
+                    const SizedBox(width: 8),
+                    const Text(
+                      'Délai moyen : ',
+                      style: TextStyle(color: Colors.grey, fontSize: 12),
+                    ),
+                    const Text(
+                      '< 24h',
+                      style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
                     ),
                   ],
                 ),
               ],
             ),
           ),
-          
+
           const SizedBox(height: 32),
-          
+
+          // CTA - Go to home
           SizedBox(
             width: double.infinity,
-            height: 50,
-            child: ElevatedButton.icon(
-              icon: const Icon(Icons.account_balance_wallet),
-              label: const Text('CONNECTER MON COMPTE'),
+            height: 52,
+            child: ElevatedButton(
               style: ElevatedButton.styleFrom(
                 backgroundColor: AppTheme.gold,
                 foregroundColor: AppTheme.marineBlue,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
               ),
-              onPressed: () {
-                Navigator.pushReplacement(
-                  context,
-                  MaterialPageRoute(builder: (_) => PspConnectionScreen()),
-                );
-              },
+              onPressed: () => context.go('/'),
+              child: const Text(
+                'RETOUR À L\'ACCUEIL',
+                style: TextStyle(fontWeight: FontWeight.bold),
+              ),
             ),
           ),
-          
+
           const SizedBox(height: 12),
-          
+
+          // Secondary - View my requests
           TextButton(
-            onPressed: () {
-              // Show reminder that they can do this later
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('Vous pourrez connecter votre compte plus tard depuis Paramètres.'),
-                ),
-              );
-              Navigator.pop(context);
-            },
-            child: const Text('Plus tard'),
+            onPressed: () => context.go('/my-circles'),
+            child: const Text('Voir mes demandes en cours'),
           ),
         ],
       ),

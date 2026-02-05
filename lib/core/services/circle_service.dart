@@ -3,6 +3,7 @@ import 'package:flutter/foundation.dart';
 import 'package:tontetic/core/models/tontine_model.dart';
 import 'package:tontetic/core/services/security_service.dart';
 import 'package:tontetic/core/services/notification_service.dart';
+import 'package:tontetic/core/services/message_encryption_service.dart';
 
 /// Service pour gérer les cercles de tontine dans Firestore
 class CircleService {
@@ -13,9 +14,16 @@ class CircleService {
     try {
       final docRef = _db.collection('tontines').doc();
       final newCircle = circle.copyWith(id: docRef.id);
-      
+
       // Use clean serialization
       await docRef.set(newCircle.toFirestore());
+
+      // V16: Generate E2E encryption secret for the circle
+      final encryptionSecret = await MessageEncryptionService.generateCircleSecret(docRef.id);
+
+      // Store encrypted secret for creator (for key distribution to other members)
+      // In production, this would use RSA key exchange. For now, store encrypted.
+      await _storeEncryptedSecretForMember(docRef.id, newCircle.creatorId, encryptionSecret);
 
       // V1.5: Enregistrer l'activité sociale réelle
       await _db.collection('activities').add({
@@ -26,13 +34,48 @@ class CircleService {
         'timestamp': FieldValue.serverTimestamp(),
         'circleId': docRef.id,
       });
-      
+
       await _updateUserStats(newCircle.creatorId, increment: 1);
-      
+
       return docRef.id;
     } catch (e) {
       debugPrint('❌ Erreur création cercle Firestore: $e');
       rethrow;
+    }
+  }
+
+  /// Store encrypted secret for a member (for E2E key distribution)
+  Future<void> _storeEncryptedSecretForMember(String circleId, String memberId, String secret) async {
+    // Encrypt the secret using the member's encryption key
+    final encryptedSecret = SecurityService.encryptData(secret);
+
+    await _db.collection('tontines').doc(circleId)
+        .collection('e2e_keys')
+        .doc(memberId)
+        .set({
+      'encryptedSecret': encryptedSecret,
+      'createdAt': FieldValue.serverTimestamp(),
+      'version': 1,
+    });
+  }
+
+  /// Retrieve and initialize circle encryption for a member
+  Future<void> initializeCircleEncryption(String circleId, String memberId) async {
+    try {
+      final keyDoc = await _db.collection('tontines').doc(circleId)
+          .collection('e2e_keys')
+          .doc(memberId)
+          .get();
+
+      if (keyDoc.exists) {
+        final encryptedSecret = keyDoc.data()?['encryptedSecret'];
+        if (encryptedSecret != null) {
+          final secret = SecurityService.decryptData(encryptedSecret);
+          await MessageEncryptionService.setCircleSecret(circleId, secret);
+        }
+      }
+    } catch (e) {
+      debugPrint('⚠️ Failed to initialize circle encryption: $e');
     }
   }
 
@@ -309,15 +352,57 @@ class CircleService {
   /// Finaliser l'adhésion après signature légale
   Future<void> finalizeMembership(String circleId, String userId) async {
     final batch = _db.batch();
-    
+
     // Move from pendingSignature to memberIds
     batch.update(_db.collection('tontines').doc(circleId), {
       'pendingSignatureIds': FieldValue.arrayRemove([userId]),
       'memberIds': FieldValue.arrayUnion([userId]),
     });
-    
+
     await batch.commit();
     await _updateUserStats(userId, increment: 1);
+
+    // V16: Share E2E encryption key with new member
+    await _shareEncryptionKeyWithMember(circleId, userId);
+
+    // Initialize encryption for the new member
+    await initializeCircleEncryption(circleId, userId);
+  }
+
+  /// Share encryption key with a new member (called by creator or system)
+  Future<void> _shareEncryptionKeyWithMember(String circleId, String newMemberId) async {
+    try {
+      // Get the circle's encryption secret (from creator or existing member)
+      final existingSecret = await MessageEncryptionService.getCircleSecret(circleId);
+
+      if (existingSecret != null) {
+        // Store the encrypted secret for the new member
+        await _storeEncryptedSecretForMember(circleId, newMemberId, existingSecret);
+      } else {
+        // Try to retrieve from Firestore (if creator stored it)
+        final circleDoc = await _db.collection('tontines').doc(circleId).get();
+        if (circleDoc.exists) {
+          final creatorId = circleDoc.data()?['creatorId'];
+          if (creatorId != null) {
+            final creatorKeyDoc = await _db.collection('tontines').doc(circleId)
+                .collection('e2e_keys')
+                .doc(creatorId)
+                .get();
+
+            if (creatorKeyDoc.exists) {
+              final encryptedSecret = creatorKeyDoc.data()?['encryptedSecret'];
+              if (encryptedSecret != null) {
+                // Decrypt and re-encrypt for the new member
+                final secret = SecurityService.decryptData(encryptedSecret);
+                await _storeEncryptedSecretForMember(circleId, newMemberId, secret);
+              }
+            }
+          }
+        }
+      }
+    } catch (e) {
+      debugPrint('⚠️ Failed to share encryption key: $e');
+    }
   }
 
 

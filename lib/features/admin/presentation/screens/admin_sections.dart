@@ -945,3 +945,498 @@ class AdminSettingsSection extends StatelessWidget {
     );
   }
 }
+
+// ==================== KYC REVIEW SECTION ====================
+
+class AdminKycReviewSection extends StatelessWidget {
+  const AdminKycReviewSection({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return StreamBuilder<QuerySnapshot>(
+      stream: FirebaseFirestore.instance
+          .collection('users')
+          .where('kycStatus', isEqualTo: 'pending')
+          .orderBy('kycLastUpdate', descending: true)
+          .snapshots(),
+      builder: (context, snapshot) {
+        // Also get counts for all statuses
+        return FutureBuilder<Map<String, int>>(
+          future: _getKycStats(),
+          builder: (context, statsSnapshot) {
+            final stats = statsSnapshot.data ?? {'pending': 0, 'verified': 0, 'rejected': 0};
+
+            if (snapshot.hasError) {
+              return Center(child: Text('Erreur: ${snapshot.error}'));
+            }
+            if (snapshot.connectionState == ConnectionState.waiting) {
+              return const Center(child: CircularProgressIndicator());
+            }
+
+            final pendingUsers = snapshot.data?.docs ?? [];
+
+            return Padding(
+              padding: const EdgeInsets.all(24),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Vérification KYC',
+                    style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 8),
+                  const Text(
+                    'Examinez les demandes de vérification d\'identité des utilisateurs',
+                    style: TextStyle(color: Colors.grey),
+                  ),
+                  const SizedBox(height: 24),
+
+                  // Stats Row
+                  Row(
+                    children: [
+                      _buildStatCard(
+                        'En attente',
+                        '${pendingUsers.length}',
+                        Colors.orange,
+                        Icons.pending_actions,
+                      ),
+                      const SizedBox(width: 16),
+                      _buildStatCard(
+                        'Vérifiés',
+                        '${stats['verified']}',
+                        Colors.green,
+                        Icons.verified_user,
+                      ),
+                      const SizedBox(width: 16),
+                      _buildStatCard(
+                        'Rejetés',
+                        '${stats['rejected']}',
+                        Colors.red,
+                        Icons.cancel,
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 24),
+
+                  // Pending list
+                  Expanded(
+                    child: pendingUsers.isEmpty
+                        ? _buildEmptyState()
+                        : Container(
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: ListView.builder(
+                              padding: const EdgeInsets.all(16),
+                              itemCount: pendingUsers.length,
+                              itemBuilder: (ctx, i) {
+                                final userData = pendingUsers[i].data() as Map<String, dynamic>;
+                                final userId = pendingUsers[i].id;
+                                return _buildKycReviewCard(context, userData, userId);
+                              },
+                            ),
+                          ),
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Future<Map<String, int>> _getKycStats() async {
+    final db = FirebaseFirestore.instance;
+
+    final verifiedCount = await db
+        .collection('users')
+        .where('kycStatus', isEqualTo: 'verified')
+        .count()
+        .get();
+
+    final rejectedCount = await db
+        .collection('users')
+        .where('kycStatus', isEqualTo: 'rejected')
+        .count()
+        .get();
+
+    return {
+      'verified': verifiedCount.count ?? 0,
+      'rejected': rejectedCount.count ?? 0,
+    };
+  }
+
+  Widget _buildStatCard(String label, String value, Color color, IconData icon) {
+    return Expanded(
+      child: Container(
+        padding: const EdgeInsets.all(20),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(12),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.05),
+              blurRadius: 10,
+            ),
+          ],
+        ),
+        child: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: color.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Icon(icon, color: color),
+            ),
+            const SizedBox(width: 16),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  value,
+                  style: TextStyle(
+                    fontSize: 24,
+                    fontWeight: FontWeight.bold,
+                    color: color,
+                  ),
+                ),
+                Text(label, style: const TextStyle(color: Colors.grey)),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildEmptyState() {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(Icons.verified_user, size: 80, color: Colors.green.shade200),
+          const SizedBox(height: 16),
+          const Text(
+            'Aucune demande en attente',
+            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+          ),
+          const SizedBox(height: 8),
+          const Text(
+            'Toutes les demandes KYC ont été traitées.',
+            style: TextStyle(color: Colors.grey),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildKycReviewCard(BuildContext context, Map<String, dynamic> userData, String userId) {
+    final fullName = userData['fullName'] ?? userData['displayName'] ?? 'Utilisateur';
+    final email = userData['email'] ?? 'Non renseigné';
+    final phone = userData['phoneNumber'] ?? 'Non renseigné';
+    final createdAt = userData['createdAt'] as Timestamp?;
+    final kycSubmittedAt = userData['kycLastUpdate'] as Timestamp?;
+
+    return Card(
+      margin: const EdgeInsets.only(bottom: 16),
+      elevation: 2,
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // User Info Header
+            Row(
+              children: [
+                CircleAvatar(
+                  radius: 28,
+                  backgroundColor: Colors.blue.shade100,
+                  backgroundImage: userData['photoUrl'] != null
+                      ? NetworkImage(userData['photoUrl'])
+                      : null,
+                  child: userData['photoUrl'] == null
+                      ? Text(
+                          fullName.isNotEmpty ? fullName[0].toUpperCase() : '?',
+                          style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+                        )
+                      : null,
+                ),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        fullName,
+                        style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                      ),
+                      Text(email, style: const TextStyle(color: Colors.grey)),
+                      Text(phone, style: const TextStyle(color: Colors.grey, fontSize: 12)),
+                    ],
+                  ),
+                ),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: Colors.orange.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(color: Colors.orange),
+                  ),
+                  child: const Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.pending, size: 16, color: Colors.orange),
+                      SizedBox(width: 4),
+                      Text(
+                        'EN ATTENTE',
+                        style: TextStyle(
+                          color: Colors.orange,
+                          fontSize: 12,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+
+            const SizedBox(height: 16),
+            const Divider(),
+            const SizedBox(height: 12),
+
+            // Metadata
+            Row(
+              children: [
+                _buildMetaItem(Icons.calendar_today, 'Inscription', _formatDate(createdAt)),
+                const SizedBox(width: 24),
+                _buildMetaItem(Icons.upload, 'Demande KYC', _formatDate(kycSubmittedAt)),
+                const SizedBox(width: 24),
+                _buildMetaItem(Icons.fingerprint, 'ID', userId.substring(0, 8)),
+              ],
+            ),
+
+            const SizedBox(height: 16),
+
+            // Action Buttons
+            Row(
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                OutlinedButton.icon(
+                  onPressed: () => _showRejectDialog(context, userId, fullName),
+                  icon: const Icon(Icons.close, color: Colors.red),
+                  label: const Text('Rejeter', style: TextStyle(color: Colors.red)),
+                  style: OutlinedButton.styleFrom(
+                    side: const BorderSide(color: Colors.red),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                ElevatedButton.icon(
+                  onPressed: () => _approveKyc(context, userId, fullName),
+                  icon: const Icon(Icons.check),
+                  label: const Text('Approuver'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.green,
+                    foregroundColor: Colors.white,
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildMetaItem(IconData icon, String label, String value) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(icon, size: 16, color: Colors.grey),
+        const SizedBox(width: 4),
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(label, style: const TextStyle(fontSize: 10, color: Colors.grey)),
+            Text(value, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500)),
+          ],
+        ),
+      ],
+    );
+  }
+
+  String _formatDate(Timestamp? timestamp) {
+    if (timestamp == null) return 'N/A';
+    final date = timestamp.toDate();
+    return '${date.day}/${date.month}/${date.year}';
+  }
+
+  Future<void> _approveKyc(BuildContext context, String userId, String userName) async {
+    try {
+      await FirebaseFirestore.instance.collection('users').doc(userId).update({
+        'kycStatus': 'verified',
+        'kycLastUpdate': FieldValue.serverTimestamp(),
+        'kycApprovedAt': FieldValue.serverTimestamp(),
+      });
+
+      // Log admin action
+      await FirebaseFirestore.instance.collection('admin_audit_logs').add({
+        'action': 'KYC_APPROVED',
+        'target': userId,
+        'targetName': userName,
+        'adminId': 'admin', // Should come from auth context in production
+        'timestamp': FieldValue.serverTimestamp(),
+      });
+
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('KYC approuvé pour $userName'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Erreur: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
+  void _showRejectDialog(BuildContext context, String userId, String userName) {
+    final reasonController = TextEditingController();
+    String? selectedReason;
+
+    final commonReasons = [
+      'Document illisible',
+      'Document expiré',
+      'Document non conforme',
+      'Information incomplète',
+      'Suspicion de fraude',
+      'Autre',
+    ];
+
+    showDialog(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (context, setState) => AlertDialog(
+          title: const Text('Rejeter la demande KYC'),
+          content: SizedBox(
+            width: 400,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Rejet pour: $userName',
+                  style: const TextStyle(color: Colors.grey),
+                ),
+                const SizedBox(height: 16),
+                const Text('Raison du rejet:', style: TextStyle(fontWeight: FontWeight.bold)),
+                const SizedBox(height: 8),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: commonReasons.map((reason) {
+                    final isSelected = selectedReason == reason;
+                    return ChoiceChip(
+                      label: Text(reason),
+                      selected: isSelected,
+                      onSelected: (selected) {
+                        setState(() {
+                          selectedReason = selected ? reason : null;
+                        });
+                      },
+                      selectedColor: Colors.red.shade100,
+                    );
+                  }).toList(),
+                ),
+                const SizedBox(height: 16),
+                if (selectedReason == 'Autre')
+                  TextField(
+                    controller: reasonController,
+                    decoration: const InputDecoration(
+                      labelText: 'Précisez la raison',
+                      border: OutlineInputBorder(),
+                    ),
+                    maxLines: 2,
+                  ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('Annuler'),
+            ),
+            ElevatedButton(
+              onPressed: selectedReason == null
+                  ? null
+                  : () async {
+                      final reason = selectedReason == 'Autre'
+                          ? reasonController.text
+                          : selectedReason!;
+
+                      Navigator.pop(ctx);
+                      await _rejectKyc(context, userId, userName, reason);
+                    },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.red,
+                foregroundColor: Colors.white,
+              ),
+              child: const Text('Confirmer le rejet'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _rejectKyc(BuildContext context, String userId, String userName, String reason) async {
+    try {
+      await FirebaseFirestore.instance.collection('users').doc(userId).update({
+        'kycStatus': 'rejected',
+        'kycLastUpdate': FieldValue.serverTimestamp(),
+        'kycRejectionReason': reason,
+        'kycRejectedAt': FieldValue.serverTimestamp(),
+      });
+
+      // Log admin action
+      await FirebaseFirestore.instance.collection('admin_audit_logs').add({
+        'action': 'KYC_REJECTED',
+        'target': userId,
+        'targetName': userName,
+        'reason': reason,
+        'adminId': 'admin', // Should come from auth context in production
+        'timestamp': FieldValue.serverTimestamp(),
+      });
+
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('KYC rejeté pour $userName'),
+            backgroundColor: Colors.orange,
+          ),
+        );
+      }
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Erreur: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+}

@@ -285,6 +285,7 @@ class _EmployeeInvitationScreenState extends ConsumerState<EmployeeInvitationScr
       return;
     }
 
+    if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(content: Text('✅ Invitation envoyée !'), backgroundColor: Colors.green),
     );

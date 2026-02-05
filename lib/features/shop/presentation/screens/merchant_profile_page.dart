@@ -388,7 +388,9 @@ class MerchantProfilePage extends ConsumerWidget {
     );
   }
 
-  Widget _buildReviewCard(Map<String, dynamic> review) {
+  // Review card builder reserved for future reviews feature
+  // ignore: unused_element
+  Widget _buildReviewCardInternal(Map<String, dynamic> review) {
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
       child: Padding(

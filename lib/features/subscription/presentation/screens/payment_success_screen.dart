@@ -276,7 +276,7 @@ class _PaymentSuccessScreenState extends ConsumerState<PaymentSuccessScreen> {
                 Container(
                   padding: const EdgeInsets.all(24),
                   decoration: BoxDecoration(
-                    color: AppTheme.marineBlue.withOpacity(0.1),
+                    color: AppTheme.marineBlue.withValues(alpha: 0.1),
                     shape: BoxShape.circle,
                   ),
                   child: const CircularProgressIndicator(

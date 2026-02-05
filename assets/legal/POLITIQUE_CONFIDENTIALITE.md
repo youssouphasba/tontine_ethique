@@ -1,7 +1,19 @@
 # POLITIQUE DE CONFIDENTIALITÉ
 ## Application Tontetic
 
-**Version 1.0 – Date d'entrée en vigueur : 1er Janvier 2026**
+**Version 1.1 – Date d'entrée en vigueur : 1er Janvier 2026**
+
+<!--
+  ⚠️ AVANT PUBLICATION : Remplir les informations suivantes avec les données réelles :
+  - [Raison Sociale] : Nom légal de l'entreprise
+  - [Forme juridique] : SAS, SARL, etc.
+  - [montant] : Capital social
+  - [Adresse complète] : Siège social
+  - [SIRET/NINEA] : Numéro d'immatriculation
+  - [Nom du DPO] : Délégué à la Protection des Données
+  - [Adresse postale] : Adresse pour courrier
+  - [Numéro de contact] : Téléphone du support
+-->
 
 ---
 
@@ -161,7 +173,7 @@ Les messages privés sont :
 - **Chiffrés de bout en bout (E2E)** : seuls l'expéditeur et le destinataire peuvent les lire ;
 - **Non accessibles** par Tontetic dans leur contenu ;
 - Stockés sur nos serveurs sous forme **chiffrée** ;
-- Supprimés automatiquement après **[90 jours / ou sur demande – à définir]**.
+- Supprimés automatiquement après **90 jours**.
 
 > **Exception** : En cas de signalement pour contenu abusif, le message signalé peut être déchiffré et examiné par notre équipe de modération.
 
@@ -192,10 +204,10 @@ Nous faisons appel à des sous-traitants pour certaines opérations :
 
 | Sous-Traitant | Fonction | Localisation |
 |---------------|----------|--------------|
-| [Hébergeur Cloud – ex: AWS, GCP] | Hébergement des données | UE / Sénégal |
+| Google Cloud Platform (Firebase) | Hébergement des données | UE (europe-west1) |
 | Stripe | Paiements Zone Euro | États-Unis (Clauses Contractuelles Types) |
 | Wave | Paiements Zone FCFA | Sénégal |
-| [Prestataire KYC] | Vérification d'identité | [Localisation] |
+| Onfido | Vérification d'identité (KYC) | Royaume-Uni/UE |
 | Firebase (Google) | Notifications push | États-Unis (Privacy Shield) |
 
 Tous nos sous-traitants sont contractuellement tenus de respecter la confidentialité et la sécurité des données.
@@ -324,7 +336,60 @@ Vous pouvez désactiver les analytics dans les Paramètres de l'Application.
 
 ---
 
-## ARTICLE 11 – MINEURS
+## ARTICLE 11 – DÉCISIONS AUTOMATISÉES ET PROFILAGE (RGPD Article 22)
+
+### 11.1 Score d'Honneur – Transparence Algorithmique
+
+Le **Score d'Honneur** est un indicateur de fiabilité calculé automatiquement pour chaque utilisateur. Conformément à l'Article 22 du RGPD, nous vous informons de la logique sous-jacente :
+
+#### Formule de Calcul
+
+```
+Score = (Nombre de paiements réussis / Nombre total de paiements) × 5
+```
+
+**Exemple** : Si vous avez effectué 8 paiements réussis sur 10 paiements totaux, votre score est : (8/10) × 5 = **4.0/5**
+
+#### Valeurs
+
+| Valeur | Signification |
+|--------|---------------|
+| 5.0 | Excellent – 100% de paiements à temps |
+| 4.0 | Bon – Score par défaut pour les nouveaux membres |
+| 3.0-3.9 | Acceptable – Quelques retards occasionnels |
+| < 3.0 | À surveiller – Retards fréquents |
+
+#### Données Utilisées
+
+- Historique des cotisations versées
+- Historique des cotisations en retard ou manquées
+- Date d'échéance vs date de paiement effectif
+
+#### Conséquences du Score
+
+Le Score d'Honneur peut influencer :
+- La visibilité de votre profil dans les recommandations
+- L'acceptation dans certains Cercles (à la discrétion de l'organisateur)
+- Les limites de transaction (pour les scores très bas)
+
+#### Vos Droits
+
+Conformément à l'Article 22(3) du RGPD, vous avez le droit de :
+- **Obtenir une explication** : Contactez dpo@tontetic.app pour comprendre votre score
+- **Contester une décision** : Si vous estimez que votre score est erroné
+- **Demander une intervention humaine** : Pour les décisions affectant significativement votre accès au service
+
+### 11.2 Autres Traitements Automatisés
+
+| Traitement | Description | Impact | Intervention Humaine |
+|------------|-------------|--------|---------------------|
+| Recommandations de Cercles | Suggère des Cercles selon vos objectifs | Faible (informationnel) | Non requise |
+| Détection de fraude | Signale les comportements suspects | Modéré | Toujours vérification manuelle |
+| Filtrage de contenu | Masque les messages potentiellement abusifs | Faible | Possibilité de recours |
+
+---
+
+## ARTICLE 12 – MINEURS
 
 L'Application est destinée aux personnes majeures (18 ans ou plus). Nous ne collectons pas sciemment de données personnelles de mineurs.
 
@@ -332,7 +397,7 @@ Si nous découvrons qu'un utilisateur mineur s'est inscrit, son compte sera supp
 
 ---
 
-## ARTICLE 12 – MODIFICATION DE LA POLITIQUE
+## ARTICLE 13 – MODIFICATION DE LA POLITIQUE
 
 Nous nous réservons le droit de modifier la présente Politique de Confidentialité. En cas de modification substantielle, vous serez informé par :
 - Notification in-app ;
@@ -342,7 +407,7 @@ La poursuite de l'utilisation du Service après la date d'entrée en vigueur vau
 
 ---
 
-## ARTICLE 13 – CONTACT
+## ARTICLE 14 – CONTACT
 
 Pour toute question relative à la protection de vos données :
 

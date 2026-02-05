@@ -1,9 +1,9 @@
-import 'dart:async';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 /// V17: Système Marchand Dual
+///
+/// This file contains models and enums only.
+/// Provider implementation is in: lib/core/providers/merchant_account_provider.dart
 /// 
 /// ARCHITECTURE LÉGALE:
 /// - Pas de commission sur ventes
@@ -259,260 +259,8 @@ class BoostOption {
   ];
 }
 
-/// État du provider marchand
-class MerchantState {
-  final MerchantAccount? account;
-  final bool isLoading;
-  final String? error;
-
-  const MerchantState({
-    this.account,
-    this.isLoading = false,
-    this.error,
-  });
-
-  bool get hasMerchantAccount => account != null;
-  bool get isParticulier => account?.type == MerchantType.particulier;
-  bool get isVerifie => account?.type == MerchantType.verifie;
-
-  MerchantState copyWith({
-    MerchantAccount? account,
-    bool? isLoading,
-    String? error,
-  }) {
-    return MerchantState(
-      account: account ?? this.account,
-      isLoading: isLoading ?? this.isLoading,
-      error: error,
-    );
-  }
-}
-
-/// Service de gestion des comptes marchands
-class MerchantAccountNotifier extends StateNotifier<MerchantState> {
-  MerchantAccountNotifier() : super(const MerchantState());
-
-  StreamSubscription<QuerySnapshot>? _merchantSubscription;
-
-  @override
-  void dispose() {
-    _merchantSubscription?.cancel();
-    super.dispose();
-  }
-
-  /// Charge le compte marchand de l'utilisateur et écoute les changements d'état (Back Office)
-  void loadMerchantAccount(String userId) {
-    if (_merchantSubscription != null) return; // Déjà en écoute
-
-    state = state.copyWith(isLoading: true);
-
-    _merchantSubscription = FirebaseFirestore.instance
-        .collection('merchants')
-        .where('user_id', isEqualTo: userId)
-        .limit(1)
-        .snapshots()
-        .listen((snapshot) {
-      if (snapshot.docs.isNotEmpty) {
-        final data = snapshot.docs.first.data();
-        // Inject ID from doc if not in data, though it should be
-        data['id'] = snapshot.docs.first.id;
-        
-        try {
-          final account = MerchantAccount.fromJson(data);
-          state = state.copyWith(account: account, isLoading: false);
-          
-          debugPrint('[MERCHANT] ✅ Account loaded: ${account.id}');
-          debugPrint('  → Status: ${account.kycStatus.name} / ${account.accountStatus.name}');
-        } catch (e) {
-          debugPrint('[MERCHANT] ❌ Error parsing account: $e');
-          state = state.copyWith(error: 'Erreur de format de compte', isLoading: false);
-        }
-      } else {
-        state = state.copyWith(account: null, isLoading: false);
-      }
-    }, onError: (e) {
-      debugPrint('[MERCHANT] ❌ Firestore error: $e');
-      state = state.copyWith(error: e.toString(), isLoading: false);
-    });
-  }
-
-  /// Créer un compte marchand Particulier (KYC léger)
-  Future<MerchantAccount?> createParticulierAccount({
-    required String userId,
-    required String email,
-    required String pspAccountId,
-  }) async {
-    state = state.copyWith(isLoading: true, error: null);
-
-    try {
-      final account = MerchantAccount(
-        id: 'MERCH_${DateTime.now().millisecondsSinceEpoch}',
-        userId: userId,
-        type: MerchantType.particulier,
-        kycStatus: MerchantKycStatus.lightVerified, // KYC léger = auto-validé
-        accountStatus: MerchantAccountStatus.active,
-        email: email,
-        pspAccountId: pspAccountId,
-        createdAt: DateTime.now(),
-        kycVerifiedAt: DateTime.now(),
-      );
-
-      debugPrint('[MERCHANT] Created Particulier account: ${account.id}');
-      debugPrint('  → User: $userId');
-      debugPrint('  → PSP: $pspAccountId');
-      debugPrint('  → Limits: CA max ${MerchantAccount.particulierCaMax}€, Offres max ${MerchantAccount.particulierOffresMax}');
-
-      await FirebaseFirestore.instance.collection('merchants').doc(account.id).set(account.toJson());
-      
-      state = state.copyWith(account: account, isLoading: false);
-      return account;
-    } catch (e) {
-      state = state.copyWith(isLoading: false, error: e.toString());
-      return null;
-    }
-  }
-
-  /// Créer un compte marchand Vérifié (KYC complet)
-  Future<MerchantAccount?> createVerifieAccount({
-    required String userId,
-    required String email,
-    required String siretNinea,
-    required String idDocumentUrl,
-    required String selfieUrl,
-    String? pspAccountId,
-    String? iban,
-  }) async {
-    state = state.copyWith(isLoading: true, error: null);
-
-    try {
-      final account = MerchantAccount(
-        id: 'MERCH_${DateTime.now().millisecondsSinceEpoch}',
-        userId: userId,
-        type: MerchantType.verifie,
-        kycStatus: MerchantKycStatus.pending, // KYC complet = vérification manuelle
-        accountStatus: MerchantAccountStatus.active,
-        email: email,
-        pspAccountId: pspAccountId,
-        siretNinea: siretNinea,
-        idDocumentUrl: idDocumentUrl,
-        selfieUrl: selfieUrl,
-        iban: iban,
-        createdAt: DateTime.now(),
-      );
-
-      debugPrint('[MERCHANT] Created Vérifié account (pending KYC): ${account.id}');
-      debugPrint('  → User: $userId');
-      debugPrint('  → SIRET/NINEA: $siretNinea');
-      debugPrint('  → Status: PENDING (vérification manuelle requise)');
-
-      await FirebaseFirestore.instance.collection('merchants').doc(account.id).set(account.toJson());
-
-      state = state.copyWith(account: account, isLoading: false);
-      return account;
-    } catch (e) {
-      state = state.copyWith(isLoading: false, error: e.toString());
-      return null;
-    }
-  }
-
-  /// Vérifier et appliquer les seuils CA
-  Future<bool> checkAndApplyThresholds() async {
-    final account = state.account;
-    if (account == null) return false;
-
-    if (account.isCaThresholdExceeded && 
-        account.accountStatus == MerchantAccountStatus.active) {
-      
-      debugPrint('[MERCHANT] ⚠️ CA threshold exceeded for ${account.id}');
-      debugPrint('  → CA: ${account.caAnnuel}€ / Max: ${MerchantAccount.particulierCaMax}€');
-      debugPrint('  → Action: Suspending account until upgrade');
-
-      final suspended = account.copyWith(
-        accountStatus: MerchantAccountStatus.suspended,
-        suspendedAt: DateTime.now(),
-      );
-      
-      state = state.copyWith(account: suspended);
-      return true;
-    }
-    
-    return false;
-  }
-
-  /// Mettre à jour le CA après une vente (hors plateforme, déclaratif)
-  Future<void> recordSale(double amount) async {
-    final account = state.account;
-    if (account == null) return;
-
-    final updated = account.copyWith(
-      caAnnuel: account.caAnnuel + amount,
-    );
-
-    state = state.copyWith(account: updated);
-
-    // Vérifier si seuil atteint
-    await checkAndApplyThresholds();
-  }
-
-  /// Upgrade vers compte Vérifié
-  Future<bool> upgradeToVerifie({
-    required String siretNinea,
-    required String idDocumentUrl,
-    required String selfieUrl,
-    String? iban,
-  }) async {
-    final account = state.account;
-    if (account == null || account.type == MerchantType.verifie) {
-      return false;
-    }
-
-    state = state.copyWith(isLoading: true);
-
-    try {
-      final upgraded = account.copyWith(
-        type: MerchantType.verifie,
-        kycStatus: MerchantKycStatus.pending, // Revérification requise
-        accountStatus: MerchantAccountStatus.active, // Réactivation
-        siretNinea: siretNinea,
-        idDocumentUrl: idDocumentUrl,
-        selfieUrl: selfieUrl,
-        iban: iban,
-        suspendedAt: null,
-      );
-
-      debugPrint('[MERCHANT] Upgrading to Vérifié: ${account.id}');
-      debugPrint('  → Previous CA: ${account.caAnnuel}€');
-      debugPrint('  → New limits: UNLIMITED');
-
-      state = state.copyWith(account: upgraded, isLoading: false);
-      return true;
-    } catch (e) {
-      state = state.copyWith(isLoading: false, error: e.toString());
-      return false;
-    }
-  }
-
-  /// Incrémenter le nombre d'offres
-  void incrementOffres() {
-    final account = state.account;
-    if (account == null) return;
-
-    state = state.copyWith(
-      account: account.copyWith(offresActives: account.offresActives + 1),
-    );
-  }
-
-  /// Décrémenter le nombre d'offres
-  void decrementOffres() {
-    final account = state.account;
-    if (account == null || account.offresActives <= 0) return;
-
-    state = state.copyWith(
-      account: account.copyWith(offresActives: account.offresActives - 1),
-    );
-  }
-
-  /// Obtenir les CGU marchands
+/// Obtenir les CGU marchands - Static utility
+class MerchantCguHelper {
   static String getMerchantCgu() {
     return '''
 ARTICLE – CONDITIONS MARCHANDS
@@ -542,7 +290,7 @@ La Plateforme est rémunérée EXCLUSIVEMENT par :
 ❌ La Plateforme n'intervient JAMAIS dans la transaction commerciale.
 
 3. TRANSACTIONS HORS PLATEFORME
-Toute transaction entre l'Utilisateur et le Marchand s'effectue 
+Toute transaction entre l'Utilisateur et le Marchand s'effectue
 HORS de la Plateforme, sous la seule responsabilité des parties.
 
 La Plateforme n'est pas responsable :
@@ -566,7 +314,6 @@ Sont strictement interdits sur la Plateforme :
   }
 }
 
-/// Provider Riverpod
-final merchantAccountProvider = StateNotifierProvider<MerchantAccountNotifier, MerchantState>((ref) {
-  return MerchantAccountNotifier();
-});
+// NOTE: Provider has been consolidated into merchant_account_provider.dart
+// Use: import 'package:tontetic/core/providers/merchant_account_provider.dart';
+// Provider: merchantShopProvider (or merchantAccountProvider for backward compat)

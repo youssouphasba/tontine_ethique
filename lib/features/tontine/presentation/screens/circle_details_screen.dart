@@ -415,8 +415,9 @@ class CircleDetailsScreen extends ConsumerWidget {
                 return;
               }
 
+              final messenger = ScaffoldMessenger.of(context);
               Navigator.pop(context);
-              
+
               try {
                 await ref.read(circleProvider.notifier).requestToJoin(
                   circleId: circleId,
@@ -426,7 +427,7 @@ class CircleDetailsScreen extends ConsumerWidget {
                   message: messageController.text,
                 );
 
-                ScaffoldMessenger.of(context).showSnackBar(
+                messenger.showSnackBar(
                   const SnackBar(
                     content: Row(
                       children: [
@@ -439,7 +440,7 @@ class CircleDetailsScreen extends ConsumerWidget {
                   ),
                 );
               } catch (e) {
-                ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Erreur: $e'), backgroundColor: Colors.red));
+                messenger.showSnackBar(SnackBar(content: Text('Erreur: $e'), backgroundColor: Colors.red));
               }
             },
           ),

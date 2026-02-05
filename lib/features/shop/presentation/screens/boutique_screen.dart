@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:tontetic/core/theme/app_theme.dart';
 import 'package:tontetic/core/providers/shop_feed_provider.dart';
 import 'package:tontetic/core/services/fuzzy_search_service.dart';
@@ -308,7 +309,7 @@ class _BoutiqueScreenState extends ConsumerState<BoutiqueScreen> with SingleTick
               child: ReportContentIconButton(
                 contentId: product.id,
                 contentType: ContentType.product,
-                reporterId: 'current_user', // TODO: Get from auth
+                reporterId: FirebaseAuth.instance.currentUser?.uid ?? 'anonymous',
               ),
             ),
           ),

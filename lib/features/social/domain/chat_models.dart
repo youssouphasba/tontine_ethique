@@ -8,6 +8,10 @@ class ChatMessage {
   final bool isEncrypted;
   final String? encryptedKey;
   final String? iv;
+  // Media support
+  final String type; // 'text', 'audio', 'image', 'file'
+  final String? url;
+  final String? fileName;
 
   ChatMessage({
     required this.id,
@@ -19,7 +23,12 @@ class ChatMessage {
     this.isEncrypted = false,
     this.encryptedKey,
     this.iv,
+    this.type = 'text',
+    this.url,
+    this.fileName,
   });
+
+  bool get isMediaMessage => type == 'audio' || type == 'image' || type == 'file';
 }
 
 class Conversation {

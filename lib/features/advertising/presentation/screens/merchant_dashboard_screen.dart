@@ -18,7 +18,6 @@ class MerchantDashboardScreen extends ConsumerStatefulWidget {
 class _MerchantDashboardScreenState extends ConsumerState<MerchantDashboardScreen> {
   @override
   Widget build(BuildContext context) {
-    final user = ref.watch(userProvider);
     final merchantId = FirebaseAuth.instance.currentUser?.uid ?? '';
 
     return Scaffold(

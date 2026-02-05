@@ -17,7 +17,7 @@ import 'package:tontetic/features/shop/presentation/screens/boutique_screen.dart
 import 'package:tontetic/features/onboarding/presentation/widgets/welcome_dialog.dart';
 import 'package:tontetic/features/wallet/presentation/screens/wallet_tab_screen.dart';
 import 'package:share_plus/share_plus.dart'; // V10.0 Native Share
-import 'package:tontetic/features/tontine/presentation/screens/explorer_screen.dart';
+import 'package:tontetic/features/tontine/presentation/screens/my_circles_screen.dart';
 import 'package:tontetic/core/providers/localization_provider.dart';
 import 'package:tontetic/core/presentation/widgets/tts_control_toggle.dart';
 import 'package:tontetic/core/services/voice_service.dart';
@@ -133,7 +133,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> with SingleTi
     if (_selectedIndex == 0) {
       content = _buildHomeContent();
     } else if (_selectedIndex == 1) {
-      content = const ExplorerScreen();
+      content = const MyCirclesScreen();
     } else if (_selectedIndex == 2) {
       content = isGuest ? _buildGuestBlocker('Portefeuille') : const WalletTabScreen();
     } else if (_selectedIndex == 3) {
@@ -427,14 +427,14 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> with SingleTi
   Widget _buildKPISummaryRow() {
     final circles = ref.watch(circleProvider).myCircles;
     final user = ref.watch(userProvider);
-    
+
     // Calculate Total Saved (Approximate: sum of circle value * cycles passed, assuming participation)
     // In production, this should come from a dedicated Transaction/Savings Service.
     double totalSaved = 0;
     for (var circle in circles) {
       totalSaved += circle.amount * circle.currentCycle;
     }
-    
+
     // Calculate Next Payout Date
     DateTime? nextPayout;
     if (circles.isNotEmpty) {
@@ -462,13 +462,208 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> with SingleTi
           const SizedBox(width: 12),
           Expanded(child: _buildKPIItem('Prochain Pot', formattedDate, Icons.event, AppTheme.marineBlue)),
           const SizedBox(width: 12),
-          Expanded(child: _buildKPIItem('Honneur', '${user.honorScore} pts 📈', Icons.trending_up, AppTheme.gold)),
+          Expanded(
+            child: GestureDetector(
+              onTap: () => _showHonorScoreExplanation(user.honorScore),
+              child: _buildKPIItem('Honneur', '${user.honorScore}/5 ⭐', Icons.trending_up, AppTheme.gold, hasInfo: true),
+            ),
+          ),
         ],
       ),
     );
   }
 
-  Widget _buildKPIItem(String label, String value, IconData icon, Color color) {
+  void _showHonorScoreExplanation(double score) {
+    final l10n = ref.read(localizationProvider);
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => Container(
+        padding: const EdgeInsets.all(24),
+        decoration: BoxDecoration(
+          color: isDark ? const Color(0xFF1A1A2E) : Colors.white,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Header
+            Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: AppTheme.gold.withValues(alpha: 0.2),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: const Icon(Icons.verified, color: AppTheme.gold, size: 28),
+                ),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'Score d\'Honneur',
+                        style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                      ),
+                      Text(
+                        'Votre score actuel : ${score.toStringAsFixed(1)}/5',
+                        style: TextStyle(color: AppTheme.gold, fontWeight: FontWeight.w600),
+                      ),
+                    ],
+                  ),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.close),
+                  onPressed: () => Navigator.pop(ctx),
+                ),
+              ],
+            ),
+            const SizedBox(height: 24),
+
+            // Explanation
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: isDark ? Colors.white.withValues(alpha: 0.05) : Colors.blue.shade50,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: isDark ? Colors.white12 : Colors.blue.shade100),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Icon(Icons.info_outline, color: isDark ? AppTheme.gold : Colors.blue.shade700, size: 20),
+                      const SizedBox(width: 8),
+                      Text(
+                        'Comment est-il calculé ?',
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          color: isDark ? AppTheme.gold : Colors.blue.shade700,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  Text(
+                    'Score = (Paiements réussis / Total des paiements) × 5',
+                    style: TextStyle(
+                      fontFamily: 'monospace',
+                      fontSize: 13,
+                      color: isDark ? Colors.white70 : Colors.black87,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Les nouveaux membres commencent avec un score de 4.0/5.',
+                    style: TextStyle(fontSize: 13, color: isDark ? Colors.white60 : Colors.grey[600]),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 16),
+
+            // Score Legend
+            const Text('Échelle de notation', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+            const SizedBox(height: 12),
+            _buildScoreLegendItem('5.0', 'Excellent', 'Tous les paiements à temps', Colors.green),
+            _buildScoreLegendItem('4.0-4.9', 'Très bien', 'Quelques retards mineurs', Colors.lightGreen),
+            _buildScoreLegendItem('3.0-3.9', 'Acceptable', 'Retards occasionnels', Colors.orange),
+            _buildScoreLegendItem('< 3.0', 'À améliorer', 'Retards fréquents', Colors.red),
+
+            const SizedBox(height: 20),
+
+            // Impact section
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: isDark ? Colors.white.withValues(alpha: 0.05) : Colors.grey.shade50,
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Row(
+                    children: [
+                      Icon(Icons.lightbulb_outline, color: AppTheme.gold, size: 20),
+                      SizedBox(width: 8),
+                      Text('Impact de votre score', style: TextStyle(fontWeight: FontWeight.bold)),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    '• Visibilité dans les recommandations\n'
+                    '• Acceptation dans certains cercles\n'
+                    '• Confiance des autres membres',
+                    style: TextStyle(fontSize: 13, height: 1.5, color: isDark ? Colors.white70 : Colors.grey[700]),
+                  ),
+                ],
+              ),
+            ),
+
+            const SizedBox(height: 20),
+
+            // RGPD Rights
+            Row(
+              children: [
+                const Icon(Icons.gavel, size: 16, color: Colors.grey),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'Conformément au RGPD Art. 22, vous pouvez contester ce score : dpo@tontetic.app',
+                    style: TextStyle(fontSize: 11, color: Colors.grey[600]),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildScoreLegendItem(String range, String label, String description, Color color) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        children: [
+          Container(
+            width: 60,
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+            decoration: BoxDecoration(
+              color: color.withValues(alpha: 0.2),
+              borderRadius: BorderRadius.circular(6),
+            ),
+            child: Text(
+              range,
+              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: color),
+              textAlign: TextAlign.center,
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(label, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13)),
+                Text(description, style: TextStyle(fontSize: 11, color: Colors.grey[600])),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildKPIItem(String label, String value, IconData icon, Color color, {bool hasInfo = false}) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
@@ -479,23 +674,30 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> with SingleTi
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(icon, size: 20, color: Theme.of(context).brightness == Brightness.dark && color == AppTheme.marineBlue ? AppTheme.gold : color),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Icon(icon, size: 20, color: isDark && color == AppTheme.marineBlue ? AppTheme.gold : color),
+              if (hasInfo)
+                Icon(Icons.info_outline, size: 14, color: isDark ? Colors.white38 : Colors.grey[400]),
+            ],
+          ),
           const SizedBox(height: 8),
           Text(
-            value, 
+            value,
             style: TextStyle(
-              fontWeight: FontWeight.bold, 
+              fontWeight: FontWeight.bold,
               fontSize: 14,
-              color: Theme.of(context).brightness == Brightness.dark ? Colors.white : Colors.black87,
+              color: isDark ? Colors.white : Colors.black87,
             ),
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
           ),
           Text(
-            label, 
+            label,
             style: TextStyle(
-              fontSize: 10, 
-              color: Theme.of(context).brightness == Brightness.dark ? Colors.white70 : Colors.grey[700], 
+              fontSize: 10,
+              color: isDark ? Colors.white70 : Colors.grey[700],
               height: 1.2,
             ),
             maxLines: 1,
@@ -1275,11 +1477,11 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> with SingleTi
                             iconData = Icons.warning_amber_rounded;
                             iconColor = Colors.orange;
                             break;
-                          case NotificationType.tontine_invite:
+                          case NotificationType.tontineInvite:
                             iconData = Icons.mail_outline;
                             iconColor = Colors.purple;
                             break;
-                          case NotificationType.chat_message:
+                          case NotificationType.chatMessage:
                             iconData = Icons.chat_bubble_outline;
                             iconColor = AppTheme.marineBlue;
                             break;
@@ -1327,7 +1529,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> with SingleTi
                                 ref.read(notificationProvider.notifier).markAsRead(n.id);
                                 
                                 // Logic based on type (example)
-                                if (n.type == NotificationType.tontine_invite && n.data != null) {
+                                if (n.type == NotificationType.tontineInvite && n.data != null) {
                                   // Example navigation
                                   // context.push('/circle-details/${n.data!['circleId']}');
                                 }

@@ -291,30 +291,6 @@ class CampaignService {
     debugPrint('[Campaign] Cancelled: $campaignId');
   }
 
-  int _estimateAudienceSize(TargetAudience audience) {
-    // Simulated audience sizes
-    switch (audience) {
-      case TargetAudience.all:
-        return 12458;
-      case TargetAudience.newUsers:
-        return 1250;
-      case TargetAudience.inactiveUsers:
-        return 3420;
-      case TargetAudience.highScoreUsers:
-        return 4560;
-      case TargetAudience.lowScoreUsers:
-        return 890;
-      case TargetAudience.merchants:
-        return 456;
-      case TargetAudience.enterprises:
-        return 48;
-      case TargetAudience.byRegion:
-        return 2500;
-      case TargetAudience.byCircleStatus:
-        return 5600;
-    }
-  }
-
   // Analytics
   Map<String, dynamic> getGlobalStats() {
     final sent = _campaigns.where((c) => c.status == CampaignStatus.sent).toList();

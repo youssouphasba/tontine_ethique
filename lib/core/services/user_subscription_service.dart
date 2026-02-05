@@ -381,10 +381,6 @@ class UserSubscriptionService {
     }
   }
 
-  void _initializeDemoData() {
-    // Deprecated - kept for reference
-  }
-
   // ============================================================
   // MÉTHODES DE VÉRIFICATION (CÔTÉ SERVEUR)
   // ============================================================

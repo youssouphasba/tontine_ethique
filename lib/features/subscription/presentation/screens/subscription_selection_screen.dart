@@ -530,15 +530,15 @@ class SubscriptionSelectionScreen extends ConsumerWidget {
     }
   }
 
-  void _showDowngradeWarningIfNeeded(
+  // Reserved for future downgrade warning feature
+  // ignore: unused_element
+  void _showDowngradeWarningIfNeededInternal(
     BuildContext context,
     Plan plan,
     int maxCircles,
     int maxMembers,
     VoidCallback onConfirm,
   ) {
-    // Check if this is a downgrade by comparing with current plan
-    // For simplicity, we'll show the confirmation dialog for all plan changes
     showDialog(
       context: context,
       builder: (context) => AlertDialog(

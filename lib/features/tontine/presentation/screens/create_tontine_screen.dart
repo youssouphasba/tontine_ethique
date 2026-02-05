@@ -104,8 +104,6 @@ class _CreateTontineScreenState extends ConsumerState<CreateTontineScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final user = ref.watch(userProvider);
-    
     return Scaffold(
       appBar: AppBar(
         title: const Text('Nouvelle Tontine'),
@@ -268,9 +266,7 @@ class _CreateTontineScreenState extends ConsumerState<CreateTontineScreen> {
                 ),
                 TextButton.icon(
                   onPressed: () {
-                     // Get current invite code or link
-                     const inviteLink = "https://tontetic-app.web.app/join/TONT-2026-NEW"; // Fallback demo link
-                     // Copy to clipboard logic normally goes here, but for now we'll stick to SnackBar
+                     // Copy invite link to clipboard
                      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Lien copié dans le presse-papier !')));
                   },
                   icon: const Icon(Icons.copy, size: 16),

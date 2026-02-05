@@ -11,7 +11,7 @@ class RateLimitService {
     'voice_stt': RateLimitConfig(maxRequests: 10, windowSeconds: 60),     // 10 STT per minute
     'wolof_tts': RateLimitConfig(maxRequests: 5, windowSeconds: 60),      // 5 Wolof per minute
     'auth_login': RateLimitConfig(maxRequests: 5, windowSeconds: 300),    // 5 logins per 5 minutes
-    'auth_otp': RateLimitConfig(maxRequests: 3, windowSeconds: 60),       // 3 OTP per minute
+    'auth_otp': RateLimitConfig(maxRequests: 3, windowSeconds: 600),      // 3 OTP per 10 minutes
     'payment': RateLimitConfig(maxRequests: 10, windowSeconds: 60),       // 10 payments per minute
   };
 

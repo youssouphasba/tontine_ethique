@@ -148,7 +148,10 @@ class ProfileScreen extends ConsumerWidget {
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                     children: [
-                      _buildStatItem('Honor Score', '$honorScore/5 ⭐', Icons.verified, null),
+                      GestureDetector(
+                        onTap: () => _showHonorScoreExplanation(context, honorScore),
+                        child: _buildStatItem('Honor Score', '$honorScore/5 ⭐', Icons.verified, null),
+                      ),
                       GestureDetector(
                         onTap: () => _showFollowersList(context, ref, displayName, 'followers'),
                         child: _buildStatItem('Abonnés', social.getFollowers(user.uid).toString(), Icons.people, null),
@@ -309,6 +312,221 @@ class ProfileScreen extends ConsumerWidget {
         Text(value, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white)),
         Text(label, style: TextStyle(fontSize: 11, color: Colors.grey[400])),
       ],
+    );
+  }
+
+  void _showHonorScoreExplanation(BuildContext context, double score) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => Container(
+        padding: const EdgeInsets.all(24),
+        decoration: BoxDecoration(
+          color: isDark ? const Color(0xFF1A1A2E) : Colors.white,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Header
+            Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: AppTheme.gold.withValues(alpha: 0.2),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: const Icon(Icons.verified, color: AppTheme.gold, size: 28),
+                ),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'Score d\'Honneur',
+                        style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                      ),
+                      Text(
+                        'Score affiché : ${score.toStringAsFixed(1)}/5',
+                        style: const TextStyle(color: AppTheme.gold, fontWeight: FontWeight.w600),
+                      ),
+                    ],
+                  ),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.close),
+                  onPressed: () => Navigator.pop(ctx),
+                ),
+              ],
+            ),
+            const SizedBox(height: 24),
+
+            // Explanation
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: isDark ? Colors.white.withValues(alpha: 0.05) : Colors.blue.shade50,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: isDark ? Colors.white12 : Colors.blue.shade100),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Icon(Icons.info_outline, color: isDark ? AppTheme.gold : Colors.blue.shade700, size: 20),
+                      const SizedBox(width: 8),
+                      Text(
+                        'Qu\'est-ce que c\'est ?',
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          color: isDark ? AppTheme.gold : Colors.blue.shade700,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  Text(
+                    'Le Score d\'Honneur reflète la fiabilité d\'un membre dans ses paiements de cotisations.',
+                    style: TextStyle(
+                      fontSize: 13,
+                      color: isDark ? Colors.white70 : Colors.black87,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 16),
+
+            // Formula
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: isDark ? Colors.white.withValues(alpha: 0.05) : Colors.grey.shade50,
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text('Formule de calcul', style: TextStyle(fontWeight: FontWeight.bold)),
+                  const SizedBox(height: 8),
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: isDark ? AppTheme.marineBlue.withValues(alpha: 0.3) : Colors.grey.shade200,
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Text(
+                      'Score = (Paiements réussis / Total) × 5',
+                      style: TextStyle(
+                        fontFamily: 'monospace',
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        color: isDark ? AppTheme.gold : AppTheme.marineBlue,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Les nouveaux membres commencent à 4.0/5.',
+                    style: TextStyle(fontSize: 12, color: isDark ? Colors.white60 : Colors.grey[600]),
+                  ),
+                ],
+              ),
+            ),
+
+            const SizedBox(height: 16),
+
+            // Interpretation
+            _buildScoreInterpretation(score, isDark),
+
+            const SizedBox(height: 20),
+
+            // RGPD Notice
+            Row(
+              children: [
+                const Icon(Icons.gavel, size: 16, color: Colors.grey),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'Conformément au RGPD Art. 22, vous pouvez contacter dpo@tontetic.app pour toute question.',
+                    style: TextStyle(fontSize: 11, color: Colors.grey[600]),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildScoreInterpretation(double score, bool isDark) {
+    String label;
+    String description;
+    Color color;
+
+    if (score >= 4.5) {
+      label = 'Excellent';
+      description = 'Ce membre a un historique de paiements exemplaire.';
+      color = Colors.green;
+    } else if (score >= 4.0) {
+      label = 'Très bien';
+      description = 'Ce membre est généralement fiable.';
+      color = Colors.lightGreen;
+    } else if (score >= 3.0) {
+      label = 'Acceptable';
+      description = 'Quelques retards occasionnels dans l\'historique.';
+      color = Colors.orange;
+    } else {
+      label = 'À surveiller';
+      description = 'Des retards fréquents ont été constatés.';
+      color = Colors.red;
+    }
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: color.withValues(alpha: 0.3)),
+      ),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: color.withValues(alpha: 0.2),
+              shape: BoxShape.circle,
+            ),
+            child: Icon(
+              score >= 4.0 ? Icons.thumb_up : (score >= 3.0 ? Icons.thumbs_up_down : Icons.warning),
+              color: color,
+              size: 20,
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(label, style: TextStyle(fontWeight: FontWeight.bold, color: color)),
+                Text(
+                  description,
+                  style: TextStyle(fontSize: 12, color: isDark ? Colors.white70 : Colors.grey[700]),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 

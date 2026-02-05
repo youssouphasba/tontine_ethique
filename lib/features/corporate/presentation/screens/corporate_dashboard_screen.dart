@@ -3,7 +3,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:tontetic/core/theme/app_theme.dart';
 import 'package:tontetic/core/providers/subscription_provider.dart';
-import 'package:tontetic/core/providers/plans_provider.dart';
 import 'package:tontetic/features/corporate/presentation/screens/employee_invitation_screen.dart';
 import 'package:tontetic/features/corporate/presentation/widgets/enterprise_support_widget.dart';
 import 'package:tontetic/features/corporate/presentation/screens/enterprise_subscription_screen.dart';
@@ -408,16 +407,6 @@ class _CorporateDashboardScreenState extends ConsumerState<CorporateDashboardScr
           ),
         ],
       ),
-    );
-  }
-
-  Widget _buildFilterChip(String label, bool selected) {
-    return FilterChip(
-      label: Text(label),
-      selected: selected,
-      onSelected: (_) {},
-      selectedColor: Colors.indigo.withValues(alpha: Theme.of(context).brightness == Brightness.dark ? 0.3 : 0.2),
-      labelStyle: TextStyle(color: selected ? (Theme.of(context).brightness == Brightness.dark ? Colors.white : Colors.indigo) : null),
     );
   }
 
@@ -974,16 +963,6 @@ class _CorporateDashboardScreenState extends ConsumerState<CorporateDashboardScr
       ),
     );
   }
-
-  Widget _buildAuditItem(String action, String details, String user, String time) {
-    return ListTile(
-      leading: const Icon(Icons.history, color: Colors.blue, size: 20),
-      title: Text(action, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
-      subtitle: Text('$user • $details', style: const TextStyle(fontSize: 11)),
-      trailing: Text(time, style: const TextStyle(fontSize: 10, color: Colors.grey)),
-    );
-  }
-
 
   // =============== SUBSCRIPTION HELPERS ===============
   Widget _buildUsageBar(String label, int current, int max, double percent) {

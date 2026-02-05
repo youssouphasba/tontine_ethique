@@ -103,7 +103,7 @@ class _ConversationsListScreenState extends ConsumerState<ConversationsListScree
 
         return ListView.separated(
           itemCount: tontines.length + 1, // +1 for support
-          separatorBuilder: (_, __) => const Divider(height: 1),
+          separatorBuilder: (_, _) => const Divider(height: 1),
           itemBuilder: (context, index) {
             if (index == 0) {
               // Support Chat Shortcut
@@ -127,7 +127,7 @@ class _ConversationsListScreenState extends ConsumerState<ConversationsListScree
 
             return ListTile(
               leading: CircleAvatar(
-                backgroundColor: AppTheme.marineBlue.withOpacity(0.1),
+                backgroundColor: AppTheme.marineBlue.withValues(alpha: 0.1),
                 child: Text(emoji, style: const TextStyle(fontSize: 24)),
               ),
               title: Text(name, style: const TextStyle(fontWeight: FontWeight.bold)),
@@ -187,7 +187,7 @@ class _ConversationsListScreenState extends ConsumerState<ConversationsListScree
 
         return ListView.separated(
           itemCount: merchantIds.length,
-          separatorBuilder: (_, __) => const Divider(height: 1),
+          separatorBuilder: (_, _) => const Divider(height: 1),
           itemBuilder: (context, index) {
             final merchantId = merchantIds[index];
             
@@ -278,7 +278,7 @@ class _ConversationsListScreenState extends ConsumerState<ConversationsListScree
                 )
               : ListView.separated(
                   itemCount: conversations.length,
-                  separatorBuilder: (_, __) => const Divider(height: 1),
+                  separatorBuilder: (_, _) => const Divider(height: 1),
                   itemBuilder: (context, index) {
                     final conv = conversations[index];
                     final lastMsg = conv.lastMessage;

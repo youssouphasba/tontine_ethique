@@ -1,7 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-// import 'package:tontetic/core/providers/merchant_account_provider.dart'; - UNUSED
+import 'package:firebase_auth/firebase_auth.dart';
 
 /// Shop Feed Provider
 /// TikTok-like product discovery with interests and recommendations
@@ -339,13 +339,17 @@ class ShopFeedState {
 // =============== NOTIFIER ===============
 
 class ShopFeedNotifier extends StateNotifier<ShopFeedState> {
+  final FirebaseFirestore _db = FirebaseFirestore.instance;
+
   ShopFeedNotifier() : super(ShopFeedState()) {
     _initRealtimeFeed();
+    _loadUserData();
   }
 
+  String? get _userId => FirebaseAuth.instance.currentUser?.uid;
+
   void _initRealtimeFeed() {
-    FirebaseFirestore.instance
-        .collection('products')
+    _db.collection('products')
         .orderBy('createdAt', descending: true)
         .limit(50)
         .snapshots()
@@ -353,11 +357,115 @@ class ShopFeedNotifier extends StateNotifier<ShopFeedState> {
       final products = snapshot.docs.map((doc) {
         return FeedProduct.fromMap(doc.data(), doc.id);
       }).toList();
-      
+
       state = state.copyWith(allProducts: products);
     }, onError: (e) {
       debugPrint("Error fetching products: $e");
     });
+  }
+
+  /// Load user's likes, follows, and interests from Firestore
+  Future<void> _loadUserData() async {
+    final userId = _userId;
+    if (userId == null) return;
+
+    try {
+      final userDoc = await _db.collection('users').doc(userId).get();
+      if (!userDoc.exists) return;
+
+      final data = userDoc.data()!;
+
+      // Load liked products
+      final likedIds = List<String>.from(data['likedProductIds'] ?? []);
+
+      // Load followed merchants
+      final followedData = List<Map<String, dynamic>>.from(data['followedMerchants'] ?? []);
+      final followedMerchants = followedData.map((m) => FollowedMerchant(
+        shopId: m['shopId'] ?? '',
+        shopName: m['shopName'] ?? '',
+        logoUrl: m['logoUrl'],
+        followedAt: (m['followedAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
+      )).toList();
+
+      // Load interests
+      final interestStrings = List<String>.from(data['shopInterests'] ?? []);
+      final interests = interestStrings
+          .map((e) => ProductInterest.values.firstWhere(
+              (i) => i.toString() == 'ProductInterest.$e',
+              orElse: () => ProductInterest.fashionWomen))
+          .toList();
+
+      state = state.copyWith(
+        likedProductIds: likedIds,
+        followedMerchants: followedMerchants,
+        interests: interests,
+        hasCompletedOnboarding: interests.isNotEmpty,
+      );
+
+      debugPrint('[ShopFeed] Loaded user data: ${likedIds.length} likes, ${followedMerchants.length} follows');
+    } catch (e) {
+      debugPrint('[ShopFeed] Error loading user data: $e');
+    }
+  }
+
+  /// Save likes to Firestore
+  Future<void> _saveLikesToFirestore() async {
+    final userId = _userId;
+    if (userId == null) return;
+
+    try {
+      await _db.collection('users').doc(userId).set({
+        'likedProductIds': state.likedProductIds,
+      }, SetOptions(merge: true));
+    } catch (e) {
+      debugPrint('[ShopFeed] Error saving likes: $e');
+    }
+  }
+
+  /// Save follows to Firestore
+  Future<void> _saveFollowsToFirestore() async {
+    final userId = _userId;
+    if (userId == null) return;
+
+    try {
+      final followsData = state.followedMerchants.map((m) => {
+        'shopId': m.shopId,
+        'shopName': m.shopName,
+        'logoUrl': m.logoUrl,
+        'followedAt': Timestamp.fromDate(m.followedAt),
+      }).toList();
+
+      await _db.collection('users').doc(userId).set({
+        'followedMerchants': followsData,
+      }, SetOptions(merge: true));
+    } catch (e) {
+      debugPrint('[ShopFeed] Error saving follows: $e');
+    }
+  }
+
+  /// Save interests to Firestore
+  Future<void> _saveInterestsToFirestore() async {
+    final userId = _userId;
+    if (userId == null) return;
+
+    try {
+      await _db.collection('users').doc(userId).set({
+        'shopInterests': state.interests.map((i) => i.name).toList(),
+      }, SetOptions(merge: true));
+    } catch (e) {
+      debugPrint('[ShopFeed] Error saving interests: $e');
+    }
+  }
+
+  /// Update product likes count in Firestore
+  Future<void> _updateProductLikesCount(String productId, int delta) async {
+    try {
+      await _db.collection('products').doc(productId).update({
+        'likesCount': FieldValue.increment(delta),
+      });
+    } catch (e) {
+      debugPrint('[ShopFeed] Error updating product likes: $e');
+    }
   }
 
   // ===== ONBOARDING =====
@@ -366,6 +474,7 @@ class ShopFeedNotifier extends StateNotifier<ShopFeedState> {
       interests: interests,
       hasCompletedOnboarding: true,
     );
+    _saveInterestsToFirestore();
     _checkBadges();
     debugPrint('[ShopFeed] Interests set: ${interests.length} selected');
   }
@@ -385,37 +494,45 @@ class ShopFeedNotifier extends StateNotifier<ShopFeedState> {
   // ===== INTERACTIONS =====
   void likeProduct(String productId) {
     if (state.isProductLiked(productId)) return;
-    
+
     // Update liked list
     state = state.copyWith(
       likedProductIds: [...state.likedProductIds, productId],
       totalLikes: state.totalLikes + 1,
     );
-    
-    // Update product likes count
+
+    // Update product likes count locally
     final products = state.allProducts.map((p) {
       if (p.id == productId) return p.copyWith(likesCount: p.likesCount + 1);
       return p;
     }).toList();
     state = state.copyWith(allProducts: products);
-    
+
+    // Persist to Firestore
+    _saveLikesToFirestore();
+    _updateProductLikesCount(productId, 1);
+
     _checkBadges();
     debugPrint('[ShopFeed] Liked product: $productId');
   }
 
   void unlikeProduct(String productId) {
     if (!state.isProductLiked(productId)) return;
-    
+
     state = state.copyWith(
       likedProductIds: state.likedProductIds.where((id) => id != productId).toList(),
       totalLikes: state.totalLikes - 1,
     );
-    
+
     final products = state.allProducts.map((p) {
       if (p.id == productId) return p.copyWith(likesCount: p.likesCount - 1);
       return p;
     }).toList();
     state = state.copyWith(allProducts: products);
+
+    // Persist to Firestore
+    _saveLikesToFirestore();
+    _updateProductLikesCount(productId, -1);
   }
 
   void viewProduct(String productId) {
@@ -430,13 +547,17 @@ class ShopFeedNotifier extends StateNotifier<ShopFeedState> {
 
   void followMerchant(String shopId, String shopName, String? logoUrl) {
     if (state.isMerchantFollowed(shopId)) return;
-    
+
     state = state.copyWith(
       followedMerchants: [
         ...state.followedMerchants,
         FollowedMerchant(shopId: shopId, shopName: shopName, logoUrl: logoUrl, followedAt: DateTime.now()),
       ],
     );
+
+    // Persist to Firestore
+    _saveFollowsToFirestore();
+
     _checkBadges();
     debugPrint('[ShopFeed] Followed merchant: $shopName');
   }
@@ -445,6 +566,9 @@ class ShopFeedNotifier extends StateNotifier<ShopFeedState> {
     state = state.copyWith(
       followedMerchants: state.followedMerchants.where((m) => m.shopId != shopId).toList(),
     );
+
+    // Persist to Firestore
+    _saveFollowsToFirestore();
   }
 
   // ===== GAMIFICATION =====

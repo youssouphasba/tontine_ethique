@@ -5,6 +5,7 @@ import '../providers/user_provider.dart';
 import '../services/encryption_service.dart';
 import '../../features/dashboard/presentation/screens/dashboard_screen.dart';
 import '../../features/onboarding/presentation/screens/onboarding_screen.dart';
+import '../../features/auth/presentation/screens/email_verification_screen.dart';
 
 class AuthWrapper extends ConsumerWidget {
   const AuthWrapper({super.key});
@@ -12,9 +13,10 @@ class AuthWrapper extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final authState = ref.watch(authStateProvider);
-    final userState = ref.watch(userProvider);
+    // Watch userProvider to trigger rebuild on user data changes (Riverpod pattern)
+    ref.watch(userProvider);
     final isGuestMode = ref.watch(isGuestModeProvider);
-    
+
     // Guest Mode takes priority
     if (isGuestMode) {
       debugPrint('AUTH_WRAPPER: Guest Mode active. Showing DashboardScreen');
@@ -23,15 +25,19 @@ class AuthWrapper extends ConsumerWidget {
 
     return authState.when(
       data: (user) {
-        debugPrint('AUTH_WRAPPER: User state changed - user: ${user?.uid ?? "null"}, email: ${user?.email ?? "no email"}');
+        debugPrint('AUTH_WRAPPER: User state changed - uid: ${user?.uid != null ? "***" : "null"}');
         if (user != null) {
+          // RGPD Compliance: Bloquer l'accès si l'email n'est pas vérifié
+          // Exception: comptes créés via téléphone uniquement (pas d'email)
+          if (user.email != null && user.email!.isNotEmpty && !user.emailVerified) {
+            debugPrint('AUTH_WRAPPER: Email not verified, showing verification screen');
+            return const EmailVerificationScreen();
+          }
+
           // Encryption Check (Non-blocking)
           E2EEncryptionService.ensureKeysExist(user.uid);
 
-          // V22: Remove forced redirection to TypeSelectionScreen. 
-          // Let the user see the Dashboard even with a guest status.
-          // Dashboard features will show appropriate blockers/prompts.
-          debugPrint('AUTH_WRAPPER: User authenticated. Showing DashboardScreen (status: ${userState.status})');
+          debugPrint('AUTH_WRAPPER: User authenticated and verified. Showing DashboardScreen');
           return const DashboardScreen();
         }
         debugPrint('AUTH_WRAPPER: No user, showing OnboardingScreen');
@@ -46,7 +52,7 @@ class AuthWrapper extends ConsumerWidget {
         );
       },
       error: (error, stack) {
-        debugPrint('AUTH_WRAPPER: Error in auth state: $error');
+        debugPrint('AUTH_WRAPPER: Error in auth state');
         return const OnboardingScreen();
       },
     );

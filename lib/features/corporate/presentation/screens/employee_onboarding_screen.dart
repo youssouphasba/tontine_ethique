@@ -570,11 +570,10 @@ Vos données bancaires ne transitent jamais par notre plateforme. Elles sont gé
   void _completeOnboarding() async {
     setState(() => _isLoading = true);
 
-    // Record consents
-    ref.read(consentProvider.notifier).recordConsent(
+    // Record consents (real IP fetched automatically)
+    await ref.read(consentProvider.notifier).recordConsent(
       type: ConsentType.cgu,
       accepted: true,
-      ipAddress: '192.168.x.x',
       version: '2.0-EMPLOYEE',
     );
 

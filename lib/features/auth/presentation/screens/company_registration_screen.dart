@@ -6,13 +6,14 @@ import 'package:tontetic/core/models/user_model.dart';
 import '../../../corporate/presentation/screens/corporate_dashboard_screen.dart';
 import 'package:tontetic/core/providers/consent_provider.dart';
 import 'package:tontetic/core/providers/account_status_provider.dart';
-import 'package:tontetic/core/providers/auth_provider.dart'; // ADDED: For authServiceProvider
-import 'package:tontetic/core/constants/stripe_constants.dart'; // ADDED: For Stripe Price IDs
-import 'package:tontetic/core/providers/plans_provider.dart'; // ADDED: For enterprisePlansProvider
+import 'package:tontetic/core/providers/auth_provider.dart';
+import 'package:tontetic/core/constants/stripe_constants.dart';
+import 'package:tontetic/core/providers/plans_provider.dart';
+import 'package:tontetic/core/utils/validators.dart';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:tontetic/core/models/enterprise_model.dart'; // ADDED
-import 'package:tontetic/core/services/enterprise_service.dart'; // ADDED
+import 'package:tontetic/core/models/enterprise_model.dart';
+import 'package:tontetic/core/services/enterprise_service.dart';
 
 import 'package:tontetic/features/auth/presentation/widgets/otp_dialog.dart';
 
@@ -200,9 +201,11 @@ class _CompanyRegistrationScreenState extends ConsumerState<CompanyRegistrationS
             labelText: _selectedCountry == 'FR' ? 'Numéro SIRET' : 'NIF (Numéro d\'Identification Fiscale)',
             prefixIcon: const Icon(Icons.numbers),
             border: const OutlineInputBorder(),
-            helperText: _selectedCountry == 'FR' ? '14 chiffres' : 'Format national',
+            helperText: _selectedCountry == 'FR' ? '14 chiffres (clé de contrôle vérifiée)' : 'Format national',
           ),
-          validator: (v) => v!.isEmpty ? 'Requis' : null,
+          validator: (v) => _selectedCountry == 'FR'
+              ? Validators.validateSiret(v)
+              : Validators.validateNif(v),
         ),
         const SizedBox(height: 16),
 
@@ -215,11 +218,7 @@ class _CompanyRegistrationScreenState extends ConsumerState<CompanyRegistrationS
             prefixIcon: Icon(Icons.email),
             border: OutlineInputBorder(),
           ),
-          validator: (v) {
-            if (v!.isEmpty) return 'Requis';
-            if (!v.contains('@')) return 'Email invalide';
-            return null;
-          },
+          validator: Validators.validateEmail,
         ),
         const SizedBox(height: 16),
 
@@ -254,7 +253,7 @@ class _CompanyRegistrationScreenState extends ConsumerState<CompanyRegistrationS
                   prefixIcon: Icon(Icons.phone),
                   border: OutlineInputBorder(),
                 ),
-                validator: (v) => v!.isEmpty ? 'Requis' : null,
+                validator: Validators.validatePhoneLocal,
               ),
             ),
           ],
@@ -298,7 +297,7 @@ class _CompanyRegistrationScreenState extends ConsumerState<CompanyRegistrationS
           controller: _passwordController,
           obscureText: !_showPassword,
           decoration: InputDecoration(
-            labelText: 'Mot de passe',
+            labelText: 'Mot de passe (min. ${Validators.minPasswordLength} caractères)',
             prefixIcon: const Icon(Icons.lock),
             border: const OutlineInputBorder(),
             suffixIcon: IconButton(
@@ -306,7 +305,7 @@ class _CompanyRegistrationScreenState extends ConsumerState<CompanyRegistrationS
               onPressed: () => setState(() => _showPassword = !_showPassword),
             ),
           ),
-          validator: (v) => v!.length < 8 ? 'Min 8 caractères' : null,
+          validator: Validators.validatePassword,
         ),
         const SizedBox(height: 16),
 
@@ -322,10 +321,7 @@ class _CompanyRegistrationScreenState extends ConsumerState<CompanyRegistrationS
               onPressed: () => setState(() => _showPassword = !_showPassword),
             ),
           ),
-          validator: (v) {
-            if (v != _passwordController.text) return 'Les mots de passe ne correspondent pas';
-            return null;
-          },
+          validator: (v) => Validators.validatePasswordConfirm(v, _passwordController.text),
         ),
         const SizedBox(height: 8),
 
@@ -473,25 +469,26 @@ class _CompanyRegistrationScreenState extends ConsumerState<CompanyRegistrationS
     );
   }
 
-  void _signDocuments() {
-    // Record consent with timestamp
-    ref.read(consentProvider.notifier).recordConsent(
+  Future<void> _signDocuments() async {
+    setState(() => _isLoading = true);
+
+    // Record consent with real IP address (fetched automatically)
+    final consentNotifier = ref.read(consentProvider.notifier);
+    await consentNotifier.recordConsent(
       type: ConsentType.cgu,
       accepted: true,
-      ipAddress: '192.168.x.x',
       version: '2.0-B2B',
     );
-    ref.read(consentProvider.notifier).recordConsent(
+    await consentNotifier.recordConsent(
       type: ConsentType.privacy,
       accepted: true,
-      ipAddress: '192.168.x.x',
       version: '2.0-B2B',
     );
-    
+
     setState(() {
+      _isLoading = false;
       _currentStep = 2;
     });
-    // No need to call _sendOtp here, Step 3 now has a "Lancer la vérification" button
   }
 
   // =============== STEP 3: VERIFICATION ===============

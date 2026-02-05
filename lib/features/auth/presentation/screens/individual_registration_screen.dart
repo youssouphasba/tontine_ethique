@@ -1,14 +1,18 @@
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_storage/firebase_storage.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:tontetic/core/theme/app_theme.dart';
 import 'package:tontetic/core/providers/user_provider.dart';
 import 'package:tontetic/core/models/user_model.dart';
 import 'package:tontetic/core/providers/consent_provider.dart';
 import 'package:tontetic/core/providers/auth_provider.dart';
+import 'package:tontetic/core/utils/validators.dart';
 import 'package:go_router/go_router.dart';
 import 'package:tontetic/features/auth/presentation/widgets/otp_dialog.dart';
-
 
 import 'package:tontetic/core/constants/legal_texts.dart';
 
@@ -32,12 +36,12 @@ class _IndividualRegistrationScreenState extends ConsumerState<IndividualRegistr
   final _formKey = GlobalKey<FormState>();
   int _currentStep = 0;
   bool _isLoading = false;
-  bool _emailVerified = false;
   bool _phoneVerified = false;
 
   // Step 1: Inscription minimale
   final _firstNameController = TextEditingController();
   final _lastNameController = TextEditingController();
+  final _birthDateController = TextEditingController();
   final _emailController = TextEditingController();
   final _phoneController = TextEditingController();
   final _passwordController = TextEditingController();
@@ -57,10 +61,8 @@ class _IndividualRegistrationScreenState extends ConsumerState<IndividualRegistr
         // 1. Pre-fill Email
         if (user.email.isNotEmpty) {
           _emailController.text = user.email;
-          _emailVerified = true;
         } else if (firebaseUser?.email != null) {
           _emailController.text = firebaseUser!.email!;
-          _emailVerified = true;
         }
         
         // 2. Pre-fill Name
@@ -88,15 +90,19 @@ class _IndividualRegistrationScreenState extends ConsumerState<IndividualRegistr
   bool _cguAccepted = false;
   bool _privacyAccepted = false;
   bool _charterAccepted = false;
+  bool _newsletterAccepted = false; // OPTIONNEL - RGPD compliant
 
   // Step 3: Profil non financier
   final _pseudoController = TextEditingController();
   final _bioController = TextEditingController();
+  Uint8List? _selectedPhotoBytes;
+  bool _photoConsentAccepted = false;
 
   @override
   void dispose() {
     _firstNameController.dispose();
     _lastNameController.dispose();
+    _birthDateController.dispose();
     _emailController.dispose();
     _phoneController.dispose();
     _passwordController.dispose();
@@ -149,16 +155,42 @@ class _IndividualRegistrationScreenState extends ConsumerState<IndividualRegistr
 
   Widget _buildProgressBar() {
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final progress = (_currentStep + 1) / 3;
+
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
       color: isDark ? const Color(0xFF1E1E1E) : Colors.white,
-      child: Row(
+      child: Column(
         children: [
-          _buildProgressDot(0, '1'),
-          Expanded(child: Container(height: 2, color: _currentStep >= 1 ? AppTheme.gold : (isDark ? Colors.white12 : Colors.grey[300]))),
-          _buildProgressDot(1, '2'),
-          Expanded(child: Container(height: 2, color: _currentStep >= 2 ? AppTheme.gold : (isDark ? Colors.white12 : Colors.grey[300]))),
-          _buildProgressDot(2, '3'),
+          // Linear progress indicator
+          ClipRRect(
+            borderRadius: BorderRadius.circular(4),
+            child: LinearProgressIndicator(
+              value: progress,
+              backgroundColor: isDark ? Colors.white12 : Colors.grey[200],
+              valueColor: const AlwaysStoppedAnimation(AppTheme.gold),
+              minHeight: 6,
+            ),
+          ),
+          const SizedBox(height: 8),
+          // Step indicator with dots
+          Row(
+            children: [
+              _buildProgressDot(0, '1'),
+              Expanded(child: Container(height: 2, color: _currentStep >= 1 ? AppTheme.gold : (isDark ? Colors.white12 : Colors.grey[300]))),
+              _buildProgressDot(1, '2'),
+              Expanded(child: Container(height: 2, color: _currentStep >= 2 ? AppTheme.gold : (isDark ? Colors.white12 : Colors.grey[300]))),
+              _buildProgressDot(2, '3'),
+            ],
+          ),
+          const SizedBox(height: 4),
+          Text(
+            '${(_currentStep + 1)} sur 3 • ${(progress * 100).toInt()}%',
+            style: TextStyle(
+              fontSize: 12,
+              color: isDark ? Colors.white54 : Colors.grey[600],
+            ),
+          ),
         ],
       ),
     );
@@ -254,6 +286,30 @@ class _IndividualRegistrationScreenState extends ConsumerState<IndividualRegistr
         ),
         const SizedBox(height: 16),
 
+        // Date de naissance (RGPD Art. 8 - minimum 16 ans)
+        TextFormField(
+          controller: _birthDateController,
+          readOnly: true,
+          decoration: InputDecoration(
+            labelText: 'Date de naissance *',
+            hintText: 'JJ/MM/AAAA',
+            prefixIcon: const Icon(Icons.cake_outlined),
+            border: const OutlineInputBorder(),
+            suffixIcon: IconButton(
+              icon: const Icon(Icons.calendar_today),
+              onPressed: _pickBirthDate,
+            ),
+          ),
+          validator: Validators.validateBirthDate,
+          onTap: _pickBirthDate,
+        ),
+        const SizedBox(height: 4),
+        Text(
+          'RGPD Art. 8 : Vous devez avoir au moins 16 ans',
+          style: TextStyle(fontSize: 11, color: Colors.grey[500]),
+        ),
+        const SizedBox(height: 16),
+
         // Email
         TextFormField(
           controller: _emailController,
@@ -267,11 +323,7 @@ class _IndividualRegistrationScreenState extends ConsumerState<IndividualRegistr
                 ? const Icon(Icons.check_circle, color: Colors.green)
                 : const Icon(Icons.email, color: Colors.grey),
           ),
-          validator: (v) {
-            if (v!.isEmpty) return 'Requis';
-            if (!v.contains('@')) return 'Email invalide';
-            return null;
-          },
+          validator: Validators.validateEmail,
         ),
         const SizedBox(height: 16),
 
@@ -310,7 +362,7 @@ class _IndividualRegistrationScreenState extends ConsumerState<IndividualRegistr
                           child: const Text('Vérifier'),
                         ),
                 ),
-                validator: (v) => v!.isEmpty ? 'Requis' : null,
+                validator: Validators.validatePhoneLocal,
               ),
             ),
           ],
@@ -324,7 +376,7 @@ class _IndividualRegistrationScreenState extends ConsumerState<IndividualRegistr
             controller: _passwordController,
             obscureText: !_showPassword,
             decoration: InputDecoration(
-              labelText: 'Mot de passe',
+              labelText: 'Mot de passe (min. ${Validators.minPasswordLength} caractères)',
               prefixIcon: const Icon(Icons.lock_outline),
               border: const OutlineInputBorder(),
               suffixIcon: IconButton(
@@ -332,11 +384,7 @@ class _IndividualRegistrationScreenState extends ConsumerState<IndividualRegistr
                 onPressed: () => setState(() => _showPassword = !_showPassword),
               ),
             ),
-            validator: (v) {
-              if (v!.isEmpty) return 'Requis';
-              if (v.length < 8) return 'Minimum 8 caractères';
-              return null;
-            },
+            validator: Validators.validatePassword,
           ),
           const SizedBox(height: 8),
           _buildPasswordStrength(),
@@ -351,10 +399,7 @@ class _IndividualRegistrationScreenState extends ConsumerState<IndividualRegistr
               prefixIcon: Icon(Icons.lock),
               border: OutlineInputBorder(),
             ),
-            validator: (v) {
-              if (v != _passwordController.text) return 'Les mots de passe ne correspondent pas';
-              return null;
-            },
+            validator: (v) => Validators.validatePasswordConfirm(v, _passwordController.text),
           ),
           const SizedBox(height: 8),
         ],
@@ -397,23 +442,33 @@ class _IndividualRegistrationScreenState extends ConsumerState<IndividualRegistr
 
   Widget _buildPasswordStrength() {
     final password = _passwordController.text;
-    int strength = 0;
-    if (password.length >= 8) strength++;
-    if (password.contains(RegExp(r'[A-Z]'))) strength++;
-    if (password.contains(RegExp(r'[0-9]'))) strength++;
-    if (password.contains(RegExp(r'[!@#$%^&*(),.?":{}|<>]'))) strength++;
+    final strength = Validators.passwordStrength(password);
 
-    Color color = Colors.red;
-    String label = 'Faible';
-    if (strength >= 4) { color = Colors.green; label = 'Excellent'; }
-    else if (strength >= 3) { color = Colors.green; label = 'Fort'; }
-    else if (strength >= 2) { color = Colors.orange; label = 'Moyen'; }
+    Color color;
+    String label;
+
+    if (strength >= 5) {
+      color = Colors.green;
+      label = 'Excellent';
+    } else if (strength >= 4) {
+      color = Colors.green;
+      label = 'Fort';
+    } else if (strength >= 3) {
+      color = Colors.orange;
+      label = 'Moyen';
+    } else if (strength >= 2) {
+      color = Colors.orange;
+      label = 'Faible';
+    } else {
+      color = Colors.red;
+      label = 'Très faible';
+    }
 
     return Row(
       children: [
         Expanded(
           child: LinearProgressIndicator(
-            value: strength / 4,
+            value: strength / 5,
             backgroundColor: Theme.of(context).brightness == Brightness.dark ? Colors.white10 : Colors.grey[300],
             valueColor: AlwaysStoppedAnimation(color),
           ),
@@ -425,6 +480,32 @@ class _IndividualRegistrationScreenState extends ConsumerState<IndividualRegistr
   }
 
 
+
+  Future<void> _pickBirthDate() async {
+    final now = DateTime.now();
+    final minDate = DateTime(now.year - 120, now.month, now.day);
+    final maxDate = DateTime(now.year - 16, now.month, now.day); // Min 16 ans
+
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: maxDate,
+      firstDate: minDate,
+      lastDate: maxDate,
+      helpText: 'Sélectionnez votre date de naissance',
+      cancelText: 'Annuler',
+      confirmText: 'Confirmer',
+      fieldLabelText: 'Date de naissance',
+      errorFormatText: 'Format invalide',
+      errorInvalidText: 'Date invalide',
+    );
+
+    if (picked != null) {
+      final formatted = '${picked.day.toString().padLeft(2, '0')}/${picked.month.toString().padLeft(2, '0')}/${picked.year}';
+      setState(() {
+        _birthDateController.text = formatted;
+      });
+    }
+  }
 
   void _verifyPhone() async {
     if (_phoneController.text.isEmpty) {
@@ -447,6 +528,7 @@ class _IndividualRegistrationScreenState extends ConsumerState<IndividualRegistr
     final result = await authService.sendOtp(fullPhone);
     
     setState(() => _isLoading = false);
+    if (!mounted) return;
 
     if (!result.success) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -505,7 +587,39 @@ class _IndividualRegistrationScreenState extends ConsumerState<IndividualRegistr
           'Avant d\'accéder à l\'application, veuillez lire et accepter les documents suivants.',
           style: TextStyle(color: Theme.of(context).brightness == Brightness.dark ? Colors.white60 : Colors.grey),
         ),
-        const SizedBox(height: 24),
+        const SizedBox(height: 16),
+
+        // Résumé légal simplifié (UX)
+        Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: Colors.blue.withValues(alpha: 0.08),
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: Colors.blue.withValues(alpha: 0.2)),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Icon(Icons.info_outline, color: Colors.blue[700], size: 18),
+                  const SizedBox(width: 8),
+                  Text(
+                    'En résumé :',
+                    style: TextStyle(fontWeight: FontWeight.bold, color: Colors.blue[700]),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              Text('• Vos données sont hébergées en France 🇫🇷', style: TextStyle(fontSize: 12, color: Colors.blue[800])),
+              const SizedBox(height: 4),
+              Text('• Vous pouvez supprimer votre compte à tout moment', style: TextStyle(fontSize: 12, color: Colors.blue[800])),
+              const SizedBox(height: 4),
+              Text('• Nous ne vendons JAMAIS vos données', style: TextStyle(fontSize: 12, color: Colors.blue[800])),
+            ],
+          ),
+        ),
+        const SizedBox(height: 20),
 
         // CGU
         _buildLegalCheckbox(
@@ -535,7 +649,35 @@ class _IndividualRegistrationScreenState extends ConsumerState<IndividualRegistr
           onChanged: (v) => setState(() => _charterAccepted = v!),
           onRead: () => _showLegalDocument('Charte Tontines', _getTontineCharter()),
         ),
-        const SizedBox(height: 32),
+        const SizedBox(height: 24),
+
+        // Divider
+        Row(
+          children: [
+            Expanded(child: Divider(color: Colors.grey[300])),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+              child: Text('Optionnel', style: TextStyle(fontSize: 12, color: Colors.grey[500])),
+            ),
+            Expanded(child: Divider(color: Colors.grey[300])),
+          ],
+        ),
+        const SizedBox(height: 16),
+
+        // Newsletter (OPTIONNEL - RGPD compliant)
+        CheckboxListTile(
+          value: _newsletterAccepted,
+          onChanged: (v) => setState(() => _newsletterAccepted = v!),
+          title: const Text('Recevoir les actualités Tontetic'),
+          subtitle: Text(
+            'Conseils financiers, nouveautés, offres partenaires (max 2/mois)',
+            style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+          ),
+          controlAffinity: ListTileControlAffinity.leading,
+          contentPadding: EdgeInsets.zero,
+          dense: true,
+        ),
+        const SizedBox(height: 24),
 
         // Warning
         if (!allAccepted)
@@ -694,19 +836,31 @@ Tout litige est soumis à l'arbitrage communautaire avant toute procédure exter
 ''';
   }
 
-  void _goToStep3() {
-    // Record consents with timestamp
-    // Note: Real IP is captured server-side via Cloud Function for RGPD compliance
+  Future<void> _goToStep3() async {
+    // Record consents with real IP (fetched automatically)
     final consentNotifier = ref.read(consentProvider.notifier);
-    consentNotifier.acceptCGUAndPrivacy('client-side', '1.2');
-    consentNotifier.recordConsent(
-      type: ConsentType.dataSharing, 
-      accepted: true, 
-      ipAddress: 'client-side', // Real IP captured by server
+    await consentNotifier.acceptCGUAndPrivacy('1.2');
+    await consentNotifier.recordConsent(
+      type: ConsentType.dataSharing,
+      accepted: true,
       version: '1.0',
     );
-    
+
     setState(() => _currentStep = 2);
+  }
+
+  Future<void> _pickProfilePhoto() async {
+    final picker = ImagePicker();
+    final image = await picker.pickImage(
+      source: ImageSource.gallery,
+      maxWidth: 512,
+      imageQuality: 80,
+    );
+
+    if (image != null) {
+      final bytes = await image.readAsBytes();
+      setState(() => _selectedPhotoBytes = bytes);
+    }
   }
 
   // =============== STEP 3: PROFIL NON FINANCIER ===============
@@ -732,17 +886,18 @@ Tout litige est soumis à l'arbitrage communautaire avant toute procédure exter
         // Photo (facultatif)
         Center(
           child: GestureDetector(
-            onTap: () {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Fonctionnalité photo à venir...')),
-              );
-            },
+            onTap: _pickProfilePhoto,
             child: Stack(
               children: [
                 CircleAvatar(
                   radius: 50,
                   backgroundColor: Theme.of(context).brightness == Brightness.dark ? Colors.white10 : Colors.grey[300],
-                  child: Icon(Icons.person, size: 50, color: Theme.of(context).brightness == Brightness.dark ? Colors.white38 : Colors.grey),
+                  backgroundImage: _selectedPhotoBytes != null
+                      ? MemoryImage(_selectedPhotoBytes!)
+                      : null,
+                  child: _selectedPhotoBytes == null
+                      ? Icon(Icons.person, size: 50, color: Theme.of(context).brightness == Brightness.dark ? Colors.white38 : Colors.grey)
+                      : null,
                 ),
                 Positioned(
                   bottom: 0,
@@ -762,6 +917,25 @@ Tout litige est soumis à l'arbitrage communautaire avant toute procédure exter
         ),
         const SizedBox(height: 8),
         const Center(child: Text('Photo de profil (facultatif)', style: TextStyle(color: Colors.grey, fontSize: 12))),
+        if (_selectedPhotoBytes != null) ...[
+          const SizedBox(height: 12),
+          CheckboxListTile(
+            value: _photoConsentAccepted,
+            onChanged: (v) => setState(() => _photoConsentAccepted = v!),
+            title: const Text(
+              'J\'accepte que ma photo soit stockée et visible par les membres de mes tontines',
+              style: TextStyle(fontSize: 12),
+            ),
+            subtitle: Text(
+              'Données hébergées en France • Suppression possible à tout moment',
+              style: TextStyle(fontSize: 10, color: Colors.grey[500]),
+            ),
+            controlAffinity: ListTileControlAffinity.leading,
+            contentPadding: EdgeInsets.zero,
+            dense: true,
+            activeColor: AppTheme.gold,
+          ),
+        ],
         const SizedBox(height: 24),
 
         // Pseudonyme
@@ -891,7 +1065,44 @@ Tout litige est soumis à l'arbitrage communautaire avant toute procédure exter
         return;
       }
     }
-    
+
+    // Upload profile photo if selected AND consent given (RGPD)
+    if (_selectedPhotoBytes != null && _photoConsentAccepted) {
+      try {
+        final uid = FirebaseAuth.instance.currentUser?.uid;
+        if (uid != null) {
+          // Record photo consent (RGPD Art. 7)
+          await ref.read(consentProvider.notifier).recordConsent(
+            type: ConsentType.dataSharing,
+            accepted: true,
+            version: '1.0-photo',
+          );
+
+          final storageRef = FirebaseStorage.instance
+              .ref()
+              .child('profile_photos')
+              .child('$uid.jpg');
+
+          final uploadTask = await storageRef.putData(
+            _selectedPhotoBytes!,
+            SettableMetadata(contentType: 'image/jpeg'),
+          );
+
+          final photoUrl = await uploadTask.ref.getDownloadURL();
+
+          await FirebaseFirestore.instance
+              .collection('users')
+              .doc(uid)
+              .set({'photoUrl': photoUrl}, SetOptions(merge: true));
+
+          ref.read(userProvider.notifier).updatePhoto(photoUrl);
+        }
+      } catch (e) {
+        debugPrint('Failed to upload profile photo: $e');
+        // Non-blocking - user can add photo later
+      }
+    }
+
     // Combine country code and phone for auto zone detection
     final fullPhone = '$_selectedCountryCode${_phoneController.text.trim()}';
     
@@ -905,6 +1116,15 @@ Tout litige est soumis à l'arbitrage communautaire avant toute procédure exter
       type: UserType.individual,
       birthDate: null,
     );
+
+    // Save newsletter consent to Firestore (RGPD - separate from mandatory CGU)
+    if (_newsletterAccepted) {
+      await ref.read(consentProvider.notifier).recordConsent(
+        type: ConsentType.newsletter,
+        accepted: true,
+        version: '1.0',
+      );
+    }
 
     // Set account to read-only mode
     // Account status is already readOnly by default
@@ -948,19 +1168,18 @@ Tout litige est soumis à l'arbitrage communautaire avant toute procédure exter
              ],
            ),
            actions: [
-             TextButton(
-               onPressed: () {
-                 Navigator.pop(ctx);
-                 context.go('/');
-               },
-               child: const Text('PLUS TARD (ACCÈS SPECTATEUR)'),
-             ),
              ElevatedButton(
                onPressed: () {
                  Navigator.pop(ctx);
+                 // L'AuthWrapper redirigera vers EmailVerificationScreen
+                 // tant que l'email n'est pas vérifié (RGPD compliance)
                  context.go('/');
                },
-               child: const Text('C\'EST FAIT'),
+               style: ElevatedButton.styleFrom(
+                 backgroundColor: AppTheme.marineBlue,
+                 foregroundColor: Colors.white,
+               ),
+               child: const Text('J\'AI COMPRIS'),
              ),
            ],
          ),

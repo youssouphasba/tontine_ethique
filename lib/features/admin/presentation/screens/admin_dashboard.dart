@@ -36,15 +36,16 @@ class _AdminDashboardState extends ConsumerState<AdminDashboard> {
     _AdminSection(Icons.dashboard, 'Vue d\'ensemble', Colors.blue),
     _AdminSection(Icons.star, 'Gestion des Plans', Colors.amber),
     _AdminSection(Icons.people, 'Utilisateurs', Colors.green),
+    _AdminSection(Icons.verified_user, 'Vérification KYC', Colors.teal),
     _AdminSection(Icons.donut_large, 'Gestion des Cercles', Colors.orange),
     _AdminSection(Icons.shield, 'Modération', Colors.red),
     _AdminSection(Icons.store, 'Marchands', Colors.purple),
     _AdminSection(Icons.business, 'Entreprises', Colors.indigo),
-    _AdminSection(Icons.payment, 'Finance', Colors.teal),
+    _AdminSection(Icons.payment, 'Finance', Colors.cyan),
     _AdminSection(Icons.report, 'Signalements', Colors.pink),
     _AdminSection(Icons.message, 'Support', Colors.blueGrey),
     _AdminSection(Icons.campaign, 'Campagnes', Colors.deepOrange),
-    _AdminSection(Icons.card_giftcard, 'Parrainage', Colors.cyan),
+    _AdminSection(Icons.card_giftcard, 'Parrainage', Colors.lime),
     _AdminSection(Icons.security, 'Sécurité', Colors.black),
     _AdminSection(Icons.history, 'Audit', Colors.brown),
     _AdminSection(Icons.settings, 'Paramètres', Colors.grey),
@@ -140,18 +141,19 @@ class _AdminDashboardState extends ConsumerState<AdminDashboard> {
       case 0: return const _OverviewSection();
       case 1: return const _PlansSection();
       case 2: return const _UsersSection();
-      case 3: return const _CirclesSection();
-      case 4: return const _ModerationSection();
-      case 5: return const _MerchantsSection();
-      case 6: return const _EnterprisesSection();
-      case 7: return const _PaymentsSection();
-      case 8: return const _ReportsSection();
-      case 9: return const _SupportSection();
-      case 10: return const _CampaignsSection();
-      case 11: return const _ReferralSection();
-      case 12: return const _SecuritySection();
-      case 13: return const _AuditSection();
-      case 14: return const _SettingsSection();
+      case 3: return const AdminKycReviewSection();
+      case 4: return const _CirclesSection();
+      case 5: return const _ModerationSection();
+      case 6: return const _MerchantsSection();
+      case 7: return const _EnterprisesSection();
+      case 8: return const _PaymentsSection();
+      case 9: return const _ReportsSection();
+      case 10: return const _SupportSection();
+      case 11: return const _CampaignsSection();
+      case 12: return const _ReferralSection();
+      case 13: return const _SecuritySection();
+      case 14: return const _AuditSection();
+      case 15: return const _SettingsSection();
       default: return const _OverviewSection();
     }
   }

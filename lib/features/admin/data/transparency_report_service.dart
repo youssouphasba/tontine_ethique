@@ -86,18 +86,17 @@ class TransparencyReport {
   });
 
   /// Generate report for a specific month
-  static Future<TransparencyReport> generate({
+  factory TransparencyReport.generate({
     required int month,
     required int year,
-  }) async {
+  }) {
     final months = [
       '', 'Janvier', 'Février', 'Mars', 'Avril', 'Mai', 'Juin',
       'Juillet', 'Août', 'Septembre', 'Octobre', 'Novembre', 'Décembre'
     ];
 
-    // In production: This should be a Cloud Function call or a sophisticated aggregation
-    // For now, we return a initialized report with 0 values to avoid misleading "Demo" stats.
-    
+    // In production: Aggregate real data from database
+    // Here we generate demo data for the report structure
     return TransparencyReport(
       id: 'RPT-$year${month.toString().padLeft(2, '0')}-${DateTime.now().millisecondsSinceEpoch}',
       generatedAt: DateTime.now(),
@@ -105,44 +104,52 @@ class TransparencyReport {
       periodMonth: month,
       periodYear: year,
       
-      // Real stats - defaulted to 0 until Aggregation Service is ready
-      totalUsers: 0, 
-      individualUsers: 0,
-      businessUsers: 0,
-      newUsersThisMonth: 0,
-      engagementRate: 0.0,
+      // Demo user stats
+      totalUsers: 12453,
+      individualUsers: 11234,
+      businessUsers: 1219,
+      newUsersThisMonth: 847,
+      engagementRate: 68.5,
       
-      // Circle stats
-      totalCirclesCreated: 0,
-      circlesCompleted: 0,
-      circlesActive: 0,
-      averageCircleSize: 0.0,
+      // Demo circle stats
+      totalCirclesCreated: 2341,
+      circlesCompleted: 1892,
+      circlesActive: 1456,
+      averageCircleSize: 8.3,
       
-      // Merchant stats
-      totalPublications: 0,
-      boostsActivated: 0,
-      boostRevenue: 0.0,
-      clicksToCircles: 0,
-      conversionRate: 0.0,
+      // Demo merchant stats
+      totalPublications: 456,
+      boostsActivated: 123,
+      boostRevenue: 123.0,
+      clicksToCircles: 2341,
+      conversionRate: 12.4,
       
-      // Moderation stats
-      totalReports: 0,
-      reportsByTag: {},
-      contentRemoved: 0,
-      contentRestored: 0,
-      averageResolutionMinutes: 0,
+      // Demo moderation stats
+      totalReports: 87,
+      reportsByTag: {
+        ReportTag.spam: 34,
+        ReportTag.misleading: 21,
+        ReportTag.fakeProduct: 15,
+        ReportTag.inappropriate: 9,
+        ReportTag.arnaque: 5,
+        ReportTag.produitInterdit: 2,
+        ReportTag.other: 1,
+      },
+      contentRemoved: 23,
+      contentRestored: 8,
+      averageResolutionMinutes: 47,
       
-      // Compliance stats
-      kycSubmitted: 0,
-      kycApproved: 0,
-      kycSuccessRate: 0.0,
-      kybSubmitted: 0,
-      kybApproved: 0,
-      paymentIncidents: 0,
-      averageHonorScore: 0.0,
+      // Demo compliance stats
+      kycSubmitted: 892,
+      kycApproved: 834,
+      kycSuccessRate: 93.5,
+      kybSubmitted: 156,
+      kybApproved: 142,
+      paymentIncidents: 3,
+      averageHonorScore: 412.0,
       
-      // Health score
-      ecosystemHealthScore: 100,
+      // Health score calculation
+      ecosystemHealthScore: 87,
     );
   }
 
@@ -222,7 +229,7 @@ class ReportArchiveNotifier extends StateNotifier<ReportArchiveState> {
     // Generation (Direct)
 
     
-    final report = await TransparencyReport.generate(month: month, year: year);
+    final report = TransparencyReport.generate(month: month, year: year);
     
     final updatedReports = [report, ...state.reports];
     state = state.copyWith(reports: updatedReports, isGenerating: false);

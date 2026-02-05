@@ -5,8 +5,8 @@ enum NotificationType {
   warning,
   success,
   payment,
-  tontine_invite,
-  chat_message,
+  tontineInvite,
+  chatMessage,
 }
 
 class AppNotification {
@@ -46,8 +46,8 @@ class AppNotification {
       case 'warning': return NotificationType.warning;
       case 'success': return NotificationType.success;
       case 'payment': return NotificationType.payment;
-      case 'tontine_invite': return NotificationType.tontine_invite;
-      case 'chat_message': return NotificationType.chat_message;
+      case 'tontine_invite': return NotificationType.tontineInvite;
+      case 'chat_message': return NotificationType.chatMessage;
       default: return NotificationType.info;
     }
   }

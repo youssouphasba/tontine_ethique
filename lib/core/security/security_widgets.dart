@@ -25,48 +25,6 @@ class KycGate extends ConsumerWidget {
     // V4.0 - KYC Disabled by user request
     return child;
   }
-
-  Widget _buildKycRequiredCard(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(20),
-      margin: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.orange.shade50,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.orange.shade200),
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(Icons.verified_user, size: 48, color: Colors.orange.shade700),
-          const SizedBox(height: 16),
-          const Text(
-            'Vérification Requise',
-            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            'Vous devez vérifier votre identité avant d\'accéder à cette fonctionnalité.',
-            textAlign: TextAlign.center,
-            style: TextStyle(color: Colors.grey.shade600),
-          ),
-          const SizedBox(height: 16),
-          ElevatedButton.icon(
-            onPressed: () {
-              onBlocked?.call();
-              // Navigate to KYC screen
-            },
-            icon: const Icon(Icons.badge),
-            label: const Text('Vérifier mon identité'),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.orange.shade700,
-              foregroundColor: Colors.white,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
 }
 
 /// Widget that checks if user can join circle

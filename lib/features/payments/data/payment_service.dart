@@ -1,7 +1,8 @@
-
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:tontetic/core/services/mobile_money_service.dart';
+import 'package:tontetic/core/services/stripe_service.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 // Service de paiement "Non-Custodial".
 // L'argent ne transite JAMAIS sur les comptes de Tontetic.
@@ -9,6 +10,53 @@ import 'package:tontetic/core/services/mobile_money_service.dart';
 
 class PaymentService {
   
+  /// Effectue le paiement du Boost (1€ / ~655 FCFA)
+  /// Retourne true si le paiement est initié/réussi.
+  Future<bool> chargeBoost({
+    required String? email,
+    required String? userId,
+    String? phone,
+  }) async {
+    const double amountEuro = 1.0;
+    const int amountCents = 100;
+    
+    debugPrint('INITIATING_BOOST_PAYMENT: $amountEuro € for $email');
+
+    if (kIsWeb) {
+      // WEB: Stripe Checkout Redirect
+      try {
+        final checkoutUrl = await StripeService.createCheckoutSession(
+          priceId: 'price_boost_1euro', // À configurer dans le dashboard Stripe
+          email: email,
+          userId: userId,
+          planId: 'boost_sponsored',
+        );
+        
+        final url = Uri.parse(checkoutUrl);
+        if (await canLaunchUrl(url)) {
+          await launchUrl(url, mode: LaunchMode.externalApplication);
+          return true; // Redirection lancée
+        }
+        return false;
+      } catch (e) {
+        debugPrint('WEB_BOOST_ERROR: $e');
+        return false;
+      }
+    } else {
+      // MOBILE: Stripe Payment Sheet
+      try {
+        return await StripeService.processPayment(
+          amountCents: amountCents,
+          currency: 'eur',
+          description: 'Tontetic Boost - Mise en avant',
+        );
+      } catch (e) {
+        debugPrint('MOBILE_BOOST_ERROR: $e');
+        return false;
+      }
+    }
+  }
+
   // Process Payment via Mobile Money Service
   Future<bool> processPayment({
     required String phoneNumber, 

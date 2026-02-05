@@ -41,12 +41,13 @@ dependencies:
   google_generative_ai: ^0.4.7
   image_picker: ^1.2.1
   device_info_plus: ^12.3.0
+  package_info_plus: ^8.0.0
   http: ^1.6.0
   
   # V9.0 Security & Secrets Management
   flutter_dotenv: ^5.2.1
   encrypt: ^5.0.3
-  crypto: ^3.0.6
+  crypto: ^3.0.7
   flutter_secure_storage: ^9.2.4
   
   # V10.0 QR & Share Features

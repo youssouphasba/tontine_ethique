@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:tontetic/core/theme/app_theme.dart';
 import 'package:tontetic/core/providers/auth_provider.dart';
+import 'package:tontetic/core/utils/validators.dart';
 import 'dart:async';
 
 class OtpDialog extends ConsumerStatefulWidget {
@@ -28,7 +29,7 @@ class OtpDialog extends ConsumerStatefulWidget {
 
 class _OtpDialogState extends ConsumerState<OtpDialog> {
   final _controller = TextEditingController();
-  int _timeLeft = 60;
+  int _timeLeft = 300;
   Timer? _timer;
   bool _isLoading = false;
   String? _error;
@@ -48,7 +49,7 @@ class _OtpDialogState extends ConsumerState<OtpDialog> {
 
   void _startTimer() {
     _timer?.cancel();
-    setState(() => _timeLeft = 60);
+    setState(() => _timeLeft = 300);
     _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
       if (_timeLeft > 0) {
         setState(() => _timeLeft--);
@@ -60,8 +61,11 @@ class _OtpDialogState extends ConsumerState<OtpDialog> {
 
   Future<void> _verify() async {
     final code = _controller.text.trim();
-    if (code.length < 4) {
-      setState(() => _error = 'Code trop court');
+
+    // Validation stricte: 6 chiffres uniquement
+    final validationError = Validators.validateOtp(code);
+    if (validationError != null) {
+      setState(() => _error = validationError);
       return;
     }
 
@@ -72,8 +76,8 @@ class _OtpDialogState extends ConsumerState<OtpDialog> {
 
     try {
       final authService = ref.read(authServiceProvider);
-      final result = await authService.validateOtp(code);
-      
+      final result = await authService.validateOtp(code, phoneNumber: widget.phone);
+
       if (result.success) {
         if (mounted) Navigator.pop(context, 'SUCCESS');
       } else {
@@ -95,6 +99,7 @@ class _OtpDialogState extends ConsumerState<OtpDialog> {
     final authService = ref.read(authServiceProvider);
     final result = await authService.sendOtp(widget.phone);
     setState(() => _isLoading = false);
+    if (!mounted) return;
 
     if (result.success) {
       _startTimer();
@@ -143,7 +148,7 @@ class _OtpDialogState extends ConsumerState<OtpDialog> {
           ),
           const SizedBox(height: 16),
           Text(
-            _timeLeft > 0 ? 'Expire dans ${_timeLeft}s' : 'Code expiré',
+            _timeLeft > 0 ? 'Expire dans ${_timeLeft ~/ 60}:${(_timeLeft % 60).toString().padLeft(2, '0')}' : 'Code expiré',
             style: TextStyle(
               color: _timeLeft > 0 ? Colors.grey : AppTheme.errorRed,
               fontWeight: FontWeight.bold,

@@ -246,8 +246,9 @@ class _QuickReportDialogState extends ConsumerState<QuickReportDialog> {
       contentTitle: widget.contentTitle,
     );
 
+    if (!mounted) return;
     Navigator.pop(context);
-    
+
     if (wasSuspended) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(

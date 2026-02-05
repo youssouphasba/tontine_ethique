@@ -3,11 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:go_router/go_router.dart';
-import 'package:tontetic/core/notifications/celebration_notification.dart';
 import 'package:tontetic/core/providers/user_provider.dart';
 import 'package:tontetic/core/models/user_model.dart';
-import 'package:tontetic/core/providers/auth_provider.dart';
-import 'package:tontetic/core/services/auth_service.dart';
 import 'package:tontetic/core/theme/app_theme.dart';
 import 'package:tontetic/features/onboarding/presentation/screens/onboarding_screen.dart';
 import 'package:tontetic/features/settings/presentation/screens/help_screen.dart';
@@ -26,9 +23,7 @@ import 'package:tontetic/features/legal/presentation/screens/legal_wolof_screen.
 import 'package:tontetic/core/services/gdpr_service.dart';
 import 'package:tontetic/core/providers/consent_provider.dart';
 import 'package:tontetic/core/providers/context_provider.dart';
-import 'package:tontetic/core/providers/merchant_account_provider.dart';
-import 'package:tontetic/features/advertising/presentation/screens/merchant_registration_screen.dart';
-import 'package:tontetic/features/merchant/presentation/screens/merchant_dashboard_screen.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 // import 'package:tontetic/features/admin/presentation/screens/admin_dashboard.dart'; - UNUSED
 import 'package:tontetic/core/providers/theme_provider.dart';
 import 'package:tontetic/features/settings/presentation/screens/security_settings_screen.dart';
@@ -106,8 +101,6 @@ class SettingsScreen extends ConsumerWidget {
 
           // ===== CONTEXT SWITCH (Personal ↔ Enterprise) =====
           _buildContextSwitchSection(context, ref, user),
-
-          _buildMerchantSection(context, ref),
 
           _buildSectionHeader('Langue & Région'),
           Card(
@@ -301,6 +294,7 @@ class SettingsScreen extends ConsumerWidget {
           
           // RGPD Section
           _buildSectionHeader('Vos Données (RGPD)'),
+          _buildAnalyticsConsentTile(context, ref),
           _buildTile(
             context,
             icon: Icons.download,
@@ -335,17 +329,10 @@ class SettingsScreen extends ConsumerWidget {
           // V15: Administration removed - admins use Firebase web back-office (admin.tontetic.com)
 
           _buildSectionHeader('Notifications'),
-           SwitchListTile(
-            value: true, 
-            onChanged: (v) {
-                if(v) CelebrationNotification.show(context, "Membre");
-            },
-            title: const Text('Célébrations de Pot 🎉'),
-            subtitle: const Text('Test des notifications'),
-          ),
+          _buildNotificationPreferences(context, ref, user),
 
           const SizedBox(height: 16),
-          
+
           const Divider(height: 40),
           ListTile(
             leading: const Icon(Icons.logout, color: Colors.red),
@@ -354,12 +341,34 @@ class SettingsScreen extends ConsumerWidget {
                Navigator.pushAndRemoveUntil(context, MaterialPageRoute(builder: (_) => const OnboardingScreen()), (route) => false);
             },
           ),
+
+          // App Version
+          FutureBuilder<PackageInfo>(
+            future: PackageInfo.fromPlatform(),
+            builder: (context, snapshot) {
+              final version = snapshot.data?.version ?? '...';
+              final buildNumber = snapshot.data?.buildNumber ?? '';
+              return Padding(
+                padding: const EdgeInsets.symmetric(vertical: 24),
+                child: Center(
+                  child: Text(
+                    'Tontetic v$version ($buildNumber)',
+                    style: TextStyle(color: Colors.grey[500], fontSize: 12),
+                  ),
+                ),
+              );
+            },
+          ),
         ],
       ),
     );
   }
 
   Widget _buildProfileHeader(BuildContext context, WidgetRef ref, UserState user) {
+    final firebaseUser = FirebaseAuth.instance.currentUser;
+    final isEmailVerified = firebaseUser?.emailVerified ?? false;
+    final hasPhone = firebaseUser?.phoneNumber != null && firebaseUser!.phoneNumber!.isNotEmpty;
+
     return Container(
       padding: const EdgeInsets.all(24),
       color: AppTheme.marineBlue,
@@ -367,27 +376,24 @@ class SettingsScreen extends ConsumerWidget {
         children: [
           Row(
             children: [
-              // Photo V2
-               Stack(
-                 children: [
-                   CircleAvatar(
-                     radius: 36, 
-                     backgroundColor: AppTheme.gold, 
-                     backgroundImage: user.photoUrl != null ? NetworkImage(user.photoUrl!) : null,
-                     child: user.photoUrl == null ? const Icon(Icons.person, size: 36, color: AppTheme.marineBlue) : null
-                   ),
-                   Positioned(
-                     bottom: 0, right: 0,
-                     child: InkWell(
-                       onTap: () {
-                          // REAL: Navigate to profile screen for photo upload
-                          context.push('/profile');
-                       },
-                       child: const CircleAvatar(radius: 12, backgroundColor: Colors.white, child: Icon(Icons.camera_alt, size: 14)),
-                     ),
-                   )
-                 ],
-               ),
+              // Photo with camera icon
+              Stack(
+                children: [
+                  CircleAvatar(
+                    radius: 36,
+                    backgroundColor: AppTheme.gold,
+                    backgroundImage: user.photoUrl != null ? NetworkImage(user.photoUrl!) : null,
+                    child: user.photoUrl == null ? const Icon(Icons.person, size: 36, color: AppTheme.marineBlue) : null
+                  ),
+                  Positioned(
+                    bottom: 0, right: 0,
+                    child: InkWell(
+                      onTap: () => context.push('/profile?isMe=true'),
+                      child: const CircleAvatar(radius: 12, backgroundColor: Colors.white, child: Icon(Icons.camera_alt, size: 14)),
+                    ),
+                  )
+                ],
+              ),
               const SizedBox(width: 16),
               Expanded(
                 child: Column(
@@ -395,14 +401,38 @@ class SettingsScreen extends ConsumerWidget {
                   children: [
                     Row(
                       children: [
-                        Text(user.displayName.isEmpty ? 'Mon Profil' : user.displayName, style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold)),
+                        Flexible(
+                          child: Text(
+                            user.displayName.isEmpty ? 'Mon Profil' : user.displayName,
+                            style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
                         const SizedBox(width: 8),
                         if (user.isProfileCertified) const Icon(Icons.verified, color: Colors.blue, size: 20),
                       ],
                     ),
-                    // Bio V3.5
+                    const SizedBox(height: 4),
+                    // Verification Status Row
+                    Row(
+                      children: [
+                        _buildVerificationBadge(
+                          icon: Icons.email,
+                          label: 'Email',
+                          isVerified: isEmailVerified,
+                        ),
+                        const SizedBox(width: 8),
+                        _buildVerificationBadge(
+                          icon: Icons.phone,
+                          label: 'Tél',
+                          isVerified: hasPhone,
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 4),
+                    // Bio
                     if (user.bio.isNotEmpty)
-                      Text(user.bio, style: const TextStyle(color: Colors.white70, fontStyle: FontStyle.italic))
+                      Text(user.bio, style: const TextStyle(color: Colors.white70, fontStyle: FontStyle.italic, fontSize: 12))
                     else
                       InkWell(
                         onTap: () => _showEditBioDialog(context, ref),
@@ -419,13 +449,42 @@ class SettingsScreen extends ConsumerWidget {
                   child: Column(
                     children: [
                       const Text('Score d\'Honneur', style: TextStyle(color: AppTheme.gold, fontSize: 10)),
-                      Text('${user.honorScore}/100', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
+                      Text('${user.honorScore}/100', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
                       const Text('Historique >', style: TextStyle(color: Colors.white54, fontSize: 10)),
                     ],
                   ),
                 ),
               )
             ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildVerificationBadge({required IconData icon, required String label, required bool isVerified}) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+      decoration: BoxDecoration(
+        color: isVerified ? Colors.green.withValues(alpha: 0.2) : Colors.orange.withValues(alpha: 0.2),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            isVerified ? Icons.check_circle : Icons.warning,
+            size: 12,
+            color: isVerified ? Colors.green : Colors.orange,
+          ),
+          const SizedBox(width: 4),
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 10,
+              color: isVerified ? Colors.green : Colors.orange,
+              fontWeight: FontWeight.bold,
+            ),
           ),
         ],
       ),
@@ -556,9 +615,111 @@ class SettingsScreen extends ConsumerWidget {
     );
   }
 
+  Widget _buildAnalyticsConsentTile(BuildContext context, WidgetRef ref) {
+    final consentState = ref.watch(consentProvider);
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    return Card(
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: Colors.blue.withValues(alpha: 0.2),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: const Icon(Icons.analytics_outlined, color: Colors.blue),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Statistiques d\'utilisation',
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          color: isDark ? Colors.white : Colors.black87,
+                        ),
+                      ),
+                      Text(
+                        'Aide à améliorer l\'application',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: isDark ? Colors.grey[400] : Colors.grey[600],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Switch(
+                  value: consentState.analyticsAccepted,
+                  onChanged: (value) async {
+                    await ref.read(consentProvider.notifier).recordConsent(
+                      type: ConsentType.analytics,
+                      accepted: value,
+                    );
+
+                    if (context.mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text(
+                            value
+                                ? 'Statistiques activées. Merci de nous aider !'
+                                : 'Statistiques désactivées.',
+                          ),
+                          backgroundColor: value ? Colors.green : Colors.grey,
+                          duration: const Duration(seconds: 2),
+                        ),
+                      );
+                    }
+                  },
+                  activeColor: AppTheme.marineBlue,
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: isDark ? Colors.white.withValues(alpha: 0.05) : Colors.grey.shade50,
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Row(
+                children: [
+                  Icon(
+                    Icons.info_outline,
+                    size: 16,
+                    color: isDark ? Colors.white54 : Colors.grey[600],
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'Données anonymisées uniquement. Aucune information personnelle n\'est partagée. (RGPD Art. 6)',
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: isDark ? Colors.white54 : Colors.grey[600],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   void _showConnectionLogs(BuildContext context) {
     final user = FirebaseAuth.instance.currentUser;
-    
+
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -573,7 +734,7 @@ class SettingsScreen extends ConsumerWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text('Journal de Connexion 🕵️‍♂️', style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: AppTheme.marineBlue)),
+              const Text('Journal de Connexion', style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: AppTheme.marineBlue)),
               const SizedBox(height: 8),
               const Text(
                 'Vérifiez régulièrement cette liste pour détecter tout accès suspect. Si vous ne reconnaissez pas une activité, changez immédiatement votre code.',
@@ -581,7 +742,7 @@ class SettingsScreen extends ConsumerWidget {
               ),
               const SizedBox(height: 24),
               Expanded(
-                child: user == null 
+                child: user == null
                   ? const Center(child: Text('Non connecté'))
                   : StreamBuilder<QuerySnapshot>(
                     stream: FirebaseFirestore.instance
@@ -595,29 +756,29 @@ class SettingsScreen extends ConsumerWidget {
                       if (snapshot.connectionState == ConnectionState.waiting) {
                         return const Center(child: CircularProgressIndicator());
                       }
-                      
+
                       final logs = snapshot.data?.docs ?? [];
-                      
+
                       if (logs.isEmpty) {
                         return const Center(
-                          child: Text('Aucun historique de connexion disponible.', 
+                          child: Text('Aucun historique de connexion disponible.',
                             style: TextStyle(color: Colors.grey)),
                         );
                       }
-                      
+
                       return ListView.separated(
                         controller: controller,
                         itemCount: logs.length,
                         separatorBuilder: (context, index) => const Divider(),
                         itemBuilder: (_, index) {
                           final log = logs[index].data() as Map<String, dynamic>;
-                          final isFail = (log['status'] ?? '').toString().contains('ÉCHEC') || 
+                          final isFail = (log['status'] ?? '').toString().contains('ÉCHEC') ||
                                          (log['status'] ?? '').toString().contains('failed');
                           final timestamp = log['timestamp'] as Timestamp?;
-                          final dateStr = timestamp != null 
+                          final dateStr = timestamp != null
                               ? '${timestamp.toDate().day}/${timestamp.toDate().month}/${timestamp.toDate().year} ${timestamp.toDate().hour}:${timestamp.toDate().minute.toString().padLeft(2, '0')}'
                               : 'Date inconnue';
-                          
+
                           return ListTile(
                             contentPadding: EdgeInsets.zero,
                             leading: CircleAvatar(
@@ -627,7 +788,7 @@ class SettingsScreen extends ConsumerWidget {
                             title: Text('$dateStr • ${log['device'] ?? 'Appareil inconnu'}', style: const TextStyle(fontWeight: FontWeight.bold)),
                             subtitle: Text('IP: ${log['ip'] ?? 'N/A'}'),
                             trailing: Text(
-                              log['status'] ?? 'OK', 
+                              log['status'] ?? 'OK',
                               style: TextStyle(color: isFail ? Colors.red : Colors.green, fontWeight: FontWeight.bold, fontSize: 12),
                             ),
                           );
@@ -640,7 +801,10 @@ class SettingsScreen extends ConsumerWidget {
               SizedBox(
                 width: double.infinity,
                 child: OutlinedButton.icon(
-                  onPressed: () { Navigator.pop(ctx); ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Déconnexion de toutes les autres sessions...'))); },
+                  onPressed: () async {
+                    Navigator.pop(ctx);
+                    await _revokeOtherSessions(context);
+                  },
                   icon: const Icon(Icons.logout, color: Colors.orange),
                   label: const Text('Déconnecter les autres appareils', style: TextStyle(color: Colors.orange)),
                 ),
@@ -650,6 +814,63 @@ class SettingsScreen extends ConsumerWidget {
         ),
       ),
     );
+  }
+
+  Future<void> _revokeOtherSessions(BuildContext context) async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
+
+    try {
+      // Show loading
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Déconnexion des autres sessions en cours...'), duration: Duration(seconds: 2)),
+      );
+
+      // Mark all other sessions as revoked in Firestore
+      final batch = FirebaseFirestore.instance.batch();
+      final sessions = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(user.uid)
+          .collection('sessions')
+          .where('isActive', isEqualTo: true)
+          .get();
+
+      for (final doc in sessions.docs) {
+        batch.update(doc.reference, {
+          'isActive': false,
+          'revokedAt': FieldValue.serverTimestamp(),
+        });
+      }
+
+      await batch.commit();
+
+      // Log the action
+      await FirebaseFirestore.instance
+          .collection('users')
+          .doc(user.uid)
+          .collection('login_history')
+          .add({
+        'action': 'REVOKE_ALL_SESSIONS',
+        'timestamp': FieldValue.serverTimestamp(),
+        'device': 'Current Device',
+        'status': 'OK',
+      });
+
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Toutes les autres sessions ont été déconnectées.'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Erreur: $e'), backgroundColor: Colors.red),
+        );
+      }
+    }
   }
 
   void _confirmDeletion(BuildContext context, WidgetRef ref) {
@@ -723,24 +944,197 @@ class SettingsScreen extends ConsumerWidget {
     );
   }
   void _showLegalVault(BuildContext context) {
-    showDialog(
+    final user = FirebaseAuth.instance.currentUser;
+
+    showModalBottomSheet(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('📁 Coffre Légal Sécurisé'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Padding(
-              padding: EdgeInsets.symmetric(vertical: 20),
-              child: Text('Aucun document archivé.', style: TextStyle(color: Colors.grey)),
-            ),
-          ],
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (ctx) => DraggableScrollableSheet(
+        initialChildSize: 0.6,
+        minChildSize: 0.4,
+        maxChildSize: 0.9,
+        expand: false,
+        builder: (_, controller) => Container(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Row(
+                children: [
+                  Icon(Icons.folder_shared, color: AppTheme.marineBlue, size: 28),
+                  SizedBox(width: 12),
+                  Text('Coffre Légal Sécurisé', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: AppTheme.marineBlue)),
+                ],
+              ),
+              const SizedBox(height: 8),
+              const Text(
+                'Vos documents signés et contrats sont archivés ici de manière sécurisée.',
+                style: TextStyle(color: Colors.grey, fontSize: 13),
+              ),
+              const SizedBox(height: 24),
+              Expanded(
+                child: user == null
+                  ? const Center(child: Text('Non connecté'))
+                  : StreamBuilder<QuerySnapshot>(
+                    stream: FirebaseFirestore.instance
+                        .collection('users')
+                        .doc(user.uid)
+                        .collection('legal_documents')
+                        .orderBy('createdAt', descending: true)
+                        .snapshots(),
+                    builder: (context, snapshot) {
+                      if (snapshot.connectionState == ConnectionState.waiting) {
+                        return const Center(child: CircularProgressIndicator());
+                      }
+
+                      final docs = snapshot.data?.docs ?? [];
+
+                      if (docs.isEmpty) {
+                        return Center(
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(Icons.folder_open, size: 64, color: Colors.grey[300]),
+                              const SizedBox(height: 16),
+                              const Text('Aucun document archivé', style: TextStyle(color: Colors.grey)),
+                              const SizedBox(height: 8),
+                              Text(
+                                'Vos chartes signées et mandats apparaîtront ici.',
+                                style: TextStyle(color: Colors.grey[400], fontSize: 12),
+                                textAlign: TextAlign.center,
+                              ),
+                            ],
+                          ),
+                        );
+                      }
+
+                      return ListView.separated(
+                        controller: controller,
+                        itemCount: docs.length,
+                        separatorBuilder: (context, index) => const Divider(),
+                        itemBuilder: (_, index) {
+                          final doc = docs[index].data() as Map<String, dynamic>;
+                          final timestamp = doc['createdAt'] as Timestamp?;
+                          final dateStr = timestamp != null
+                              ? '${timestamp.toDate().day}/${timestamp.toDate().month}/${timestamp.toDate().year}'
+                              : 'Date inconnue';
+                          final docType = doc['type'] ?? 'Document';
+                          final circleName = doc['circleName'] ?? '';
+
+                          IconData iconData;
+                          Color iconColor;
+                          switch (docType) {
+                            case 'charter':
+                              iconData = Icons.gavel;
+                              iconColor = AppTheme.marineBlue;
+                              break;
+                            case 'mandate':
+                              iconData = Icons.account_balance;
+                              iconColor = Colors.green;
+                              break;
+                            case 'contract':
+                              iconData = Icons.description;
+                              iconColor = Colors.orange;
+                              break;
+                            default:
+                              iconData = Icons.insert_drive_file;
+                              iconColor = Colors.grey;
+                          }
+
+                          return ListTile(
+                            contentPadding: EdgeInsets.zero,
+                            leading: CircleAvatar(
+                              backgroundColor: iconColor.withValues(alpha: 0.1),
+                              child: Icon(iconData, color: iconColor),
+                            ),
+                            title: Text(doc['title'] ?? docType, style: const TextStyle(fontWeight: FontWeight.bold)),
+                            subtitle: Text('$circleName • $dateStr'),
+                            trailing: IconButton(
+                              icon: const Icon(Icons.download, color: AppTheme.gold),
+                              onPressed: () {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(content: Text('Téléchargement du document...')),
+                                );
+                              },
+                            ),
+                          );
+                        },
+                      );
+                    },
+                  ),
+              ),
+            ],
+          ),
         ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('FERMER')),
-        ],
       ),
     );
+  }
+
+  Widget _buildNotificationPreferences(BuildContext context, WidgetRef ref, UserState user) {
+    return Card(
+      margin: const EdgeInsets.symmetric(horizontal: 16),
+      child: StreamBuilder<DocumentSnapshot>(
+        stream: FirebaseFirestore.instance
+            .collection('users')
+            .doc(FirebaseAuth.instance.currentUser?.uid)
+            .snapshots(),
+        builder: (context, snapshot) {
+          final prefs = snapshot.data?.data() as Map<String, dynamic>? ?? {};
+          final notifPrefs = prefs['notificationPreferences'] as Map<String, dynamic>? ?? {};
+
+          final celebrationEnabled = notifPrefs['celebrations'] ?? true;
+          final paymentReminders = notifPrefs['paymentReminders'] ?? true;
+          final circleUpdates = notifPrefs['circleUpdates'] ?? true;
+          final marketingEnabled = notifPrefs['marketing'] ?? false;
+
+          return Column(
+            children: [
+              SwitchListTile(
+                value: celebrationEnabled,
+                onChanged: (v) => _updateNotificationPref('celebrations', v),
+                title: const Text('Célébrations de Pot'),
+                subtitle: const Text('Notification quand un membre reçoit le pot'),
+                secondary: const Icon(Icons.celebration, color: AppTheme.gold),
+              ),
+              const Divider(height: 1),
+              SwitchListTile(
+                value: paymentReminders,
+                onChanged: (v) => _updateNotificationPref('paymentReminders', v),
+                title: const Text('Rappels de paiement'),
+                subtitle: const Text('Rappel avant échéance de cotisation'),
+                secondary: const Icon(Icons.notifications_active, color: Colors.orange),
+              ),
+              const Divider(height: 1),
+              SwitchListTile(
+                value: circleUpdates,
+                onChanged: (v) => _updateNotificationPref('circleUpdates', v),
+                title: const Text('Actualités du cercle'),
+                subtitle: const Text('Nouveaux membres, messages, etc.'),
+                secondary: const Icon(Icons.groups, color: AppTheme.marineBlue),
+              ),
+              const Divider(height: 1),
+              SwitchListTile(
+                value: marketingEnabled,
+                onChanged: (v) => _updateNotificationPref('marketing', v),
+                title: const Text('Offres et promotions'),
+                subtitle: const Text('Bons plans et nouveautés Tontetic'),
+                secondary: const Icon(Icons.local_offer, color: Colors.purple),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+
+  Future<void> _updateNotificationPref(String key, bool value) async {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) return;
+
+    await FirebaseFirestore.instance.collection('users').doc(uid).set({
+      'notificationPreferences': {key: value},
+    }, SetOptions(merge: true));
   }
 
 
@@ -879,67 +1273,6 @@ class SettingsScreen extends ConsumerWidget {
                         style: const TextStyle(fontSize: 12, color: Colors.grey),
                       ),
                     ),
-                  ],
-                ),
-              ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  // ===== MERCHANT SECTION =====
-  Widget _buildMerchantSection(BuildContext context, WidgetRef ref) {
-    final merchantState = ref.watch(merchantAccountProvider);
-    final hasMerchantAccount = merchantState.hasMerchantAccount;
-    
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      child: Card(
-        color: Colors.deepPurple.withValues(alpha: 0.1),
-        child: Column(
-          children: [
-            ListTile(
-              leading: const Icon(Icons.store, color: Colors.deepPurple),
-              title: Text(
-                hasMerchantAccount ? 'Ma Boutique Marchand' : 'Devenir Marchand',
-                style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.deepPurple),
-              ),
-              subtitle: Text(hasMerchantAccount 
-                ? merchantState.shop?.shopName ?? 'Accéder au dashboard'
-                : 'Vendez vos produits sur la plateforme'),
-              trailing: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                decoration: BoxDecoration(
-                  color: hasMerchantAccount ? Colors.green : Colors.deepPurple,
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Text(
-                  hasMerchantAccount ? 'ACTIF' : 'NOUVEAU',
-                  style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold),
-                ),
-              ),
-              onTap: () {
-                if (hasMerchantAccount) {
-                  Navigator.push(context, MaterialPageRoute(builder: (_) => const MerchantDashboardScreen()));
-                } else {
-                  Navigator.push(context, MaterialPageRoute(builder: (_) => const MerchantRegistrationScreen()));
-                }
-              },
-            ),
-            if (hasMerchantAccount && merchantState.isMerchantMode)
-              Container(
-                margin: const EdgeInsets.only(left: 16, right: 16, bottom: 12),
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: Colors.green.withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: const Row(
-                  children: [
-                    Icon(Icons.check_circle, size: 16, color: Colors.green),
-                    SizedBox(width: 8),
-                    Text('Mode Marchand actif', style: TextStyle(color: Colors.green, fontSize: 12)),
                   ],
                 ),
               ),

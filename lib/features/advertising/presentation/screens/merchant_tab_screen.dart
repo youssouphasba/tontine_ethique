@@ -3,7 +3,7 @@ import 'package:tontetic/core/providers/user_provider.dart';
 import 'package:tontetic/core/theme/app_theme.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:tontetic/core/providers/localization_provider.dart';
-import 'package:tontetic/core/services/merchant_account_service.dart';
+import 'package:tontetic/core/providers/merchant_account_provider.dart';
 import 'package:tontetic/core/services/merchant_product_service.dart';
 import 'package:tontetic/features/advertising/presentation/screens/merchant_registration_screen.dart';
 import 'package:tontetic/features/advertising/presentation/screens/merchant_boost_screen.dart';
@@ -35,17 +35,7 @@ class _MerchantTabScreenState extends ConsumerState<MerchantTabScreen> {
   @override
   void initState() {
     super.initState();
-    // Initialize merchant account check on startup
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      final user = ref.read(userProvider); // Check userProvider exists and has uid/phone
-      // Assuming userProvider identifies user by phone or uid
-      // Use a robust ID. Since createMerchant uses phoneNumber in registration screen, we verify consistency.
-      final userId = user.phoneNumber.isNotEmpty ? user.phoneNumber : user.uid;
-      
-      if (userId.isNotEmpty) {
-        ref.read(merchantAccountProvider.notifier).loadMerchantAccount(userId);
-      }
-    });
+    // Merchant account is auto-loaded by merchantShopProvider when userProvider changes
   }
 
   @override

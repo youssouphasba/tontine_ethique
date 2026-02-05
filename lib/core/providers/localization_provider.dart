@@ -18,7 +18,10 @@ class LocalizationState {
   static const Map<String, String> _fr = {
     'honor_score_title': 'Score d\'Honneur',
     'honor_score_status': 'Réputation : Standard',
-    'honor_score_welcome': 'Bienvenue sur Tontetic ! Vous commencez avec un Score d’Honneur de 50. Votre assiduité déterminera votre accès aux futurs cercles et marchands Premium. Chaque paiement validé augmente votre score.',
+    'honor_score_excellent': 'Réputation : Excellent ⭐',
+    'honor_score_good': 'Réputation : Bon',
+    'honor_score_low': 'Réputation : À améliorer',
+    'honor_score_welcome': 'Bienvenue sur Tontetic ! Vous commencez avec un Score d'Honneur de 50. Votre assiduité déterminera votre accès aux futurs cercles et marchands Premium. Chaque paiement validé augmente votre score.',
     'coach_signature': 'Tontii (votre Coach Financier) :',
     'coach_bravo_msg': '« Bravo ! Votre assiduité ce mois-ci a maintenu votre score à 50. Continuez ainsi pour atteindre le niveau 60 et débloquer les tontines "Électroménager" ! »',
     'rules_title': 'Règles de Fiabilité ⚖️',
@@ -111,7 +114,10 @@ class LocalizationState {
   static const Map<String, String> _wo = {
     'honor_score_title': 'Score d\'Honneur',
     'honor_score_status': 'Mbooloo : Mi ngi ci diggu',
-    'honor_score_welcome': 'Dalal jàmm ci Tontetic ! Ngir ñu mën a am koolute ci suñu diggante, sa Score d’Honneur 50 la tàmbalee. Score bi day wone ni nga takku ci sa mbir : fexeel ba sa mbindu (cotisation) yi tegu ci yoon, loolu mën na baaxal sa score ba nga mën a am solo ak marchand yu am classe. Deet ! Lu sorsé (retard) ak sa mbindu day yàq sa réputation ak sa bët ci natt (tontine) yi di ñëw !',
+    'honor_score_excellent': 'Mbooloo : Baax na lool ⭐',
+    'honor_score_good': 'Mbooloo : Baax na',
+    'honor_score_low': 'Mbooloo : War na yokku',
+    'honor_score_welcome': 'Dalal jàmm ci Tontetic ! Ngir ñu mën a am koolute ci suñu diggante, sa Score d'Honneur 50 la tàmbalee. Score bi day wone ni nga takku ci sa mbir : fexeel ba sa mbindu (cotisation) yi tegu ci yoon, loolu mën na baaxal sa score ba nga mën a am solo ak marchand yu am classe. Deet ! Lu sorsé (retard) ak sa mbindu day yàq sa réputation ak sa bët ci natt (tontine) yi di ñëw !',
     'coach_signature': 'Tontii (sa Coach Financier) :',
     'coach_bravo_msg': '« Baax na ! Sa assiduité weer wii tax na sa score méngook 50. Wéyal ni ngiy feyee sa mbindu ba nga jot ci niveau 60, loolu dina la may nga jot ci natt "Électroménager" ! »',
     'rules_title': 'Sartu Fiabilité ⚖️',

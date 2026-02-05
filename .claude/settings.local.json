@@ -1,0 +1,21 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(find:*)",
+      "Bash(flutter analyze:*)",
+      "Bash(/mnt/c/Users/Utilisateur/fvm/default/bin/flutter analyze:*)",
+      "Bash(/mnt/c/src/flutter/bin/flutter.bat analyze:*)",
+      "Bash(cmd.exe /c \"cd /d C:\\\\Users\\\\Utilisateur\\\\.gemini\\\\antigravity\\\\scratch\\\\tontine_ethique && flutter analyze\")",
+      "Bash(cmd.exe /c \"cd /d C:\\\\Users\\\\Utilisateur\\\\.gemini\\\\antigravity\\\\scratch\\\\tontine_ethique && flutter analyze 2>&1\")",
+      "Bash(/mnt/c/src/flutter/bin/flutter analyze:*)",
+      "Bash(cmd.exe /c \"cd /d C:\\\\\\\\Users\\\\\\\\Utilisateur\\\\\\\\.gemini\\\\\\\\antigravity\\\\\\\\scratch\\\\\\\\tontine_ethique && flutter analyze lib/core/services/identity_verification_service.dart\":*)",
+      "Bash(cmd.exe /c \"cd /d C:\\\\Users\\\\Utilisateur\\\\.gemini\\\\antigravity\\\\scratch\\\\tontine_ethique && flutter analyze lib/features/auth/presentation/screens/individual_registration_screen.dart\")",
+      "WebSearch",
+      "Bash(/usr/bin/flutter analyze:*)",
+      "Bash(dart analyze:*)",
+      "Bash(ls:*)",
+      "Bash(grep:*)",
+      "Bash(/mnt/c/Users/Utilisateur/flutter/bin/flutter.bat analyze:*)"
+    ]
+  }
+}

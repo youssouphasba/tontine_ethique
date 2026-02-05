@@ -1,6 +1,13 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:record/record.dart';
+import 'package:audioplayers/audioplayers.dart';
+import 'package:path_provider/path_provider.dart';
 import 'package:tontetic/core/theme/app_theme.dart';
+import 'package:tontetic/core/services/chat_service.dart';
 import 'package:tontetic/features/social/data/social_provider.dart';
 import 'package:tontetic/features/social/presentation/screens/profile_screen.dart';
 
@@ -16,6 +23,12 @@ class DirectChatScreen extends ConsumerStatefulWidget {
 class _DirectChatScreenState extends ConsumerState<DirectChatScreen> {
   final TextEditingController _msgController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
+  final AudioRecorder _audioRecorder = AudioRecorder();
+  final AudioPlayer _audioPlayer = AudioPlayer();
+  final ChatService _chatService = ChatService();
+
+  bool _isRecording = false;
+  bool _isUploading = false;
 
   @override
   void initState() {
@@ -25,6 +38,91 @@ class _DirectChatScreenState extends ConsumerState<DirectChatScreen> {
         ref.read(socialProvider.notifier).listenToConversation(widget.friendName, widget.friendId!);
       }
     });
+  }
+
+  @override
+  void dispose() {
+    _msgController.dispose();
+    _scrollController.dispose();
+    _audioRecorder.dispose();
+    _audioPlayer.dispose();
+    super.dispose();
+  }
+
+  String? get _currentUserId => FirebaseAuth.instance.currentUser?.uid;
+
+  Future<void> _startRecording() async {
+    try {
+      if (await _audioRecorder.hasPermission()) {
+        final directory = await getTemporaryDirectory();
+        final path = '${directory.path}/voice_${DateTime.now().millisecondsSinceEpoch}.m4a';
+
+        await _audioRecorder.start(const RecordConfig(), path: path);
+        setState(() => _isRecording = true);
+      }
+    } catch (e) {
+      debugPrint('Error starting recording: $e');
+    }
+  }
+
+  Future<void> _stopRecording() async {
+    try {
+      final path = await _audioRecorder.stop();
+      setState(() => _isRecording = false);
+
+      if (path != null && widget.friendId != null && _currentUserId != null) {
+        await _sendMediaMessage(File(path), 'audio');
+      }
+    } catch (e) {
+      debugPrint('Error stopping recording: $e');
+    }
+  }
+
+  Future<void> _pickImage() async {
+    try {
+      final picker = ImagePicker();
+      final image = await picker.pickImage(source: ImageSource.gallery, maxWidth: 1024, imageQuality: 80);
+
+      if (image != null && widget.friendId != null && _currentUserId != null) {
+        await _sendMediaMessage(File(image.path), 'image');
+      }
+    } catch (e) {
+      debugPrint('Error picking image: $e');
+    }
+  }
+
+  Future<void> _sendMediaMessage(File file, String type) async {
+    if (widget.friendId == null || _currentUserId == null) return;
+
+    setState(() => _isUploading = true);
+
+    try {
+      final conversationId = ChatService.getCanonicalId(_currentUserId!, widget.friendId!);
+
+      await _chatService.sendMediaMessage(
+        conversationId: conversationId,
+        senderId: _currentUserId!,
+        recipientId: widget.friendId!,
+        file: file,
+        mediaType: type,
+        senderName: FirebaseAuth.instance.currentUser?.displayName,
+        recipientName: widget.friendName,
+      );
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(type == 'audio' ? '🎤 Message vocal envoyé' : '📷 Image envoyée'), backgroundColor: Colors.green),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Erreur: $e'), backgroundColor: Colors.red),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isUploading = false);
+    }
   }
 
   @override
@@ -105,24 +203,101 @@ class _DirectChatScreenState extends ConsumerState<DirectChatScreen> {
             bottomRight: Radius.circular(isMe ? 0 : 16),
           ),
         ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.end,
-          children: [
-            if (msg.isEncrypted)
-              Padding(
-                padding: const EdgeInsets.only(right: 4, bottom: 2),
-                child: Icon(Icons.lock, size: 12, color: isMe ? Colors.white70 : Colors.grey),
-              ),
-            Flexible(
-              child: Text(
-                msg.text,
-                style: TextStyle(color: isMe ? Colors.white : Colors.black87),
+        child: _buildMessageContent(msg, isMe),
+      ),
+    );
+  }
+
+  Widget _buildMessageContent(ChatMessage msg, bool isMe) {
+    // Audio message
+    if (msg.type == 'audio' && msg.url != null) {
+      return Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          IconButton(
+            icon: const Icon(Icons.play_circle_fill),
+            color: isMe ? Colors.white : AppTheme.marineBlue,
+            iconSize: 32,
+            onPressed: () => _audioPlayer.play(UrlSource(msg.url!)),
+          ),
+          const SizedBox(width: 4),
+          SizedBox(
+            width: 80,
+            height: 20,
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+              children: List.generate(10, (i) => Container(
+                width: 3,
+                height: 10 + (i % 3) * 5.0,
+                color: isMe ? Colors.white70 : Colors.grey,
+              )),
+            ),
+          ),
+        ],
+      );
+    }
+
+    // Image message
+    if (msg.type == 'image' && msg.url != null) {
+      return GestureDetector(
+        onTap: () => showDialog(
+          context: context,
+          builder: (_) => Dialog(child: Image.network(msg.url!)),
+        ),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(8),
+          child: Image.network(
+            msg.url!,
+            height: 150,
+            width: 150,
+            fit: BoxFit.cover,
+            loadingBuilder: (c, w, l) => l == null ? w : const SizedBox(
+              height: 150,
+              width: 150,
+              child: Center(child: CircularProgressIndicator()),
+            ),
+          ),
+        ),
+      );
+    }
+
+    // File message
+    if (msg.type == 'file' && msg.url != null) {
+      return Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(Icons.insert_drive_file, color: isMe ? Colors.white : Colors.grey),
+          const SizedBox(width: 8),
+          Flexible(
+            child: Text(
+              msg.fileName ?? 'Fichier',
+              style: TextStyle(
+                color: isMe ? Colors.white : Colors.black87,
+                decoration: TextDecoration.underline,
               ),
             ),
-          ],
+          ),
+        ],
+      );
+    }
+
+    // Text message (default)
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.end,
+      children: [
+        if (msg.isEncrypted)
+          Padding(
+            padding: const EdgeInsets.only(right: 4, bottom: 2),
+            child: Icon(Icons.lock, size: 12, color: isMe ? Colors.white70 : Colors.grey),
+          ),
+        Flexible(
+          child: Text(
+            msg.text,
+            style: TextStyle(color: isMe ? Colors.white : Colors.black87),
+          ),
         ),
-      ),
+      ],
     );
   }
 
@@ -179,30 +354,76 @@ class _DirectChatScreenState extends ConsumerState<DirectChatScreen> {
         boxShadow: [BoxShadow(color: Colors.black12, blurRadius: 4)],
       ),
       child: SafeArea(
-        child: Row(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
           children: [
-            IconButton(icon: const Icon(Icons.add_a_photo, color: AppTheme.marineBlue), onPressed: () => ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('📷 Envoi de photos bientôt disponible !')))),
-            Expanded(
-              child: TextField(
-                controller: _msgController,
-                style: const TextStyle(color: Colors.black87),
-                decoration: InputDecoration(
-                  hintText: 'Votre message...',
-                  hintStyle: TextStyle(color: Colors.grey[500]),
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(24), borderSide: BorderSide.none),
-                  filled: true,
-                  fillColor: Colors.grey[100],
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            if (_isRecording)
+              Container(
+                padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
+                margin: const EdgeInsets.only(bottom: 8),
+                decoration: BoxDecoration(
+                  color: Colors.red.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: const Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.mic, color: Colors.red, size: 16),
+                    SizedBox(width: 8),
+                    Text('Enregistrement... (Relâcher pour envoyer)', style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold, fontSize: 12)),
+                  ],
                 ),
               ),
-            ),
-            const SizedBox(width: 8),
-            CircleAvatar(
-              backgroundColor: AppTheme.gold,
-              child: IconButton(
-                icon: const Icon(Icons.send, color: AppTheme.marineBlue),
-                onPressed: _handleSend,
-              ),
+            Row(
+              children: [
+                IconButton(
+                  icon: const Icon(Icons.add_a_photo, color: AppTheme.marineBlue),
+                  onPressed: _isUploading ? null : _pickImage,
+                ),
+                Expanded(
+                  child: TextField(
+                    controller: _msgController,
+                    onChanged: (_) => setState(() {}),
+                    style: const TextStyle(color: Colors.black87),
+                    decoration: InputDecoration(
+                      hintText: 'Votre message...',
+                      hintStyle: TextStyle(color: Colors.grey[500]),
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(24), borderSide: BorderSide.none),
+                      filled: true,
+                      fillColor: Colors.grey[100],
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                GestureDetector(
+                  onLongPress: _startRecording,
+                  onLongPressUp: _stopRecording,
+                  child: CircleAvatar(
+                    backgroundColor: _msgController.text.isNotEmpty
+                        ? AppTheme.marineBlue
+                        : (_isRecording ? Colors.red : AppTheme.gold),
+                    child: _isUploading
+                        ? const SizedBox(
+                            width: 20,
+                            height: 20,
+                            child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
+                          )
+                        : IconButton(
+                            icon: Icon(
+                              _msgController.text.isNotEmpty ? Icons.send : Icons.mic,
+                              color: _msgController.text.isNotEmpty ? Colors.white : AppTheme.marineBlue,
+                              size: 20,
+                            ),
+                            onPressed: _msgController.text.isNotEmpty
+                                ? _handleSend
+                                : () => ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(content: Text('🎤 Maintenez pour enregistrer un vocal')),
+                                  ),
+                          ),
+                  ),
+                ),
+              ],
             ),
           ],
         ),

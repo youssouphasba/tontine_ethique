@@ -361,9 +361,9 @@ class _CreateMerchantAccountScreenState extends ConsumerState<CreateMerchantAcco
              color: Colors.white,
              borderRadius: BorderRadius.circular(16),
              boxShadow: [
-               BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10, offset: const Offset(0, 4)),
+               BoxShadow(color: Colors.black.withValues(alpha: 0.05), blurRadius: 10, offset: const Offset(0, 4)),
              ],
-             border: Border.all(color: Colors.deepPurple.withOpacity(0.1)),
+             border: Border.all(color: Colors.deepPurple.withValues(alpha: 0.1)),
            ),
            child: Column(
              children: [
@@ -415,7 +415,7 @@ class _CreateMerchantAccountScreenState extends ConsumerState<CreateMerchantAcco
       // 1. Create Shop (Pending Payment)
       // This allows us to have a 'shopId' to reference in the payment
       final shopId = await ref.read(merchantAccountProvider.notifier).createShop(
-        userId: user.uid ?? user.phoneNumber,
+        userId: user.uid.isNotEmpty ? user.uid : user.phoneNumber,
         shopName: _shopNameController.text,
         professionalEmail: _professionalEmailController.text.isNotEmpty ? _professionalEmailController.text : null,
         category: _selectedCategory,
