@@ -4,8 +4,6 @@ import 'package:intl/intl.dart';
 import 'package:tontetic/core/theme/app_theme.dart';
 import 'package:tontetic/core/providers/user_provider.dart';
 import 'package:tontetic/core/providers/localization_provider.dart';
-import 'package:tontetic/core/providers/localization_provider.dart';
-import 'package:tontetic/core/providers/localization_provider.dart';
 import 'package:tontetic/core/constants/legal_texts.dart';
 import 'package:tontetic/features/savings/data/locked_savings_provider.dart';
 

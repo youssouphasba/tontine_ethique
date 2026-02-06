@@ -430,6 +430,15 @@ firebase functions:log
 - ✅ **Admin Backoffice** : Module Communication activé avec targeting avancé.
 - ✅ **Walkthrough** : Documentation mise à jour (`brain/.../walkthrough.md`).
 
+**Stabilisation Build Android (Critique)** :
+- ✅ **Build Success** : APK Release généré avec succès (`app-release.apk` ~101MB).
+- ✅ **Optimisations** :
+  - Heap JVM réduit à 1.5GB (fix crash mémoire).
+  - Suppression assets inutilisés (`assets/legal`) et ZIP installateurs.
+  - Nettoyage dépendances et cache (`flutter clean`).
+- ✅ **Localization** : Suppression doublons (`localization_provider.dart`).
+
+
 ---
 
 ## 9. ARCHITECTURE PAIEMENTS CIBLE (Mangopay + Stripe)

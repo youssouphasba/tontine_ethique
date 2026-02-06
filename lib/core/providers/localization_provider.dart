@@ -235,7 +235,7 @@ class LocalizationState {
     'released': 'Libéré',
     'welcome_success': 'Bienvenue ! Vous êtes maintenant membre.',
     'error_label': 'Erreur',
-    'join_requests_title': 'Demandes d\'adhésion',
+
     'request_to_join_title': 'Demande d\'adhésion',
     'join_approval_notice': 'Le créateur du cercle doit approuver votre demande avant que vous puissiez rejoindre.',
     'message_to_creator': 'Message au créateur (optionnel) :',
@@ -262,11 +262,7 @@ class LocalizationState {
     'guarantee_used': 'Garantie utilisée',
     'guarantee_ok': 'Garantie OK',
     'share_invite_code': 'Partager le code d\'invitation',
-    'no_followers': 'Aucun abonné pour le moment.',
-    'no_following': 'Vous ne suivez personne pour le moment.',
-    'unfollow': 'Se désabonner',
-    'choose_tontine': 'Choisir une tontine',
-    'invite_to_tontine': 'Inviter dans une tontine',
+
     // Payment History Screen
     'payment_history_title': 'Historique des Paiements',
     'filter_all': 'Tout',
@@ -517,7 +513,7 @@ class LocalizationState {
     'released': 'Ubbi na',
     'welcome_success': 'Aksil ak jàmm ! Nékk nga membre léegi.',
     'error_label': 'Njuumte',
-    'join_requests_title': 'Ñi bëgga dugg',
+
     'request_to_join_title': 'Duggal sa demande',
     'join_approval_notice': 'Ki sàkk circle bi mofi mëna nangu sa demande.',
     'message_to_creator': 'Bataaxal (Boo ko bëggée) :',
@@ -544,11 +540,7 @@ class LocalizationState {
     'guarantee_used': 'Garantie bi jël nañ ko',
     'guarantee_ok': 'Garantie bi baax na',
     'share_invite_code': 'Donner sa code invitation',
-    'no_followers': 'Amuloo abonnés léegi.',
-    'no_following': 'Topuloo kenn léegi.',
-    'unfollow': 'Ba xool kii',
-    'choose_tontine': 'Tannal benn tontine',
-    'invite_to_tontine': 'Inviter ko ci tontine',
+
     // Payment History Screen
     'payment_history_title': 'Limu Fey yi',
     'filter_all': 'Yëpp',

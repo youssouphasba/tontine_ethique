@@ -4,7 +4,6 @@ import 'package:share_plus/share_plus.dart'; // Import Added
 import 'package:tontetic/core/theme/app_theme.dart';
 import 'package:tontetic/core/providers/user_provider.dart';
 import 'package:tontetic/core/providers/localization_provider.dart';
-import 'package:tontetic/core/providers/localization_provider.dart';
 import 'package:tontetic/core/models/user_model.dart';
 import 'package:tontetic/core/services/security_service.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';

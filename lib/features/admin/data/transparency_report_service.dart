@@ -1,5 +1,5 @@
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:tontetic/features/advertising/data/moderation_service.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 /// V11.4 - Transparency Report Generator
 /// Compiles monthly statistics for regulatory compliance

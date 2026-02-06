@@ -6,7 +6,7 @@ import 'package:tontetic/core/models/user_model.dart';
 import 'package:tontetic/core/theme/app_theme.dart';
 import 'package:tontetic/core/providers/user_provider.dart';
 import 'package:tontetic/core/services/stripe_service.dart';
-import 'package:tontetic/core/services/merchant_account_service.dart'; // MerchantType enum
+
 import 'package:tontetic/core/providers/merchant_account_provider.dart'; // Unified provider
 import 'package:tontetic/core/models/plan_model.dart';
 import 'package:tontetic/core/providers/plans_provider.dart';
