@@ -11,11 +11,10 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 
 /// Reward types compatible with technical platform status (no payment handling)
 enum ReferralRewardType { 
-  feeFree,           // Mois sans frais de gestion
-  priorityAccess,    // Accès prioritaire aux nouvelles fonctionnalités
-  extendedLimits,    // Limites étendues (nombre de cercles, membres)
-  badgeParrain,      // Badge "Parrain Actif" visible sur le profil
-  contributionBonus, // Bonus ajouté à la contribution lors du prochain pot (dans le cercle)
+  subscriptionMonth, // Mois d'abonnement offerts (Enterprise/Premium)
+  freeContribution,  // Une cotisation offerte (Tontine)
+  priorityAccess,    // Accès prioritaire
+  badgeParrain,      // Badge sur le profil
 }
 
 enum ReferralStatus { pending, validated, rewarded, expired, cancelled }
@@ -25,21 +24,22 @@ class ReferralCampaign {
   final String name;
   final String description;
   final ReferralRewardType rewardType;
-  final double rewardAmount; // FCFA or months depending on type
+  final double rewardValue; // Number of months OR Value in EUR
   final bool isActive;
   final DateTime startDate;
   final DateTime? endDate;
   final int maxReferralsPerUser;
   final int minCirclesToValidate; // Referree must join X circles to validate
   final int totalReferrals;
-  final double totalRewardsDistributed;
+  final double totalRewardsDistributed; // Value in EUR or Months
+  final List<String> targetAudience; // 'all', 'merchants', 'enterprises', 'users'
 
   ReferralCampaign({
     required this.id,
     required this.name,
     required this.description,
     required this.rewardType,
-    required this.rewardAmount,
+    required this.rewardValue,
     required this.isActive,
     required this.startDate,
     this.endDate,
@@ -47,19 +47,21 @@ class ReferralCampaign {
     this.minCirclesToValidate = 1,
     this.totalReferrals = 0,
     this.totalRewardsDistributed = 0,
+    this.targetAudience = const ['all'],
   });
 
   ReferralCampaign copyWith({
     bool? isActive,
     int? totalReferrals,
     double? totalRewardsDistributed,
+    List<String>? targetAudience,
   }) {
     return ReferralCampaign(
       id: id,
       name: name,
       description: description,
       rewardType: rewardType,
-      rewardAmount: rewardAmount,
+      rewardValue: rewardValue,
       isActive: isActive ?? this.isActive,
       startDate: startDate,
       endDate: endDate,
@@ -67,6 +69,7 @@ class ReferralCampaign {
       minCirclesToValidate: minCirclesToValidate,
       totalReferrals: totalReferrals ?? this.totalReferrals,
       totalRewardsDistributed: totalRewardsDistributed ?? this.totalRewardsDistributed,
+      targetAudience: targetAudience ?? this.targetAudience,
     );
   }
 }
@@ -83,7 +86,7 @@ class Referral {
   final DateTime createdAt;
   final DateTime? validatedAt;
   final DateTime? rewardedAt;
-  final double? rewardAmount;
+  final double? rewardValue;
   final ReferralRewardType? rewardType;
 
   Referral({
@@ -98,7 +101,7 @@ class Referral {
     required this.createdAt,
     this.validatedAt,
     this.rewardedAt,
-    this.rewardAmount,
+    this.rewardValue,
     this.rewardType,
   });
 
@@ -106,7 +109,7 @@ class Referral {
     ReferralStatus? status,
     DateTime? validatedAt,
     DateTime? rewardedAt,
-    double? rewardAmount,
+    double? rewardValue,
     ReferralRewardType? rewardType,
   }) {
     return Referral(
@@ -121,7 +124,7 @@ class Referral {
       createdAt: createdAt,
       validatedAt: validatedAt ?? this.validatedAt,
       rewardedAt: rewardedAt ?? this.rewardedAt,
-      rewardAmount: rewardAmount ?? this.rewardAmount,
+      rewardValue: rewardValue ?? this.rewardValue,
       rewardType: rewardType ?? this.rewardType,
     );
   }
@@ -133,7 +136,7 @@ class UserReferralInfo {
   final int totalReferrals;
   final int pendingReferrals;
   final int validatedReferrals;
-  final double totalRewardsEarned;
+  final double totalRewardsValue; // In EUR or Months
   final List<Referral> referralHistory;
 
   UserReferralInfo({
@@ -142,7 +145,7 @@ class UserReferralInfo {
     required this.totalReferrals,
     required this.pendingReferrals,
     required this.validatedReferrals,
-    required this.totalRewardsEarned,
+    required this.totalRewardsValue,
     required this.referralHistory,
   });
 }
@@ -200,7 +203,7 @@ class ReferralService {
       totalReferrals: userReferrals.length,
       pendingReferrals: userReferrals.where((r) => r.status == ReferralStatus.pending).length,
       validatedReferrals: userReferrals.where((r) => r.status == ReferralStatus.validated || r.status == ReferralStatus.rewarded).length,
-      totalRewardsEarned: userReferrals.where((r) => r.status == ReferralStatus.rewarded).fold(0, (total, r) => total + (r.rewardAmount ?? 0)),
+      totalRewardsValue: userReferrals.where((r) => r.status == ReferralStatus.rewarded).fold(0, (total, r) => total + (r.rewardValue ?? 0)),
       referralHistory: userReferrals,
     );
   }
@@ -211,7 +214,7 @@ class ReferralService {
       // Query Firestore for campaigns that are visible in app and active
       final snapshot = await FirebaseFirestore.instance
           .collection('referral_campaigns')
-          .where('visibleInApp', isEqualTo: true)
+          .where('isActive', isEqualTo: true)
           .where('status', isEqualTo: 'active')
           .limit(1)
           .get();
@@ -243,10 +246,10 @@ class ReferralService {
       final data = doc.data();
 
       // Parse Reward Type safely
-      ReferralRewardType rewardType = ReferralRewardType.feeFree;
+      ReferralRewardType rewardType = ReferralRewardType.subscriptionMonth;
       try {
         rewardType = ReferralRewardType.values.firstWhere(
-            (e) => e.name == (data['rewardType'] as String? ?? 'feeFree'));
+            (e) => e.name == (data['rewardType'] as String? ?? 'subscriptionMonth'));
       } catch (_) {}
 
       return ReferralCampaign(
@@ -254,12 +257,13 @@ class ReferralService {
         name: data['name'] ?? 'Campagne',
         description: data['description'] ?? '',
         rewardType: rewardType,
-        rewardAmount: (data['rewardAmount'] as num?)?.toDouble() ?? 0.0,
+        rewardValue: (data['rewardValue'] as num?)?.toDouble() ?? 0.0,
         isActive: true,
         startDate: (data['startDate'] as Timestamp).toDate(),
         endDate: (data['endDate'] as Timestamp?)?.toDate(),
         maxReferralsPerUser: data['maxReferralsPerUser'] ?? 50,
         minCirclesToValidate: data['minCirclesToValidate'] ?? 1,
+        targetAudience: List<String>.from(data['targetAudience'] ?? ['all']),
       );
 
     } catch (e) {
@@ -339,17 +343,17 @@ class ReferralService {
     _referrals[index] = referral.copyWith(
       status: ReferralStatus.rewarded,
       rewardedAt: DateTime.now(),
-      rewardAmount: campaign.rewardAmount,
+      rewardValue: campaign.rewardValue,
       rewardType: campaign.rewardType,
     );
 
     // Update campaign stats
     _campaigns[campaignIndex] = campaign.copyWith(
       totalReferrals: campaign.totalReferrals + 1,
-      totalRewardsDistributed: campaign.totalRewardsDistributed + campaign.rewardAmount,
+      totalRewardsDistributed: campaign.totalRewardsDistributed + campaign.rewardValue,
     );
 
-    debugPrint('[Referral] Rewarded: $referralId with ${campaign.rewardAmount}');
+    debugPrint('[Referral] Rewarded: $referralId with ${campaign.rewardValue}');
   }
 
   /// Cancel a referral
@@ -379,11 +383,12 @@ class ReferralService {
     required String name,
     required String description,
     required ReferralRewardType rewardType,
-    required double rewardAmount,
+    required double rewardValue,
     required DateTime startDate,
     DateTime? endDate,
     int maxReferralsPerUser = 50,
     int minCirclesToValidate = 1,
+    List<String> targetAudience = const ['all'],
   }) {
     final id = 'camp_ref_${(_campaigns.length + 1).toString().padLeft(3, '0')}';
     
@@ -392,12 +397,13 @@ class ReferralService {
       name: name,
       description: description,
       rewardType: rewardType,
-      rewardAmount: rewardAmount,
+      rewardValue: rewardValue,
       isActive: false,
       startDate: startDate,
       endDate: endDate,
       maxReferralsPerUser: maxReferralsPerUser,
       minCirclesToValidate: minCirclesToValidate,
+      targetAudience: targetAudience,
     ));
 
     debugPrint('[Referral] Campaign created: $name');
@@ -414,7 +420,7 @@ class ReferralService {
     
     final totalRewards = _referrals
       .where((r) => r.status == ReferralStatus.rewarded)
-      .fold<double>(0, (total, r) => total + (r.rewardAmount ?? 0));
+      .fold<double>(0, (total, r) => total + (r.rewardValue ?? 0));
 
     final activeCampaigns = _campaigns.where((c) => c.isActive).length;
 
@@ -455,18 +461,18 @@ class ReferralService {
       'createdAt': r.createdAt.toIso8601String(),
       'validatedAt': r.validatedAt?.toIso8601String(),
       'rewardedAt': r.rewardedAt?.toIso8601String(),
-      'rewardAmount': r.rewardAmount,
+      'rewardValue': r.rewardValue,
       'rewardType': r.rewardType?.name,
     }).toList();
   }
 
   String exportReferralsToCsv() {
     final buffer = StringBuffer();
-    buffer.writeln('ID,ReferrerName,RefereeName,ReferralCode,CampaignId,Status,CreatedAt,ValidatedAt,RewardedAt,RewardAmount');
+    buffer.writeln('ID,ReferrerName,RefereeName,ReferralCode,CampaignId,Status,CreatedAt,ValidatedAt,RewardedAt,RewardValue,RewardType');
     
     for (final r in _referrals) {
       buffer.writeln(
-        '"${r.id}","${r.referrerName}","${r.refereeName}","${r.referralCode}","${r.campaignId}","${r.status.name}","${r.createdAt.toIso8601String()}","${r.validatedAt?.toIso8601String() ?? ''}","${r.rewardedAt?.toIso8601String() ?? ''}","${r.rewardAmount ?? ''}"'
+        '"${r.id}","${r.referrerName}","${r.refereeName}","${r.referralCode}","${r.campaignId}","${r.status.name}","${r.createdAt.toIso8601String()}","${r.validatedAt?.toIso8601String() ?? ''}","${r.rewardedAt?.toIso8601String() ?? ''}","${r.rewardValue ?? ''}","${r.rewardType?.name ?? ''}"'
       );
     }
     return buffer.toString();
@@ -475,16 +481,14 @@ class ReferralService {
   // Helper methods
   String getRewardTypeLabel(ReferralRewardType type) {
     switch (type) {
-      case ReferralRewardType.feeFree:
-        return '🎁 Mois sans frais';
+      case ReferralRewardType.subscriptionMonth:
+        return '📅 Mois d\'abonnement offerts';
+      case ReferralRewardType.freeContribution:
+        return '🎁 Cotisation offerte';
       case ReferralRewardType.priorityAccess:
         return '⚡ Accès prioritaire';
-      case ReferralRewardType.extendedLimits:
-        return '📈 Limites étendues';
       case ReferralRewardType.badgeParrain:
         return '🏅 Badge Parrain';
-      case ReferralRewardType.contributionBonus:
-        return '💎 Bonus contribution';
     }
   }
 

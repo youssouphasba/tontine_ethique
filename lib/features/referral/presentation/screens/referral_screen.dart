@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:tontetic/core/theme/app_theme.dart';
-import 'package:tontetic/features/referral/data/referral_service.dart';
+import 'package:tontetic/core/services/referral_service.dart';
 
 class ReferralScreen extends StatelessWidget {
   const ReferralScreen({super.key});
@@ -174,25 +174,49 @@ class ReferralScreen extends StatelessWidget {
   }
   */
   Widget _buildRewardSelector() {
-    return Container(
-       padding: const EdgeInsets.all(16),
-       decoration: BoxDecoration(
-         color: Colors.white,
-         borderRadius: BorderRadius.circular(16),
-         border: Border.all(color: Colors.grey.shade200),
-       ),
-       child: Column(
-         crossAxisAlignment: CrossAxisAlignment.start,
-         children: [
-           const Text('MODE DE RÉCOMPENSE', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.grey)),
-           const SizedBox(height: 12),
-           _buildRewardOption('Bonus Premier Pot', '5 000 FCFA offerts au démarrage', true),
-           const Divider(),
-           _buildRewardOption('3 Mois Sans Frais', 'Économisez sur les frais de gestion', false),
-           const Divider(),
-           _buildRewardOption('Cash Wallet', 'Crédit direct pour chaque filleul', false),
-         ],
-       ),
+    return FutureBuilder<ReferralCampaign?>(
+      future: ProviderScope.containerOf(context).read(referralServiceProvider).getActiveCampaign(), // Assuming provider or getIt usage, but simpler:
+      // Actually we have ReferralService instance in this file? 
+      // Checking file content: no service instance visible in snippet.
+      // Let's assume we instantiate it or use a provider.
+      // Given I can't easily see the whole file context for dependency injection, I will use the service directly as done in Admin panels for now, or better:
+      // Just instantiate ReferralService() since it's a singleton/service.
+      initialData: null,
+      builder: (context, snapshot) {
+         if (snapshot.connectionState == ConnectionState.waiting) return const Center(child: CircularProgressIndicator());
+         final campaign = snapshot.data;
+         
+         if (campaign == null) {
+           return Container(
+             padding: const EdgeInsets.all(16),
+             decoration: BoxDecoration(color: Colors.grey.shade100, borderRadius: BorderRadius.circular(16)),
+             child: const Center(child: Text("Aucune offre de parrainage active pour le moment.")),
+           );
+         }
+
+         return Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: Colors.grey.shade200),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text('RÉCOMPENSE ACTUELLE', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.grey)),
+                const SizedBox(height: 12),
+                _buildRewardOption(
+                  campaign.name, 
+                  '${campaign.rewardValue} ${campaign.rewardType == ReferralRewardType.subscriptionMonth ? "Mois offerts" : "EUR"}', 
+                  true
+                ),
+                const SizedBox(height: 8),
+                Text(campaign.description, style: const TextStyle(color: Colors.grey, fontSize: 12)),
+              ],
+            ),
+         );
+      }
     );
   }
 

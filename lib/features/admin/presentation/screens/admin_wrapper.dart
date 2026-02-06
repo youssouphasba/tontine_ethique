@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:tontetic/core/providers/auth_provider.dart';
 import 'package:tontetic/core/theme/app_theme.dart';
 
@@ -22,11 +23,11 @@ class AdminWrapper extends ConsumerWidget {
           return const AdminLoginScreen();
         }
         
-        // RBAC: Check admin role in Firestore
-        return FutureBuilder<DocumentSnapshot>(
-          future: FirebaseFirestore.instance.collection('users').doc(user.uid).get(),
-          builder: (context, snapshot) {
-            if (snapshot.connectionState == ConnectionState.waiting) {
+        // Force token refresh to get latest custom claims
+        return FutureBuilder<void>(
+          future: user.getIdToken(true), // Force refresh
+          builder: (context, tokenSnapshot) {
+            if (tokenSnapshot.connectionState == ConnectionState.waiting) {
               return const Scaffold(
                 backgroundColor: AppTheme.marineBlue,
                 body: Center(
@@ -35,28 +36,69 @@ class AdminWrapper extends ConsumerWidget {
                     children: [
                       CircularProgressIndicator(color: AppTheme.gold),
                       SizedBox(height: 16),
-                      Text('Vérification des permissions...', style: TextStyle(color: Colors.white)),
+                      Text('Actualisation du token...', style: TextStyle(color: Colors.white)),
                     ],
                   ),
                 ),
               );
             }
 
-            if (snapshot.hasError) {
-              return _buildUnauthorizedScreen('Erreur de vérification: ${snapshot.error}');
-            }
+            // RBAC: Check admin role in Firestore
+            return FutureBuilder<DocumentSnapshot>(
+              future: FirebaseFirestore.instance.collection('users').doc(user.uid).get(),
+              builder: (context, snapshot) {
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return const Scaffold(
+                    backgroundColor: AppTheme.marineBlue,
+                    body: Center(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          CircularProgressIndicator(color: AppTheme.gold),
+                          SizedBox(height: 16),
+                          Text('Vérification des permissions...', style: TextStyle(color: Colors.white)),
+                        ],
+                      ),
+                    ),
+                  );
+                }
 
-            final userData = snapshot.data?.data() as Map<String, dynamic>?;
-            final role = userData?['role'] as String?;
+                if (snapshot.hasError) {
+                  return _buildUnauthorizedScreen(
+                    context,
+                    'Erreur de vérification: ${snapshot.error}',
+                    user.uid,
+                    null,
+                  );
+                }
 
-            // Check if user has admin role
-            final allowedRoles = ['superAdmin', 'admin', 'support', 'moderation'];
-            if (role == null || !allowedRoles.contains(role)) {
-              return _buildUnauthorizedScreen('Accès refusé. Rôle requis: admin');
-            }
+                if (!snapshot.hasData || !snapshot.data!.exists) {
+                  return _buildUnauthorizedScreen(
+                    context,
+                    'Document utilisateur introuvable dans Firestore.',
+                    user.uid,
+                    null,
+                  );
+                }
 
-            // Access granted - show admin dashboard
-            return const AdminDashboard();
+                final userData = snapshot.data?.data() as Map<String, dynamic>?;
+                final role = userData?['role'] as String?;
+
+                // Check if user has admin role
+                final allowedRoles = ['superAdmin', 'admin', 'support', 'moderation'];
+                if (role == null || !allowedRoles.contains(role)) {
+                  return _buildUnauthorizedScreen(
+                    context,
+                    'Accès refusé. Rôle requis: admin',
+                    user.uid,
+                    role,
+                  );
+                }
+
+                // Access granted - show admin dashboard
+                return const AdminDashboard();
+              },
+            );
           },
         );
       },
@@ -65,7 +107,7 @@ class AdminWrapper extends ConsumerWidget {
     );
   }
 
-  Widget _buildUnauthorizedScreen(String message) {
+  Widget _buildUnauthorizedScreen(BuildContext context, String message, String uid, String? currentRole) {
     return Scaffold(
       backgroundColor: AppTheme.marineBlue,
       body: Center(
@@ -88,7 +130,36 @@ class AdminWrapper extends ConsumerWidget {
                   style: const TextStyle(color: Colors.grey),
                   textAlign: TextAlign.center,
                 ),
+                const SizedBox(height: 16),
+                // Debug info
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.grey.shade100,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('UID: $uid', style: const TextStyle(fontSize: 10, fontFamily: 'monospace')),
+                      Text('Rôle actuel: ${currentRole ?? "null"}', style: const TextStyle(fontSize: 10, fontFamily: 'monospace')),
+                    ],
+                  ),
+                ),
                 const SizedBox(height: 24),
+                // Logout and retry button
+                ElevatedButton.icon(
+                  onPressed: () async {
+                    await FirebaseAuth.instance.signOut();
+                  },
+                  icon: const Icon(Icons.logout),
+                  label: const Text('Déconnexion et Réessayer'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.blue,
+                    foregroundColor: Colors.white,
+                  ),
+                ),
+                const SizedBox(height: 12),
                 const Text(
                   'Contactez un administrateur pour obtenir les droits d\'accès.',
                   style: TextStyle(fontSize: 12, color: Colors.grey),

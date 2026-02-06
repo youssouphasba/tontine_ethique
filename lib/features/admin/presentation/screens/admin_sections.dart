@@ -301,13 +301,6 @@ class AdminEnterprisesSection extends StatelessWidget {
                   ],
                 ),
                 const Divider(),
-                Row(
-                  children: [
-                    TextButton.icon(icon: const Icon(Icons.people), label: const Text('Salariés'), onPressed: () => ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('👥 Liste des salariés de $name...')))),
-                    const Spacer(),
-                    OutlinedButton(onPressed: () => ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('📦 Changement de formule pour $name...'))), child: const Text('Changer formule')),
-                  ],
-                ),
               ],
             ),
           ),
@@ -755,46 +748,83 @@ class AdminAuditSection extends StatelessWidget {
   }
 
   Widget _buildCguHistory(BuildContext context) {
-    return ListView(
-      padding: const EdgeInsets.all(16),
-      children: [
-        ListTile(
-          leading: const Icon(Icons.description, color: Colors.blue),
-          title: const Text('CGU v3.2'),
-          subtitle: const Text('Publiée le 01/01/2026 • 12,458 acceptations'),
-          trailing: const Text('Active', style: TextStyle(color: Colors.green, fontWeight: FontWeight.bold)),
-        ),
-        ListTile(
-          leading: const Icon(Icons.description, color: Colors.grey),
-          title: const Text('CGU v3.1'),
-          subtitle: const Text('Publiée le 15/12/2025 • 11,234 acceptations'),
-          trailing: TextButton(onPressed: () => ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('📄 Affichage CGU v3.1...'))), child: const Text('Voir')),
-        ),
-        ListTile(
-          leading: const Icon(Icons.description, color: Colors.grey),
-          title: const Text('CGU v3.0'),
-          subtitle: const Text('Publiée le 01/11/2025 • 9,876 acceptations'),
-          trailing: TextButton(onPressed: () => ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('📄 Affichage CGU v3.0...'))), child: const Text('Voir')),
-        ),
-      ],
+    return StreamBuilder<QuerySnapshot>(
+      stream: FirebaseFirestore.instance.collection('legal_documents')
+          .where('type', isEqualTo: 'cgu')
+          .orderBy('publishedAt', descending: true)
+          .snapshots(),
+      builder: (context, snapshot) {
+        if (snapshot.hasError) return Center(child: Text('Erreur: ${snapshot.error}'));
+        if (snapshot.connectionState == ConnectionState.waiting) return const Center(child: CircularProgressIndicator());
+
+        final docs = snapshot.data?.docs ?? [];
+        if (docs.isEmpty) return const Center(child: Text('Aucune CGU publiée.'));
+
+        return ListView.builder(
+          padding: const EdgeInsets.all(16),
+          itemCount: docs.length,
+          itemBuilder: (ctx, i) {
+            final cgu = docs[i].data() as Map<String, dynamic>;
+            final version = cgu['version'] ?? 'v?.?';
+            final isActive = cgu['status'] == 'active';
+            final publishedAt = (cgu['publishedAt'] as Timestamp?)?.toDate();
+            final dateStr = publishedAt != null 
+                ? '${publishedAt.day.toString().padLeft(2, '0')}/${publishedAt.month.toString().padLeft(2, '0')}/${publishedAt.year}'
+                : 'Date inconnue';
+            final acceptCount = cgu['acceptCount'] ?? 0;
+
+            return ListTile(
+              leading: Icon(Icons.description, color: isActive ? Colors.blue : Colors.grey),
+              title: Text('CGU $version'),
+              subtitle: Text('Publiée le $dateStr • $acceptCount acceptations'),
+              trailing: isActive
+                  ? const Text('Active', style: TextStyle(color: Colors.green, fontWeight: FontWeight.bold))
+                  : TextButton(
+                      onPressed: () => ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(content: Text('📄 Affichage $version...'))
+                      ),
+                      child: const Text('Voir'),
+                    ),
+            );
+          },
+        );
+      },
     );
   }
 
   Widget _buildConsentsLog() {
-    return ListView(
-      padding: const EdgeInsets.all(16),
-      children: [
-        const ListTile(
-          title: Text('Consentements CGU', style: TextStyle(fontWeight: FontWeight.bold)),
-          subtitle: Text('12,458 utilisateurs ont accepté la version actuelle'),
-        ),
-        const Divider(),
-        ...List.generate(5, (i) => ListTile(
-          leading: const Icon(Icons.check_circle, color: Colors.green),
-          title: Text('Utilisateur ${1000 + i}'),
-          subtitle: Text('CGU v3.2 acceptée le 0${i + 1}/01/2026 à 14:${30 + i}'),
-        )),
-      ],
+    return StreamBuilder<QuerySnapshot>(
+      stream: FirebaseFirestore.instance.collection('user_consents')
+          .orderBy('acceptedAt', descending: true)
+          .limit(50)
+          .snapshots(),
+      builder: (context, snapshot) {
+        if (snapshot.hasError) return Center(child: Text('Erreur: ${snapshot.error}'));
+        if (snapshot.connectionState == ConnectionState.waiting) return const Center(child: CircularProgressIndicator());
+
+        final consents = snapshot.data?.docs ?? [];
+        if (consents.isEmpty) return const Center(child: Text('Aucun consentement enregistré.'));
+
+        return ListView.builder(
+          padding: const EdgeInsets.all(16),
+          itemCount: consents.length,
+          itemBuilder: (ctx, i) {
+            final c = consents[i].data() as Map<String, dynamic>;
+            final userId = c['userId'] ?? 'Inconnu';
+            final version = c['cguVersion'] ?? 'v?.?';
+            final acceptedAt = (c['acceptedAt'] as Timestamp?)?.toDate();
+            final dateStr = acceptedAt != null 
+                ? '${acceptedAt.day.toString().padLeft(2, '0')}/${acceptedAt.month.toString().padLeft(2, '0')}/${acceptedAt.year} à ${acceptedAt.hour}:${acceptedAt.minute.toString().padLeft(2, '0')}'
+                : 'Date inconnue';
+
+            return ListTile(
+              leading: const Icon(Icons.check_circle, color: Colors.green),
+              title: Text('Utilisateur ${userId.length > 8 ? userId.substring(0, 8) : userId}...'),
+              subtitle: Text('CGU $version acceptée le $dateStr'),
+            );
+          },
+        );
+      },
     );
   }
 
@@ -802,16 +832,30 @@ class AdminAuditSection extends StatelessWidget {
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
-        _buildExportTile(context, 'Export conformité ACPR', 'Format PDF - Contrôle régulateur', Icons.gavel, Colors.teal),
-        _buildExportTile(context, 'Export banque partenaire', 'Format CSV - Réconciliation', Icons.account_balance, Colors.blue),
-        _buildExportTile(context, 'Export actions admin', 'Format JSON - Audit interne', Icons.history, Colors.brown),
-        _buildExportTile(context, 'Export utilisateurs', 'Format CSV - RGPD', Icons.people, Colors.green),
-        _buildExportTile(context, 'Export signalements', 'Format PDF - Juridique', Icons.flag, Colors.red),
+        _buildExportTile(context, 'Export conformité ACPR', 'Format PDF - Contrôle régulateur', Icons.gavel, Colors.teal, () {}),
+        _buildExportTile(context, 'Export banque partenaire', 'Format CSV - Réconciliation', Icons.account_balance, Colors.blue, () {}),
+        _buildExportTile(
+          context, 
+          'Export actions admin', 
+          'Format CSV - Audit interne', 
+          Icons.history, 
+          Colors.brown,
+          () => _exportAuditLogsToCsv(context)
+        ),
+        _buildExportTile(
+          context, 
+          'Export utilisateurs', 
+          'Format CSV - RGPD', 
+          Icons.people, 
+          Colors.green,
+          () => _exportUsersToCsv(context)
+        ),
+        _buildExportTile(context, 'Export signalements', 'Format PDF - Juridique', Icons.flag, Colors.red, () {}),
       ],
     );
   }
 
-  Widget _buildExportTile(BuildContext context, String title, String subtitle, IconData icon, Color color) {
+  Widget _buildExportTile(BuildContext context, String title, String subtitle, IconData icon, Color color, VoidCallback onTap) {
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
       child: ListTile(
@@ -823,22 +867,142 @@ class AdminAuditSection extends StatelessWidget {
         title: Text(title),
         subtitle: Text(subtitle),
         trailing: ElevatedButton.icon(
-          onPressed: () => ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('⬇️ Téléchargement $title...'))),
+          onPressed: onTap,
           icon: const Icon(Icons.download),
           label: const Text('Télécharger'),
         ),
       ),
     );
   }
+
+  Future<void> _exportAuditLogsToCsv(BuildContext context) async {
+    try {
+      final snapshot = await FirebaseFirestore.instance.collection('admin_audit_logs')
+          .orderBy('timestamp', descending: true)
+          .limit(1000)
+          .get();
+      
+      if (snapshot.docs.isEmpty) {
+        if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Aucune donnée à exporter')));
+        return;
+      }
+
+      final header = 'Date,Admin ID,Action,Target ID,Target Name,Reason\n';
+      final rows = snapshot.docs.map((doc) {
+        final data = doc.data();
+        final time = (data['timestamp'] as Timestamp?)?.toDate().toIso8601String() ?? '';
+        final admin = (data['adminId'] ?? '').toString();
+        final action = (data['action'] ?? '').toString();
+        final target = (data['target'] ?? '').toString();
+        final targetName = (data['targetName'] ?? '').toString().replaceAll(',', ' ');
+        final reason = (data['reason'] ?? '').toString().replaceAll(',', ' ');
+        return '$time,$admin,$action,$target,$targetName,$reason';
+      }).join('\n');
+
+      final csvContent = header + rows;
+      debugPrint('Audit CSV Export:\n$csvContent');
+       if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Export Audit CSV généré (Console)')));
+      }
+    } catch (e) {
+      if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Erreur export: $e')));
+    }
+  }
+
+  Future<void> _exportUsersToCsv(BuildContext context) async {
+    try {
+      final snapshot = await FirebaseFirestore.instance.collection('users').limit(1000).get();
+       if (snapshot.docs.isEmpty) {
+        if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Aucune donnée à exporter')));
+        return;
+      }
+
+      final header = 'ID,Nom,Email,Status,Score\n';
+      final rows = snapshot.docs.map((doc) {
+        final data = doc.data();
+        final id = doc.id;
+        final name = (data['fullName'] ?? data['displayName'] ?? '').toString().replaceAll(',', ' ');
+        final email = (data['email'] ?? '').toString();
+        final status = (data['status'] ?? '').toString();
+        final score = (data['honorScore'] ?? 0).toString();
+        return '$id,$name,$email,$status,$score';
+      }).join('\n');
+
+       final csvContent = header + rows;
+       debugPrint('Users CSV Export:\n$csvContent');
+       if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Export Users CSV généré (Console)')));
+      }
+    } catch (e) {
+      if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Erreur export: $e')));
+    }
+  }
 }
 
 // ==================== SECTION 10: SETTINGS ====================
 
-class AdminSettingsSection extends StatelessWidget {
+class AdminSettingsSection extends StatefulWidget {
   const AdminSettingsSection({super.key});
 
   @override
+  State<AdminSettingsSection> createState() => _AdminSettingsSectionState();
+}
+
+class _AdminSettingsSectionState extends State<AdminSettingsSection> {
+  Map<String, dynamic> _userLimits = {};
+  Map<String, dynamic> _merchantRules = {};
+  List<Map<String, dynamic>> _countries = [];
+  bool _isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadConfig();
+  }
+
+  Future<void> _loadConfig() async {
+    final db = FirebaseFirestore.instance;
+    try {
+      final limitsDoc = await db.collection('app_config').doc('user_limits').get();
+      final merchantDoc = await db.collection('app_config').doc('merchant_rules').get();
+      final countriesDoc = await db.collection('app_config').doc('countries').get();
+
+      if (mounted) {
+        setState(() {
+          _userLimits = limitsDoc.data() ?? {
+            'maxAmountPerCircle': 500000,
+            'maxTontinesPerUser': 5,
+            'maxParticipantsPerCircle': 20,
+            'minScoreToCreate': 70,
+          };
+          _merchantRules = merchantDoc.data() ?? {
+            'maxProductsNew': 10,
+            'maxProductsVerified': 100,
+            'maxSimultaneousBoosts': 3,
+            'moderationDelay': '24h',
+          };
+          final countriesList = countriesDoc.data()?['list'] as List?;
+          _countries = countriesList?.map((c) => c as Map<String, dynamic>).toList() ?? [
+            {'name': '🇸🇳 Sénégal', 'active': true},
+            {'name': '🇨🇮 Côte d\'Ivoire', 'active': true},
+            {'name': '🇲🇱 Mali', 'active': true},
+            {'name': '🇧🇫 Burkina Faso', 'active': false},
+            {'name': '🇬🇳 Guinée', 'active': false},
+          ];
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
+    if (_isLoading) {
+      return const Center(child: CircularProgressIndicator());
+    }
+
     return Padding(
       padding: const EdgeInsets.all(24),
       child: Column(
@@ -860,10 +1024,10 @@ class AdminSettingsSection extends StatelessWidget {
                       children: [
                         const Text('Limites utilisateurs', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
                         const Divider(),
-                        _buildSettingRow('Montant max par cercle', '500,000 FCFA'),
-                        _buildSettingRow('Tontines max par utilisateur', '5'),
-                        _buildSettingRow('Participants max par cercle', '20'),
-                        _buildSettingRow('Score min pour créer un cercle', '70%'),
+                        _buildSettingRow('Montant max par cercle', '${_userLimits['maxAmountPerCircle'] ?? 500000} FCFA'),
+                        _buildSettingRow('Tontines max par utilisateur', '${_userLimits['maxTontinesPerUser'] ?? 5}'),
+                        _buildSettingRow('Participants max par cercle', '${_userLimits['maxParticipantsPerCircle'] ?? 20}'),
+                        _buildSettingRow('Score min pour créer un cercle', '${_userLimits['minScoreToCreate'] ?? 70}%'),
                       ],
                     ),
                   ),
@@ -879,10 +1043,10 @@ class AdminSettingsSection extends StatelessWidget {
                       children: [
                         const Text('Règles marchands', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
                         const Divider(),
-                        _buildSettingRow('Produits max (nouveau)', '10'),
-                        _buildSettingRow('Produits max (vérifié)', '100'),
-                        _buildSettingRow('Boost max simultanés', '3'),
-                        _buildSettingRow('Délai modération', '24h'),
+                        _buildSettingRow('Produits max (nouveau)', '${_merchantRules['maxProductsNew'] ?? 10}'),
+                        _buildSettingRow('Produits max (vérifié)', '${_merchantRules['maxProductsVerified'] ?? 100}'),
+                        _buildSettingRow('Boost max simultanés', '${_merchantRules['maxSimultaneousBoosts'] ?? 3}'),
+                        _buildSettingRow('Délai modération', '${_merchantRules['moderationDelay'] ?? '24h'}'),
                       ],
                     ),
                   ),
@@ -903,13 +1067,7 @@ class AdminSettingsSection extends StatelessWidget {
                 const Divider(),
                 Wrap(
                   spacing: 12,
-                  children: [
-                    _buildCountryChip('🇸🇳 Sénégal', true),
-                    _buildCountryChip('🇨🇮 Côte d\'Ivoire', true),
-                    _buildCountryChip('🇲🇱 Mali', true),
-                    _buildCountryChip('🇧🇫 Burkina Faso', false),
-                    _buildCountryChip('🇬🇳 Guinée', false),
-                  ],
+                  children: _countries.map((c) => _buildCountryChip(c['name'] ?? '', c['active'] ?? false)).toList(),
                 ),
               ],
             ),

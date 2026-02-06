@@ -33,18 +33,30 @@ class _AdminLoginScreenState extends ConsumerState<AdminLoginScreen> {
     });
 
     try {
-      await ref.read(authServiceProvider).signInWithEmail(
-            email: _emailController.text.trim(),
-            password: _passwordController.text.trim(),
-          );
+      final email = _emailController.text.trim();
+      final password = _passwordController.text.trim();
+
+      final auth = ref.read(authServiceProvider);
+      final result = await auth.signInWithEmail(email: email, password: password);
+      
+      if (!result.success) {
+        throw result.error ?? 'Erreur inconnue';
+      }
       // Navigation is handled by AdminWrapper based on auth state
+
     } catch (e) {
       setState(() {
-        _errorMessage = e.toString().contains('user-not-found') 
-            ? 'Utilisateur non trouvé.' 
-            : e.toString().contains('wrong-password')
-                ? 'Mot de passe incorrect.'
-                : 'Erreur de connexion : $e';
+        if (e.toString().contains('user-not-found')) {
+          _errorMessage = 'Utilisateur non trouvé.';
+        } else if (e.toString().contains('wrong-password') || e.toString().contains('invalid-credential')) {
+          _errorMessage = 'Email ou mot de passe incorrect.';
+        } else if (e.toString().contains('invalid-email')) {
+          _errorMessage = 'Email invalide.';
+        } else if (e.toString().contains('network')) {
+          _errorMessage = 'Erreur réseau. Vérifiez votre connexion.';
+        } else {
+          _errorMessage = 'Erreur : ${e.toString()}';
+        }
       });
     } finally {
       if (mounted) setState(() => _isLoading = false);
@@ -150,7 +162,7 @@ class _AdminLoginScreenState extends ConsumerState<AdminLoginScreen> {
                                   width: 24, 
                                   child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2)
                                 )
-                              : const Text('Se Connecter'),
+                              : const Text('CONNEXION'),
                         ),
                       ),
                     ],

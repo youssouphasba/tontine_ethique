@@ -1218,7 +1218,7 @@ const MANGOPAY_CONFIG = {
 // Helper: Check if Mangopay is configured
 function isMangopayConfigured() {
   return MANGOPAY_CONFIG.clientId !== 'NOT_CONFIGURED' &&
-         MANGOPAY_CONFIG.apiKey !== 'NOT_CONFIGURED';
+    MANGOPAY_CONFIG.apiKey !== 'NOT_CONFIGURED';
 }
 
 // Helper: Make Mangopay API request
@@ -1901,3 +1901,5 @@ exports.bootstrapSuperAdmin = functions.region('europe-west1').https.onCall(asyn
     throw new functions.https.HttpsError('internal', error.message);
   }
 });
+
+// setFounderAdminClaims function removed for security (used once successfully)

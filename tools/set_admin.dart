@@ -8,8 +8,8 @@ import 'dart:io';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   
-  // Use a targeted prompt or hardcoded for this one-time fix
-  const String targetUid = 'qxXTqA7sbFbOIvcQxhpw1GSQ8K32'; // youssouphasba@gmail.com
+  // CONFIGURE BEFORE USE: Replace with the target user's UID
+  const String targetUid = 'REPLACE_WITH_TARGET_UID'; // e.g., from Firebase Console > Authentication
   const String targetRole = 'superAdmin';
 
   // ignore: avoid_print

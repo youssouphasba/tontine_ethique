@@ -183,7 +183,11 @@ class _ContentModerationDashboardState extends ConsumerState<ContentModerationDa
   // ===== REPORTS TAB =====
   Widget _buildReportsTab() {
     final moderation = ref.watch(moderationProvider);
-    final reports = moderation.cases.values.expand((c) => c.reports).toList();
+    // Filter out reports from resolved cases
+    final reports = moderation.cases.values
+        .where((c) => c.resolvedAt == null)
+        .expand((c) => c.reports)
+        .toList();
     
     if (reports.isEmpty) {
       return const Center(child: Text('Aucun signalement actif.'));
@@ -252,15 +256,18 @@ class _ContentModerationDashboardState extends ConsumerState<ContentModerationDa
             Row(
               children: [
                 TextButton(
-                  onPressed: () => ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('📄 Affichage du contenu ID: $contentId'))),
+                  onPressed: () => _showContentDialog(contentId, contentType),
                   child: const Text('Voir contenu'),
                 ),
                 const Spacer(),
                 OutlinedButton(
-                  onPressed: () {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Signalement ignoré')),
-                    );
+                  onPressed: () async {
+                    await ref.read(moderationProvider.notifier).ignoreCase(contentId, adminId: 'admin'); // TODO: auth.uid
+                    if (context.mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('Signalement ignoré / Cas résolu')),
+                      );
+                    }
                   },
                   child: const Text('Ignorer'),
                 ),
@@ -311,6 +318,52 @@ class _ContentModerationDashboardState extends ConsumerState<ContentModerationDa
   }
 
   // ===== DIALOGS =====
+  void _showContentDialog(String contentId, String contentTitle) {
+    // Attempt to find metadata from case
+    final moderation = ref.read(moderationProvider);
+    final kase = moderation.cases[contentId];
+
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text('Détails: $contentTitle'),
+        content: SizedBox(
+          width: 500,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                height: 200,
+                width: double.infinity,
+                color: Colors.grey.shade200,
+                child: const Center(child: Icon(Icons.image, size: 50, color: Colors.grey)),
+              ),
+              const SizedBox(height: 16),
+              const Text('Description:', style: TextStyle(fontWeight: FontWeight.bold)),
+              const Text('Aucune description disponible (métadonnée non stockée dans le cas de modération actuel).'),
+              const SizedBox(height: 16),
+              const Text('Métadonnées:', style: TextStyle(fontWeight: FontWeight.bold)),
+              Text('ID: $contentId'),
+              Text('Marchand: ${kase?.merchantName ?? "Inconnu"}'),
+              Text('Tags: ${kase?.allTags.map((t) => t.label).join(", ") ?? "Aucun"}'),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Fermer')),
+          if (kase != null) ...[
+            ElevatedButton(
+              onPressed: () => _showRejectDialog(contentId, contentTitle),
+              style: ElevatedButton.styleFrom(backgroundColor: Colors.red, foregroundColor: Colors.white),
+              child: const Text('Rejeter / Suspendre'),
+            ),
+          ]
+        ],
+      ),
+    );
+  }
+
   void _showRejectDialog(String contentId, String contentName) {
     final reasonController = TextEditingController();
     showDialog(

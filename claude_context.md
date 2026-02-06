@@ -65,6 +65,13 @@ firestore.rules               # Règles sécurité Firestore
 - [x] Cloud Functions sécurisées (secret key côté serveur)
 - [x] Webhooks complets : checkout.session.completed, subscription.updated/deleted, invoice.payment_failed ✅ 2026-02-05
 
+### Backoffice Admin (Red List Fixes) ✅ 2026-02-06
+- [x] **Utilisateurs** : Recherche, Filtre (Actif/Suspendu), Export CSV (1000 items)
+- [x] **Audit** : Export Juridique (ACPR), Export Actions Admin (CSV), Logs immuables
+- [x] **Modération** : Inspection Contenu (Dialog), Ignore Report, Suspension
+- [x] **Arbitrage** : "True Ban" (Batch write: User + Shop + Content + Score)
+- [x] **Sections** : Dashboard (16 sections), Plans (Enterprise seed), Campagnes (Targeting), Parrainage_v2
+
 ### Tontines (Cercles)
 - [x] Création de cercle avec paramètres
 - [x] Invitations par lien/QR code
@@ -389,6 +396,25 @@ firebase functions:log
   - Marchand: 14,99€ (Unique)
 - ✅ Traduit dossier onboarding Mangopay en anglais : `docs/MANGOPAY_ONBOARDING_FOLDER_EN.md`
 
+
+### Session 2026-02-06 (Backoffice Access & Security)
+
+**Accès Backoffice & Sécurité** :
+- ✅ **API Keys** : Restauration `GEMINI_API_KEY` et `GOOGLE_CLOUD_API_KEY` dans `.env`
+- ✅ **Admin Access** : Correction accès "Accès Non Autorisé" via Custom Claims
+  - Créé fonction one-shot `setFounderAdminClaims` (v2 email-based)
+  - Exécutée pour grant `admin: true` + `super_admin: true`
+  - Ajouté `forceRefresh` token dans `AdminWrapper`
+  - Ajouté bouton Déconnexion dans sidebar et écran unauthorized
+- ✅ **Admin Login** : Amélioration gestion erreurs (`user-not-found`, `wrong-password`)
+- ✅ **Déploiement** : Mise à jour Firebase Hosting (Admin) et Cloud Functions
+
+**Corrections P0 (Critiques)** :
+- 🔐 **Admin Auth** (`admin_wrapper.dart`) : 
+  - Problème : `role: superAdmin` dans Firestore insuffisant (règles basées sur Auth Claims)
+  - Solution : Force `user.getIdToken(true)` au login pour rafraîchir claims
+  - UX : Ajout debug info (UID, Role) sur écran blocage
+- 🔑 **API Keys** : Clés remises en place pour `gemini_service.dart` (Mobile App)
 
 ---
 

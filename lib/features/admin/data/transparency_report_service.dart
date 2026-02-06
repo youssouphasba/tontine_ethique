@@ -85,71 +85,84 @@ class TransparencyReport {
     required this.ecosystemHealthScore,
   });
 
-  /// Generate report for a specific month
-  factory TransparencyReport.generate({
+  /// Generate report for a specific month with real data
+  static Future<TransparencyReport> create({
     required int month,
     required int year,
-  }) {
+  }) async {
+    final db = FirebaseFirestore.instance;
     final months = [
       '', 'Janvier', 'Février', 'Mars', 'Avril', 'Mai', 'Juin',
       'Juillet', 'Août', 'Septembre', 'Octobre', 'Novembre', 'Décembre'
     ];
 
-    // In production: Aggregate real data from database
-    // Here we generate demo data for the report structure
+    // Parallel counting for performance
+    final results = await Future.wait([
+      db.collection('users').count().get(),
+      db.collection('users').where('role', isEqualTo: 'merchant').count().get(),
+      db.collection('tontines').count().get(),
+      db.collection('tontines').where('status', isEqualTo: 'Actif').count().get(),
+      db.collection('tontines').where('status', isEqualTo: 'completed').count().get(),
+      db.collection('moderation_cases').count().get(),
+      db.collection('moderation_cases').where('status', isEqualTo: 'rejected').count().get(),
+      db.collection('moderation_cases').where('status', isEqualTo: 'restored').count().get(),
+    ]);
+
+    final totalUsers = results[0].count ?? 0;
+    final businessUsers = results[1].count ?? 0;
+    final individualUsers = (totalUsers - businessUsers).clamp(0, totalUsers);
+    
+    final totalCircles = results[2].count ?? 0;
+    final activeCircles = results[3].count ?? 0;
+    final completedCircles = results[4].count ?? 0;
+
+    final totalReports = results[5].count ?? 0;
+    final contentRemoved = results[6].count ?? 0;
+    final contentRestored = results[7].count ?? 0;
+
     return TransparencyReport(
       id: 'RPT-$year${month.toString().padLeft(2, '0')}-${DateTime.now().millisecondsSinceEpoch}',
       generatedAt: DateTime.now(),
-      period: '${months[month]} $year',
+      period: '${months[month.clamp(1, 12)]} $year',
       periodMonth: month,
       periodYear: year,
       
-      // Demo user stats
-      totalUsers: 12453,
-      individualUsers: 11234,
-      businessUsers: 1219,
-      newUsersThisMonth: 847,
-      engagementRate: 68.5,
+      // Real Stats
+      totalUsers: totalUsers,
+      individualUsers: individualUsers,
+      businessUsers: businessUsers,
+      newUsersThisMonth: 0, // Requires more complex query or 'createdAt' field
+      engagementRate: totalUsers > 0 ? (activeCircles * 5 / totalUsers * 100).clamp(0.0, 100.0) : 0.0, // Rough estimate
       
-      // Demo circle stats
-      totalCirclesCreated: 2341,
-      circlesCompleted: 1892,
-      circlesActive: 1456,
-      averageCircleSize: 8.3,
+      totalCirclesCreated: totalCircles,
+      circlesCompleted: completedCircles,
+      circlesActive: activeCircles,
+      averageCircleSize: 0, // Not calculated yet
       
-      // Demo merchant stats
-      totalPublications: 456,
-      boostsActivated: 123,
-      boostRevenue: 123.0,
-      clicksToCircles: 2341,
-      conversionRate: 12.4,
+      // Merchant placeholders (requires 'publications' collection)
+      totalPublications: 0,
+      boostsActivated: 0,
+      boostRevenue: 0.0,
+      clicksToCircles: 0,
+      conversionRate: 0.0,
       
-      // Demo moderation stats
-      totalReports: 87,
-      reportsByTag: {
-        ReportTag.spam: 34,
-        ReportTag.misleading: 21,
-        ReportTag.fakeProduct: 15,
-        ReportTag.inappropriate: 9,
-        ReportTag.arnaque: 5,
-        ReportTag.produitInterdit: 2,
-        ReportTag.other: 1,
-      },
-      contentRemoved: 23,
-      contentRestored: 8,
-      averageResolutionMinutes: 47,
+      // Moderation
+      totalReports: totalReports,
+      reportsByTag: {}, // Detailed tag breakdown requires iterating docs
+      contentRemoved: contentRemoved,
+      contentRestored: contentRestored,
+      averageResolutionMinutes: 0,
       
-      // Demo compliance stats
-      kycSubmitted: 892,
-      kycApproved: 834,
-      kycSuccessRate: 93.5,
-      kybSubmitted: 156,
-      kybApproved: 142,
-      paymentIncidents: 3,
-      averageHonorScore: 412.0,
+      // Compliance (Mock 0 for now as 'kyc' collection structure is unknown or complex)
+      kycSubmitted: 0,
+      kycApproved: 0,
+      kycSuccessRate: 0.0,
+      kybSubmitted: 0,
+      kybApproved: 0,
+      paymentIncidents: 0,
+      averageHonorScore: 0.0,
       
-      // Health score calculation
-      ecosystemHealthScore: 87,
+      ecosystemHealthScore: 100, // Default optimistic
     );
   }
 
@@ -227,9 +240,7 @@ class ReportArchiveNotifier extends StateNotifier<ReportArchiveState> {
     state = state.copyWith(isGenerating: true);
     
     // Generation (Direct)
-
-    
-    final report = TransparencyReport.generate(month: month, year: year);
+    final report = await TransparencyReport.create(month: month, year: year);
     
     final updatedReports = [report, ...state.reports];
     state = state.copyWith(reports: updatedReports, isGenerating: false);

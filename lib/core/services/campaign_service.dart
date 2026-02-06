@@ -2,7 +2,8 @@ import 'package:flutter/foundation.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:tontetic/core/services/notification_service.dart';
 
-/// With audience targeting and analytics
+/// Campaign Service - 100% Firestore Driven (No Mocks)
+/// Handles creation, scheduling, and stats for communication campaigns.
 
 enum CampaignType { push, email, sms, inAppBanner }
 enum CampaignStatus { draft, scheduled, sending, sent, cancelled }
@@ -13,8 +14,8 @@ enum TargetAudience {
   inactiveUsers,     // No activity > 30 days
   highScoreUsers,    // Score > 80
   lowScoreUsers,     // Score < 50
-  merchants,
-  enterprises,
+  merchants,         // Role = merchant
+  enterprises,       // Role = enterprise
   byRegion,          // Needs region parameter
   byCircleStatus,    // In active circle or not
 }
@@ -25,6 +26,7 @@ class Campaign {
   final CampaignType type;
   final TargetAudience audience;
   final String? regionFilter;
+  final List<String>? specificUserIds; // For specific targeting
   final String title;
   final String content;
   final String? imageUrl;
@@ -42,6 +44,7 @@ class Campaign {
     required this.type,
     required this.audience,
     this.regionFilter,
+    this.specificUserIds,
     required this.title,
     required this.content,
     this.imageUrl,
@@ -54,29 +57,49 @@ class Campaign {
     CampaignStats? stats,
   }) : stats = stats ?? CampaignStats.empty();
 
-  Campaign copyWith({
-    CampaignStatus? status,
-    DateTime? scheduledAt,
-    DateTime? sentAt,
-    CampaignStats? stats,
-  }) {
+  factory Campaign.fromFirestore(DocumentSnapshot doc) {
+    final data = doc.data() as Map<String, dynamic>;
     return Campaign(
-      id: id,
-      name: name,
-      type: type,
-      audience: audience,
-      regionFilter: regionFilter,
-      title: title,
-      content: content,
-      imageUrl: imageUrl,
-      deepLink: deepLink,
-      createdAt: createdAt,
-      scheduledAt: scheduledAt ?? this.scheduledAt,
-      sentAt: sentAt ?? this.sentAt,
-      status: status ?? this.status,
-      createdBy: createdBy,
-      stats: stats ?? this.stats,
+      id: doc.id,
+      name: data['name'] ?? '',
+      type: CampaignType.values.firstWhere(
+        (e) => e.name == (data['type'] ?? 'push'), orElse: () => CampaignType.push),
+      audience: TargetAudience.values.firstWhere(
+        (e) => e.name == (data['audience'] ?? 'all'), orElse: () => TargetAudience.all),
+      regionFilter: data['regionFilter'],
+      specificUserIds: (data['specificUserIds'] as List?)?.map((e) => e.toString()).toList(),
+      title: data['title'] ?? '',
+      content: data['content'] ?? '',
+      imageUrl: data['imageUrl'],
+      deepLink: data['deepLink'],
+      createdAt: (data['createdAt'] as Timestamp).toDate(),
+      scheduledAt: (data['scheduledAt'] as Timestamp?)?.toDate(),
+      sentAt: (data['sentAt'] as Timestamp?)?.toDate(),
+      status: CampaignStatus.values.firstWhere(
+        (e) => e.name == (data['status'] ?? 'draft'), orElse: () => CampaignStatus.draft),
+      createdBy: data['createdBy'] ?? '',
+      stats: CampaignStats.fromMap(data['stats'] ?? {}),
     );
+  }
+
+  Map<String, dynamic> toMap() {
+    return {
+      'name': name,
+      'type': type.name,
+      'audience': audience.name,
+      'regionFilter': regionFilter,
+      'specificUserIds': specificUserIds,
+      'title': title,
+      'content': content,
+      'imageUrl': imageUrl,
+      'deepLink': deepLink,
+      'createdAt': Timestamp.fromDate(createdAt),
+      'scheduledAt': scheduledAt != null ? Timestamp.fromDate(scheduledAt!) : null,
+      'sentAt': sentAt != null ? Timestamp.fromDate(sentAt!) : null,
+      'status': status.name,
+      'createdBy': createdBy,
+      'stats': stats.toMap(),
+    };
   }
 }
 
@@ -103,27 +126,21 @@ class CampaignStats {
     unsubscribed: 0,
   );
 
-  double get deliveryRate => targetedUsers == 0 ? 0 : delivered / targetedUsers * 100;
-  double get openRate => delivered == 0 ? 0 : opened / delivered * 100;
-  double get clickRate => opened == 0 ? 0 : clicked / opened * 100;
-}
+  factory CampaignStats.fromMap(Map<String, dynamic> map) => CampaignStats(
+    targetedUsers: map['targetedUsers'] ?? 0,
+    delivered: map['delivered'] ?? 0,
+    opened: map['opened'] ?? 0,
+    clicked: map['clicked'] ?? 0,
+    unsubscribed: map['unsubscribed'] ?? 0,
+  );
 
-class CampaignTemplate {
-  final String id;
-  final String name;
-  final CampaignType type;
-  final String titleTemplate;
-  final String contentTemplate;
-  final String? imageUrl;
-
-  CampaignTemplate({
-    required this.id,
-    required this.name,
-    required this.type,
-    required this.titleTemplate,
-    required this.contentTemplate,
-    this.imageUrl,
-  });
+  Map<String, dynamic> toMap() => {
+    'targetedUsers': targetedUsers,
+    'delivered': delivered,
+    'opened': opened,
+    'clicked': clicked,
+    'unsubscribed': unsubscribed,
+  };
 }
 
 class CampaignService {
@@ -131,287 +148,115 @@ class CampaignService {
   factory CampaignService() => _instance;
   CampaignService._internal();
 
-  final List<Campaign> _campaigns = [];
-  final List<CampaignTemplate> _templates = [];
+  final CollectionReference _collection = FirebaseFirestore.instance.collection('campaigns');
 
-  // Initialize with demo data
-  // Initialize default templates
-  void seedDefaultTemplates() {
-    // Templates
-    _templates.addAll([
-      CampaignTemplate(
-        id: 'tpl_welcome',
-        name: 'Bienvenue',
-        type: CampaignType.push,
-        titleTemplate: '🎉 Bienvenue sur Tontetic !',
-        contentTemplate: 'Découvrez comment rejoindre votre première tontine et commencer à atteindre vos objectifs.',
-      ),
-      CampaignTemplate(
-        id: 'tpl_inactive',
-        name: 'Réengagement',
-        type: CampaignType.push,
-        titleTemplate: '👋 Vous nous manquez !',
-        contentTemplate: 'Vos amis cotisent sans vous ! Revenez voir les nouveaux cercles disponibles.',
-      ),
-      CampaignTemplate(
-        id: 'tpl_promo',
-        name: 'Promotion',
-        type: CampaignType.push,
-        titleTemplate: '🚀 Offre spéciale !',
-        contentTemplate: 'Créez un cercle cette semaine et bénéficiez de 0% de frais pendant 3 mois !',
-      ),
-      CampaignTemplate(
-        id: 'tpl_tabaski',
-        name: 'Tabaski',
-        type: CampaignType.push,
-        titleTemplate: '🐑 Préparez Tabaski !',
-        contentTemplate: 'Rejoignez un cercle Tabaski et assurez votre mouton cette année.',
-      ),
-    ]);
-  }
-
-  /// Listen to real-time broadcasts from Admin
-  void listenToBroadcasts() {
-    debugPrint('[Campaign] Listening to broadcasts...');
-    final now = DateTime.now();
-    
-    FirebaseFirestore.instance
-        .collection('broadcasts')
-        .where('createdAt', isGreaterThan: Timestamp.fromDate(now))
+  /// Get live stream of all campaigns
+  Stream<List<Campaign>> getCampaignsStream() {
+    return _collection
+        .orderBy('createdAt', descending: true)
         .snapshots()
-        .listen((snapshot) {
-      for (final change in snapshot.docChanges) {
-        if (change.type == DocumentChangeType.added) {
-          final data = change.doc.data();
-          if (data != null) {
-            _handleNewBroadcast(data);
-          }
-        }
-      }
-    });
+        .map((snapshot) => snapshot.docs.map((doc) => Campaign.fromFirestore(doc)).toList());
   }
 
-  void _handleNewBroadcast(Map<String, dynamic> data) {
-    final title = data['title'] as String? ?? 'Nouvelle annonce';
-    final body = data['body'] as String? ?? 'Consultez les nouveautés dans l\'application.';
-    
-    debugPrint('[Campaign] New broadcast received: $title');
-    
-    // Trigger local notification for immediate visibility
-    // Using a hashcode of the title mixed with time for a somewhat unique ID
-    final id = (title.hashCode + DateTime.now().millisecondsSinceEpoch).abs() % 100000;
-    
-    NotificationService.showLocalNotification(
-      id: id,
-      title: title,
-      body: body,
-    );
+  /// Get live stream of campaigns by status
+  Stream<List<Campaign>> getCampaignsByStatusStream(CampaignStatus status) {
+    return _collection
+        .where('status', isEqualTo: status.name)
+        .orderBy('createdAt', descending: true)
+        .snapshots()
+        .map((snapshot) => snapshot.docs.map((doc) => Campaign.fromFirestore(doc)).toList());
   }
 
-  // CRUD Operations
-  List<Campaign> getAllCampaigns() => List.unmodifiable(_campaigns);
-
-  List<Campaign> getCampaignsByStatus(CampaignStatus status) =>
-    _campaigns.where((c) => c.status == status).toList();
-
-  List<CampaignTemplate> getTemplates() => List.unmodifiable(_templates);
-
-  Campaign? getCampaignById(String id) {
-    try {
-      return _campaigns.firstWhere((c) => c.id == id);
-    } catch (e) {
-      return null;
-    }
-  }
-
-  String createCampaign({
+  /// Create a new campaign (Draft or Scheduled)
+  Future<String> createCampaign({
     required String name,
     required CampaignType type,
     required TargetAudience audience,
     String? regionFilter,
+    List<String>? specificUserIds,
     required String title,
     required String content,
     String? imageUrl,
     String? deepLink,
     DateTime? scheduledAt,
     required String createdBy,
-  }) {
-    final campaignId = 'camp_${(_campaigns.length + 1).toString().padLeft(3, '0')}';
-    final campaign = Campaign(
-      id: campaignId,
-      name: name,
-      type: type,
-      audience: audience,
-      regionFilter: regionFilter,
-      title: title,
-      content: content,
-      imageUrl: imageUrl,
-      deepLink: deepLink,
-      createdAt: DateTime.now(),
-      scheduledAt: scheduledAt,
-      status: scheduledAt != null ? CampaignStatus.scheduled : CampaignStatus.draft,
-      createdBy: createdBy,
-    );
-    _campaigns.add(campaign);
-    debugPrint('[Campaign] Created: $campaignId - $name');
-    return campaignId;
-  }
-
-  void scheduleCampaign(String campaignId, DateTime scheduledAt) {
-    final index = _campaigns.indexWhere((c) => c.id == campaignId);
-    if (index == -1) return;
-
-    _campaigns[index] = _campaigns[index].copyWith(
-      status: CampaignStatus.scheduled,
-      scheduledAt: scheduledAt,
-    );
-    debugPrint('[Campaign] Scheduled: $campaignId for $scheduledAt');
-  }
-
-  void sendCampaign(String campaignId) {
-    final index = _campaigns.indexWhere((c) => c.id == campaignId);
-    if (index == -1) return;
-
-    // Mark as sending. The actual dispatch is handled by Cloud Functions listening to this document/status.
-    _campaigns[index] = _campaigns[index].copyWith(
-      status: CampaignStatus.sending,
-      sentAt: DateTime.now(),
-      // Stats will be updated asynchronously by the backend as events occur
-    );
-    debugPrint('[Campaign] Marked as sending: $campaignId');
-  }
-
-  void cancelCampaign(String campaignId) {
-    final index = _campaigns.indexWhere((c) => c.id == campaignId);
-    if (index == -1) return;
-
-    _campaigns[index] = _campaigns[index].copyWith(
-      status: CampaignStatus.cancelled,
-    );
-    debugPrint('[Campaign] Cancelled: $campaignId');
-  }
-
-  // Analytics
-  Map<String, dynamic> getGlobalStats() {
-    final sent = _campaigns.where((c) => c.status == CampaignStatus.sent).toList();
+  }) async {
+    final status = scheduledAt != null ? CampaignStatus.scheduled : CampaignStatus.draft;
     
-    int totalTargeted = 0;
-    int totalDelivered = 0;
-    int totalOpened = 0;
-    int totalClicked = 0;
+    final docRef = await _collection.add({
+      'name': name,
+      'type': type.name,
+      'audience': audience.name,
+      'regionFilter': regionFilter,
+      'specificUserIds': specificUserIds,
+      'title': title,
+      'content': content,
+      'imageUrl': imageUrl,
+      'deepLink': deepLink,
+      'createdAt': FieldValue.serverTimestamp(), // Use server timestamp
+      'scheduledAt': scheduledAt != null ? Timestamp.fromDate(scheduledAt) : null,
+      'status': status.name,
+      'createdBy': createdBy,
+      'stats': CampaignStats.empty().toMap(),
+    });
 
-    for (final c in sent) {
-      totalTargeted += c.stats.targetedUsers;
-      totalDelivered += c.stats.delivered;
-      totalOpened += c.stats.opened;
-      totalClicked += c.stats.clicked;
-    }
-
-    return {
-      'totalCampaigns': _campaigns.length,
-      'sentCampaigns': sent.length,
-      'scheduledCampaigns': _campaigns.where((c) => c.status == CampaignStatus.scheduled).length,
-      'draftCampaigns': _campaigns.where((c) => c.status == CampaignStatus.draft).length,
-      'totalTargeted': totalTargeted,
-      'totalDelivered': totalDelivered,
-      'totalOpened': totalOpened,
-      'totalClicked': totalClicked,
-      'avgDeliveryRate': totalTargeted == 0 ? 0 : (totalDelivered / totalTargeted * 100).toStringAsFixed(1),
-      'avgOpenRate': totalDelivered == 0 ? 0 : (totalOpened / totalDelivered * 100).toStringAsFixed(1),
-      'avgClickRate': totalOpened == 0 ? 0 : (totalClicked / totalOpened * 100).toStringAsFixed(1),
-    };
+    debugPrint('[Campaign] Created real document: ${docRef.id}');
+    return docRef.id;
   }
+
+  /// Send a campaign immediately (REAL)
+  /// Note: This updates the status to 'sending'. 
+  /// A Cloud Function MUST listen to this change to perform the actual dispatch via FCM/Email provider.
+  Future<void> sendCampaign(String campaignId) async {
+    await _collection.doc(campaignId).update({
+      'status': CampaignStatus.sending.name,
+      'sentAt': FieldValue.serverTimestamp(),
+    });
+    debugPrint('[Campaign] Mark as sending (Cloud Function trigger): $campaignId');
+  }
+
+  /// Schedule a campaign (REAL)
+  Future<void> scheduleCampaign(String campaignId, DateTime scheduledAt) async {
+    await _collection.doc(campaignId).update({
+      'status': CampaignStatus.scheduled.name,
+      'scheduledAt': Timestamp.fromDate(scheduledAt),
+    });
+  }
+
+  /// Cancel a campaign (REAL)
+  Future<void> cancelCampaign(String campaignId) async {
+    await _collection.doc(campaignId).update({
+      'status': CampaignStatus.cancelled.name,
+    });
+  }
+
+  /// Delete a campaign (REAL)
+  Future<void> deleteCampaign(String campaignId) async {
+    await _collection.doc(campaignId).delete();
+  }
+
+  // ============ HELPERS ============
 
   String getAudienceLabel(TargetAudience audience) {
     switch (audience) {
-      case TargetAudience.all:
-        return 'Tous les utilisateurs';
-      case TargetAudience.newUsers:
-        return 'Nouveaux utilisateurs (< 7 jours)';
-      case TargetAudience.inactiveUsers:
-        return 'Utilisateurs inactifs (> 30 jours)';
-      case TargetAudience.highScoreUsers:
-        return 'Score élevé (> 80%)';
-      case TargetAudience.lowScoreUsers:
-        return 'Score faible (< 50%)';
-      case TargetAudience.merchants:
-        return 'Marchands';
-      case TargetAudience.enterprises:
-        return 'Entreprises';
-      case TargetAudience.byRegion:
-        return 'Par région';
-      case TargetAudience.byCircleStatus:
-        return 'Par statut cercle';
+      case TargetAudience.all: return 'Tous';
+      case TargetAudience.newUsers: return 'Nouveaux';
+      case TargetAudience.inactiveUsers: return 'Inactifs';
+      case TargetAudience.highScoreUsers: return 'Top Score';
+      case TargetAudience.lowScoreUsers: return 'Low Score';
+      case TargetAudience.merchants: return 'Marchands';
+      case TargetAudience.enterprises: return 'Entreprises';
+      case TargetAudience.byRegion: return 'Région';
+      case TargetAudience.byCircleStatus: return 'Statut Cercle';
     }
   }
 
   String getCampaignTypeLabel(CampaignType type) {
     switch (type) {
-      case CampaignType.push:
-        return '📱 Push notification';
-      case CampaignType.email:
-        return '✉️ Email';
-      case CampaignType.sms:
-        return '💬 SMS';
-      case CampaignType.inAppBanner:
-        return '🏷️ Bannière in-app';
+      case CampaignType.push: return '📱 Push';
+      case CampaignType.email: return '✉️ Email';
+      case CampaignType.sms: return '💬 SMS';
+      case CampaignType.inAppBanner: return '🏷️ In-App';
     }
-  }
-
-  // ============ EXPORT METHODS ============
-
-  /// Export single campaign to JSON
-  Map<String, dynamic> campaignToJson(Campaign campaign) {
-    return {
-      'id': campaign.id,
-      'name': campaign.name,
-      'type': campaign.type.name,
-      'audience': campaign.audience.name,
-      'regionFilter': campaign.regionFilter,
-      'title': campaign.title,
-      'content': campaign.content,
-      'createdAt': campaign.createdAt.toIso8601String(),
-      'scheduledAt': campaign.scheduledAt?.toIso8601String(),
-      'sentAt': campaign.sentAt?.toIso8601String(),
-      'status': campaign.status.name,
-      'createdBy': campaign.createdBy,
-      'stats': {
-        'targetedUsers': campaign.stats.targetedUsers,
-        'delivered': campaign.stats.delivered,
-        'opened': campaign.stats.opened,
-        'clicked': campaign.stats.clicked,
-        'unsubscribed': campaign.stats.unsubscribed,
-        'deliveryRate': campaign.stats.deliveryRate,
-        'openRate': campaign.stats.openRate,
-        'clickRate': campaign.stats.clickRate,
-      },
-    };
-  }
-
-  /// Export all campaigns to JSON
-  List<Map<String, dynamic>> exportToJson() {
-    return _campaigns.map(campaignToJson).toList();
-  }
-
-  /// Export all campaigns to CSV format
-  String exportToCsv() {
-    final buffer = StringBuffer();
-    // Header
-    buffer.writeln('ID,Name,Type,Audience,Title,Status,CreatedAt,SentAt,TargetedUsers,Delivered,Opened,Clicked,DeliveryRate,OpenRate,ClickRate');
-    
-    // Data rows
-    for (final c in _campaigns) {
-      buffer.writeln(
-        '"${c.id}","${c.name}","${c.type.name}","${c.audience.name}","${c.title.replaceAll('"', '""')}","${c.status.name}","${c.createdAt.toIso8601String()}","${c.sentAt?.toIso8601String() ?? ''}","${c.stats.targetedUsers}","${c.stats.delivered}","${c.stats.opened}","${c.stats.clicked}","${c.stats.deliveryRate.toStringAsFixed(1)}","${c.stats.openRate.toStringAsFixed(1)}","${c.stats.clickRate.toStringAsFixed(1)}"'
-      );
-    }
-    return buffer.toString();
-  }
-
-  /// Export global stats to JSON
-  Map<String, dynamic> exportStatsToJson() {
-    final stats = getGlobalStats();
-    stats['exportDate'] = DateTime.now().toIso8601String();
-    return stats;
   }
 }

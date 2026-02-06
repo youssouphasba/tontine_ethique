@@ -410,6 +410,17 @@ class ModerationNotifier extends StateNotifier<ModerationState> {
     });
   }
 
+  Future<void> ignoreCase(String contentId, {String? adminId}) async {
+    final existingCase = state.cases[contentId];
+    if (existingCase == null) return;
+
+    await _firestore.collection('moderation_cases').doc(contentId).update({
+      'adminDecision': 'ignored',
+      'resolvedAt': FieldValue.serverTimestamp(),
+      'adminId': adminId,
+    });
+  }
+
   /// Set admin filter by tag
   void setFilter(ReportTag? tag) {
     state = state.copyWith(activeFilter: tag, clearFilter: tag == null);

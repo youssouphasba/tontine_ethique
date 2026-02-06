@@ -2,7 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:tontetic/features/admin/presentation/screens/admin_sections.dart';
+import 'package:tontetic/features/admin/presentation/widgets/admin_campaigns_panel.dart';
+import 'package:tontetic/features/admin/presentation/widgets/admin_referral_panel.dart';
+import 'package:tontetic/features/admin/presentation/widgets/admin_users_panel.dart';
+import 'package:tontetic/features/admin/presentation/widgets/admin_users_panel.dart';
 
 /// Admin Dashboard - Main Entry Point
 /// Complete administration panel for platform management
@@ -110,6 +115,23 @@ class _AdminDashboardState extends ConsumerState<AdminDashboard> {
             ),
           ),
           
+          // Logout button
+          Container(
+            margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            child: ElevatedButton.icon(
+              onPressed: () async {
+                await FirebaseAuth.instance.signOut();
+              },
+              icon: const Icon(Icons.logout, size: 18),
+              label: const Text('Déconnexion'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.white.withValues(alpha: 0.1),
+                foregroundColor: Colors.white,
+                minimumSize: const Size(double.infinity, 44),
+              ),
+            ),
+          ),
+          
           // Legal reminder
           Container(
             margin: const EdgeInsets.all(12),
@@ -140,7 +162,7 @@ class _AdminDashboardState extends ConsumerState<AdminDashboard> {
     switch (_selectedSection) {
       case 0: return const _OverviewSection();
       case 1: return const _PlansSection();
-      case 2: return const _UsersSection();
+      case 2: return const AdminUsersPanel();
       case 3: return const AdminKycReviewSection();
       case 4: return const _CirclesSection();
       case 5: return const _ModerationSection();
@@ -149,8 +171,8 @@ class _AdminDashboardState extends ConsumerState<AdminDashboard> {
       case 8: return const _PaymentsSection();
       case 9: return const _ReportsSection();
       case 10: return const _SupportSection();
-      case 11: return const _CampaignsSection();
-      case 12: return const _ReferralSection();
+      case 11: return const AdminCampaignsPanel();
+      case 12: return const AdminReferralPanel();
       case 13: return const _SecuritySection();
       case 14: return const _AuditSection();
       case 15: return const _SettingsSection();
@@ -168,8 +190,67 @@ class _AdminSection {
 
 // ==================== SECTION 1: OVERVIEW ====================
 
-class _OverviewSection extends StatelessWidget {
+class _OverviewSection extends StatefulWidget {
   const _OverviewSection();
+
+  @override
+  State<_OverviewSection> createState() => _OverviewSectionState();
+}
+
+class _OverviewSectionState extends State<_OverviewSection> {
+  // Real counts from Firestore
+  int _usersCount = 0;
+  int _activeCircles = 0;
+  int _suspendedCircles = 0;
+  int _activeShops = 0;
+  int _pendingModeration = 0;
+  int _openReports = 0;
+  int _activeAlerts = 0;
+  bool _isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadCounts();
+  }
+
+  Future<void> _loadCounts() async {
+    final db = FirebaseFirestore.instance;
+    
+    try {
+      // Fetch all counts in parallel
+      final results = await Future.wait([
+        db.collection('users').count().get(),
+        db.collection('tontines').where('status', isEqualTo: 'Active').count().get(),
+        db.collection('tontines').where('status', isEqualTo: 'Geler').count().get(),
+        db.collection('shops').where('status', isEqualTo: 'active').count().get(),
+        db.collection('products').where('status', isEqualTo: 'pending').count().get(),
+        db.collection('reports').where('status', isEqualTo: 'open').count().get(),
+        db.collection('admin_alerts').where('status', isEqualTo: 'active').count().get(),
+      ]);
+
+      if (mounted) {
+        setState(() {
+          _usersCount = results[0].count ?? 0;
+          _activeCircles = results[1].count ?? 0;
+          _suspendedCircles = results[2].count ?? 0;
+          _activeShops = results[3].count ?? 0;
+          _pendingModeration = results[4].count ?? 0;
+          _openReports = results[5].count ?? 0;
+          _activeAlerts = results[6].count ?? 0;
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  String _formatNumber(int n) {
+    if (n >= 1000000) return '${(n / 1000000).toStringAsFixed(1)}M';
+    if (n >= 1000) return '${(n / 1000).toStringAsFixed(1)}K';
+    return n.toString();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -187,7 +268,10 @@ class _OverviewSection extends StatelessWidget {
                 style: const TextStyle(color: Colors.grey)),
               const SizedBox(width: 12),
               ElevatedButton.icon(
-                onPressed: () => ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('🔄 Actualisation des données admin...'))),
+                onPressed: () {
+                  setState(() => _isLoading = true);
+                  _loadCounts();
+                },
                 icon: const Icon(Icons.refresh),
                 label: const Text('Actualiser'),
               ),
@@ -200,74 +284,88 @@ class _OverviewSection extends StatelessWidget {
           const SizedBox(height: 24),
 
           // Key metrics row 1
-          Row(
-            children: [
-              Expanded(child: _buildMetricCard(context, 'Utilisateurs', '12,458', Icons.people, Colors.blue, '+2.3%')),
-              const SizedBox(width: 16),
-              Expanded(child: _buildMetricCard(context, 'Cercles actifs', '1,234', Icons.donut_large, Colors.green, '+5.1%')),
-              const SizedBox(width: 16),
-              Expanded(child: _buildMetricCard(context, 'Cercles suspendus', '12', Icons.pause_circle, Colors.orange, '-')),
-              const SizedBox(width: 16),
-              Expanded(child: _buildMetricCard(context, 'Marchands actifs', '456', Icons.store, Colors.purple, '+8.2%')),
-            ],
-          ),
-          const SizedBox(height: 16),
+          if (_isLoading)
+            const Center(child: Padding(padding: EdgeInsets.all(20), child: CircularProgressIndicator()))
+          else ...[
+            Row(
+              children: [
+                Expanded(child: _buildMetricCard(context, 'Utilisateurs', _formatNumber(_usersCount), Icons.people, Colors.blue, 'Total inscrits')),
+                const SizedBox(width: 16),
+                Expanded(child: _buildMetricCard(context, 'Cercles actifs', _formatNumber(_activeCircles), Icons.donut_large, Colors.green, 'En cours')),
+                const SizedBox(width: 16),
+                Expanded(child: _buildMetricCard(context, 'Cercles suspendus', _formatNumber(_suspendedCircles), Icons.pause_circle, Colors.orange, 'Gelés')),
+                const SizedBox(width: 16),
+                Expanded(child: _buildMetricCard(context, 'Marchands actifs', _formatNumber(_activeShops), Icons.store, Colors.purple, 'Validés')),
+              ],
+            ),
+            const SizedBox(height: 16),
 
-          // Key metrics row 2
-          Row(
-            children: [
-              Expanded(child: _buildMetricCard(context, 'Flux PSP (total)', '234.5M FCFA', Icons.account_balance, Colors.teal, 'Lecture seule', isReadOnly: true)),
-              const SizedBox(width: 16),
-              Expanded(child: _buildMetricCard(context, 'Modération en attente', '23', Icons.pending, Colors.red, 'À traiter')),
-              const SizedBox(width: 16),
-              Expanded(child: _buildMetricCard(context, 'Signalements ouverts', '8', Icons.flag, Colors.amber, '3 urgents')),
-              const SizedBox(width: 16),
-              Expanded(child: _buildMetricCard(context, 'Alertes conformité', '2', Icons.warning, Colors.red, 'À vérifier')),
-            ],
-          ),
+            // Key metrics row 2
+            Row(
+              children: [
+                Expanded(child: _buildMetricCard(context, 'Flux PSP', 'Via Mangopay', Icons.account_balance, Colors.teal, 'Lecture seule', isReadOnly: true)),
+                const SizedBox(width: 16),
+                Expanded(child: _buildMetricCard(context, 'Modération en attente', _formatNumber(_pendingModeration), Icons.pending, Colors.red, 'À traiter')),
+                const SizedBox(width: 16),
+                Expanded(child: _buildMetricCard(context, 'Signalements ouverts', _formatNumber(_openReports), Icons.flag, Colors.amber, 'À examiner')),
+                const SizedBox(width: 16),
+                Expanded(child: _buildMetricCard(context, 'Alertes actives', _formatNumber(_activeAlerts), Icons.warning, Colors.red, 'À vérifier')),
+              ],
+            ),
+          ],
           const SizedBox(height: 24),
 
           // Alerts section
           _buildAlertsSection(context),
-          const SizedBox(height: 24),
-
-          // Quick actions
-          _buildQuickActionsSection(context),
         ],
       ),
     );
   }
 
   Widget _buildHealthBanner() {
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(colors: [Colors.green.shade600, Colors.green.shade400]),
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: const Row(
-        children: [
-          Icon(Icons.check_circle, color: Colors.white, size: 48),
-          SizedBox(width: 20),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text('Plateforme opérationnelle', style: TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold)),
-                SizedBox(height: 4),
-                Text('Tous les services fonctionnent normalement. 2 alertes mineures à traiter.', style: TextStyle(color: Colors.white70)),
-              ],
-            ),
+    return StreamBuilder<AggregateQuerySnapshot>(
+      stream: FirebaseFirestore.instance.collection('admin_alerts').where('status', isEqualTo: 'active').count().get().asStream(),
+      builder: (context, snapshot) {
+        final alertCount = snapshot.data?.count ?? 0;
+        final isHealthy = alertCount == 0;
+        
+        return Container(
+          padding: const EdgeInsets.all(20),
+          decoration: BoxDecoration(
+            gradient: LinearGradient(colors: isHealthy 
+                ? [Colors.green.shade600, Colors.green.shade400]
+                : [Colors.orange.shade600, Colors.orange.shade400]),
+            borderRadius: BorderRadius.circular(12),
           ),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.end,
+          child: Row(
             children: [
-              Text('Uptime', style: TextStyle(color: Colors.white70)),
-              Text('99.98%', style: TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.bold)),
+              Icon(isHealthy ? Icons.check_circle : Icons.warning, color: Colors.white, size: 48),
+              const SizedBox(width: 20),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(isHealthy ? 'Plateforme opérationnelle' : 'Attention requise', 
+                        style: const TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold)),
+                    const SizedBox(height: 4),
+                    Text(alertCount == 0 
+                        ? 'Tous les services fonctionnent normalement.'
+                        : '$alertCount alerte${alertCount > 1 ? 's' : ''} à traiter.', 
+                        style: const TextStyle(color: Colors.white70)),
+                  ],
+                ),
+              ),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  const Text('Alertes actives', style: TextStyle(color: Colors.white70)),
+                  Text('$alertCount', style: const TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.bold)),
+                ],
+              ),
             ],
           ),
-        ],
-      ),
+        );
+      },
     );
   }
 
@@ -370,235 +468,55 @@ class _OverviewSection extends StatelessWidget {
     );
   }
 
-  Widget _buildQuickActionsSection(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.05), blurRadius: 10)],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Text('Actions rapides', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-          const SizedBox(height: 16),
-          Wrap(
-            spacing: 12,
-            runSpacing: 12,
-            children: [
-              _buildQuickAction(context, Icons.person_search, 'Rechercher utilisateur', Colors.blue),
-              _buildQuickAction(context, Icons.pending_actions, 'Modération en attente', Colors.red),
-              _buildQuickAction(context, Icons.storefront, 'Valider marchand', Colors.purple),
-              _buildQuickAction(context, Icons.download, 'Export conformité', Colors.teal),
-              _buildQuickAction(context, Icons.history, 'Logs audit', Colors.brown),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildQuickAction(BuildContext context, IconData icon, String label, Color color) {
-    return ElevatedButton.icon(
-      onPressed: () => ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('🚀 Action: $label'))),
-      icon: Icon(icon, size: 18),
-      label: Text(label),
-      style: ElevatedButton.styleFrom(
-        backgroundColor: color.withValues(alpha: 0.1),
-        foregroundColor: color,
-        elevation: 0,
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      ),
-    );
-  }
 }
 
 // ==================== SECTION 2: USERS ====================
-
-class _UsersSection extends StatelessWidget {
-  const _UsersSection();
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.all(24),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Header
-          Row(
-            children: [
-              const Text('Gestion des utilisateurs', style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold)),
-              const Spacer(),
-              SizedBox(
-                width: 300,
-                child: TextField(
-                  decoration: InputDecoration(
-                    hintText: 'Rechercher par nom, email, téléphone...',
-                    prefixIcon: const Icon(Icons.search),
-                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 16),
-                  ),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 24),
-
-          // Filters
-          Row(
-            children: [
-              _buildFilterChip('Tous', true),
-              _buildFilterChip('Actifs', false),
-              _buildFilterChip('Suspendus', false),
-              _buildFilterChip('Restreints', false),
-              _buildFilterChip('Marchands', false),
-              _buildFilterChip('Salariés', false),
-            ],
-          ),
-          const SizedBox(height: 24),
-
-          // Users table
-          Expanded(
-            child: Container(
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(12),
-                boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.05), blurRadius: 10)],
-              ),
-              child: Column(
-                children: [
-                  // Table header
-                  Container(
-                    padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      color: Colors.grey.shade100,
-                      borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
-                    ),
-                    child: const Row(
-                      children: [
-                        Expanded(flex: 2, child: Text('Membre', style: TextStyle(fontWeight: FontWeight.bold))),
-                        Expanded(child: Text('Statut', style: TextStyle(fontWeight: FontWeight.bold))),
-                        Expanded(child: Text('Score', style: TextStyle(fontWeight: FontWeight.bold))),
-                        Expanded(child: Text('Cercles', style: TextStyle(fontWeight: FontWeight.bold))),
-                        Expanded(child: Text('Actions', style: TextStyle(fontWeight: FontWeight.bold))),
-                      ],
-                    ),
-                  ),
-                  // Table rows from Firestore
-                  Expanded(
-                    child: StreamBuilder<QuerySnapshot>(
-                      stream: FirebaseFirestore.instance.collection('users').limit(20).snapshots(),
-                      builder: (context, snapshot) {
-                        if (snapshot.hasError) return Center(child: Text('Erreur: ${snapshot.error}'));
-                        if (snapshot.connectionState == ConnectionState.waiting) return const Center(child: CircularProgressIndicator());
-
-                        final users = snapshot.data?.docs ?? [];
-                        if (users.isEmpty) return const Center(child: Text('Aucun utilisateur trouvé.'));
-
-                        return ListView.builder(
-                          itemCount: users.length,
-                          itemBuilder: (ctx, i) => _buildRealUserRow(context, users[i]),
-                        );
-                      },
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildFilterChip(String label, bool selected) {
-    return Container(
-      margin: const EdgeInsets.only(right: 8),
-      child: FilterChip(
-        label: Text(label),
-        selected: selected,
-        onSelected: (val) {},
-      ),
-    );
-  }
-
-  Widget _buildRealUserRow(BuildContext context, QueryDocumentSnapshot doc) {
-    final data = doc.data() as Map<String, dynamic>;
-    final userId = doc.id;
-    final status = data['status'] ?? 'Actif';
-    final honorScore = data['honorScore'] ?? 50;
-    final displayName = data['fullName'] ?? data['displayName'] ?? 'Utilisateur Inconnu';
-    final phone = data['phoneNumber'] ?? 'Non renseigné';
-    final activeCircles = data['activeCirclesCount'] ?? 0;
-
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(border: Border(bottom: BorderSide(color: Colors.grey.shade200))),
-      child: Row(
-        children: [
-          Expanded(
-            flex: 2,
-            child: Row(
-              children: [
-                CircleAvatar(child: Text(displayName[0].toUpperCase())),
-                const SizedBox(width: 12),
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(displayName, style: const TextStyle(fontWeight: FontWeight.w500)),
-                    Text(phone, style: const TextStyle(fontSize: 12, color: Colors.grey)),
-                  ],
-                ),
-              ],
-            ),
-          ),
-          Expanded(
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-              decoration: BoxDecoration(
-                color: status == 'Actif' ? Colors.green.withValues(alpha: 0.1) : status == 'Suspendu' ? Colors.red.withValues(alpha: 0.1) : Colors.orange.withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(4),
-              ),
-              child: Text(status, style: TextStyle(color: status == 'Actif' ? Colors.green : status == 'Suspendu' ? Colors.red : Colors.orange, fontSize: 12)),
-            ),
-          ),
-          Expanded(child: Text('$honorScore%')),
-          Expanded(child: Text('$activeCircles')),
-          Expanded(
-            child: Row(
-              children: [
-                IconButton(
-                  icon: const Icon(Icons.visibility, size: 18), 
-                  onPressed: () => ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('👁️ Détails de l\'utilisateur $displayName'))), 
-                  tooltip: 'Voir détails'
-                ),
-                IconButton(
-                  icon: Icon(Icons.block, size: 18, color: status == 'Suspendu' ? Colors.grey : Colors.red), 
-                  onPressed: status == 'Suspendu' 
-                    ? null 
-                    : () => FirebaseFirestore.instance.collection('users').doc(userId).update({'status': 'Suspendu'}), 
-                  tooltip: 'Suspendre'
-                ),
-                IconButton(
-                  icon: const Icon(Icons.history, size: 18), 
-                  onPressed: () => ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('📜 Historique de l\'utilisateur $displayName'))), 
-                  tooltip: 'Historique'
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
+// Replaced by AdminUsersPanel
 
 // ==================== SECTION 3: CIRCLES ====================
 
-class _CirclesSection extends StatelessWidget {
+class _CirclesSection extends StatefulWidget {
   const _CirclesSection();
+  
+  @override
+  State<_CirclesSection> createState() => _CirclesSectionState();
+}
+
+class _CirclesSectionState extends State<_CirclesSection> {
+  int _active = 0;
+  int _incomplete = 0;
+  int _suspended = 0;
+  int _closed = 0;
+  bool _loading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadStats();
+  }
+
+  Future<void> _loadStats() async {
+    final db = FirebaseFirestore.instance;
+    try {
+      final results = await Future.wait([
+        db.collection('tontines').where('status', isEqualTo: 'Active').count().get(),
+        db.collection('tontines').where('status', isEqualTo: 'pending').count().get(),
+        db.collection('tontines').where('status', isEqualTo: 'Geler').count().get(),
+        db.collection('tontines').where('status', isEqualTo: 'completed').count().get(),
+      ]);
+      if (mounted) {
+        setState(() {
+          _active = results[0].count ?? 0;
+          _incomplete = results[1].count ?? 0;
+          _suspended = results[2].count ?? 0;
+          _closed = results[3].count ?? 0;
+          _loading = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -611,17 +529,19 @@ class _CirclesSection extends StatelessWidget {
           const SizedBox(height: 24),
 
           // Stats
-          Row(
-            children: [
-              _buildStatCard('Actifs', '1,234', Colors.green),
-              const SizedBox(width: 16),
-              _buildStatCard('Incomplets', '56', Colors.orange),
-              const SizedBox(width: 16),
-              _buildStatCard('Suspendus', '12', Colors.red),
-              const SizedBox(width: 16),
-              _buildStatCard('Clôturés', '890', Colors.grey),
-            ],
-          ),
+          _loading
+              ? const Center(child: CircularProgressIndicator())
+              : Row(
+                  children: [
+                    _buildStatCard('Actifs', '$_active', Colors.green),
+                    const SizedBox(width: 16),
+                    _buildStatCard('En attente', '$_incomplete', Colors.orange),
+                    const SizedBox(width: 16),
+                    _buildStatCard('Suspendus', '$_suspended', Colors.red),
+                    const SizedBox(width: 16),
+                    _buildStatCard('Clôturés', '$_closed', Colors.grey),
+                  ],
+                ),
           const SizedBox(height: 24),
 
           // Circles list
@@ -718,8 +638,6 @@ class _CirclesSection extends StatelessWidget {
                 const Divider(),
                 Row(
                   children: [
-                    TextButton.icon(icon: const Icon(Icons.visibility), label: const Text('Détails'), onPressed: () => ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('👁️ Détails du cercle $name')))),
-                    TextButton.icon(icon: const Icon(Icons.people), label: const Text('Membres'), onPressed: () => ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('👥 Membres du cercle $name')))),
                     const Spacer(),
                     ElevatedButton.icon(
                       icon: Icon(status == 'Geler' ? Icons.play_arrow : Icons.pause),
@@ -754,19 +672,25 @@ class _ModerationSection extends StatelessWidget {
             children: [
               const Text('Modération des contenus', style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold)),
               const Spacer(),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                decoration: BoxDecoration(
-                  color: Colors.red.withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(20),
-                ),
-                child: const Row(
-                  children: [
-                    Icon(Icons.pending, color: Colors.red, size: 20),
-                    SizedBox(width: 8),
-                    Text('23 en attente', style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold)),
-                  ],
-                ),
+              StreamBuilder<AggregateQuerySnapshot>(
+                stream: FirebaseFirestore.instance.collection('products').where('status', isEqualTo: 'pending').count().get().asStream(),
+                builder: (context, snapshot) {
+                  final count = snapshot.data?.count ?? 0;
+                  return Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    decoration: BoxDecoration(
+                      color: Colors.red.withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.pending, color: Colors.red, size: 20),
+                        const SizedBox(width: 8),
+                        Text('$count en attente', style: const TextStyle(color: Colors.red, fontWeight: FontWeight.bold)),
+                      ],
+                    ),
+                  );
+                },
               ),
             ],
           ),
@@ -908,29 +832,69 @@ class _ModerationSection extends StatelessWidget {
   }
 
   Widget _buildSuspendedList() {
-    return ListView.builder(
-      padding: const EdgeInsets.all(16),
-      itemCount: 2,
-      itemBuilder: (ctx, i) => Card(
-        margin: const EdgeInsets.only(bottom: 12),
-        child: ListTile(
-          leading: const Icon(Icons.block, color: Colors.grey),
-          title: Text('Produit suspendu ${i + 1}'),
-          subtitle: const Text('Suspendu le 03/01/2026 • Boost non remboursé'),
-        ),
-      ),
+    return StreamBuilder<QuerySnapshot>(
+      stream: FirebaseFirestore.instance.collection('products').where('status', isEqualTo: 'suspended').snapshots(),
+      builder: (context, snapshot) {
+        if (snapshot.hasError) return Center(child: Text('Erreur: ${snapshot.error}'));
+        if (snapshot.connectionState == ConnectionState.waiting) return const Center(child: CircularProgressIndicator());
+
+        final items = snapshot.data?.docs ?? [];
+        if (items.isEmpty) return const Center(child: Text('Aucun produit suspendu.'));
+
+        return ListView.builder(
+          padding: const EdgeInsets.all(16),
+          itemCount: items.length,
+          itemBuilder: (ctx, i) {
+            final p = items[i].data() as Map<String, dynamic>;
+            return Card(
+              margin: const EdgeInsets.only(bottom: 12),
+              child: ListTile(
+                leading: const Icon(Icons.block, color: Colors.grey),
+                title: Text(p['title'] ?? 'Produit suspendu'),
+                subtitle: Text('Suspendu • ${p['suspendedReason'] ?? 'Raison non spécifiée'}'),
+              ),
+            );
+          },
+        );
+      },
     );
   }
 
   Widget _buildHistoryList() {
-    return ListView.builder(
-      padding: const EdgeInsets.all(16),
-      itemCount: 10,
-      itemBuilder: (ctx, i) => ListTile(
-        leading: Icon(i % 2 == 0 ? Icons.check_circle : Icons.cancel, color: i % 2 == 0 ? Colors.green : Colors.red),
-        title: Text('Action sur Produit ${i + 1}'),
-        subtitle: Text('${i % 2 == 0 ? "Approuvé" : "Rejeté"} par Admin1 • 0${i + 1}/01/2026'),
-      ),
+    return StreamBuilder<QuerySnapshot>(
+      stream: FirebaseFirestore.instance.collection('admin_audit_logs')
+          .where('action', whereIn: ['PRODUCT_APPROVED', 'PRODUCT_REJECTED', 'PRODUCT_SUSPENDED'])
+          .orderBy('timestamp', descending: true)
+          .limit(50)
+          .snapshots(),
+      builder: (context, snapshot) {
+        if (snapshot.hasError) return Center(child: Text('Erreur: ${snapshot.error}'));
+        if (snapshot.connectionState == ConnectionState.waiting) return const Center(child: CircularProgressIndicator());
+
+        final logs = snapshot.data?.docs ?? [];
+        if (logs.isEmpty) return const Center(child: Text('Aucun historique disponible.'));
+
+        return ListView.builder(
+          padding: const EdgeInsets.all(16),
+          itemCount: logs.length,
+          itemBuilder: (ctx, i) {
+            final log = logs[i].data() as Map<String, dynamic>;
+            final action = log['action'] ?? '';
+            final isApproved = action.contains('APPROVED');
+            final timestamp = (log['timestamp'] as Timestamp?)?.toDate();
+            final dateStr = timestamp != null ? DateFormat('dd/MM/yyyy HH:mm').format(timestamp) : 'Date inconnue';
+
+            return ListTile(
+              leading: Icon(
+                isApproved ? Icons.check_circle : Icons.cancel,
+                color: isApproved ? Colors.green : Colors.red,
+              ),
+              title: Text(log['targetName'] ?? 'Élément modéré'),
+              subtitle: Text('$action par ${log['adminId'] ?? 'Admin'} • $dateStr'),
+            );
+          },
+        );
+      },
     );
   }
 }
@@ -1102,86 +1066,9 @@ class _SupportSection extends StatelessWidget {
   }
 }
 
-// ==================== SECTION: CAMPAIGNS ====================
-class _CampaignsSection extends StatefulWidget {
-  const _CampaignsSection();
-  @override
-  State<_CampaignsSection> createState() => _CampaignsSectionState();
-}
-
-class _CampaignsSectionState extends State<_CampaignsSection> {
-  final _msgCtrl = TextEditingController();
-
-  void _send() async {
-    if (_msgCtrl.text.isEmpty) return;
-    try {
-      await FirebaseFirestore.instance.collection('broadcasts').add({
-        'title': 'Annonce Admin', 
-        'body': _msgCtrl.text,
-        'createdAt': FieldValue.serverTimestamp(),
-        'target': 'all',
-      });
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Campagne diffusée ! 🚀')));
-        _msgCtrl.clear();
-      }
-    } catch(e) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Erreur: $e')));
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.all(24),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Text('Campagnes & Communications', style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold)),
-          const SizedBox(height: 24),
-          Card(
-            child: Padding(
-              padding: const EdgeInsets.all(16.0),
-              child: Column(
-                children: [
-                  TextField(controller: _msgCtrl, maxLines: 5, decoration: const InputDecoration(hintText: 'Votre message de diffusion...', border: OutlineInputBorder())),
-                  const SizedBox(height: 16),
-                  SizedBox(width: double.infinity, height: 50, child: ElevatedButton.icon(onPressed: _send, icon: const Icon(Icons.send), label: const Text('LANCER LA CAMPAGNE'))),
-                ],
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-// ==================== SECTION: REFERRAL ====================
-class _ReferralSection extends StatelessWidget {
-  const _ReferralSection();
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.all(24),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Text('Programme de Parrainage', style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold)),
-          const SizedBox(height: 24),
-          Card(
-            child: SwitchListTile(
-              title: const Text('Activer le module de parrainage'),
-              subtitle: const Text('Permet aux utilisateurs de gagner des bonus en invitant des amis.'),
-              value: true,
-              onChanged: (v) {},
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
+// ==================== SECTION: CAMPAIGNS & REFERRALS ====================
+// Replaced by AdminCampaignsPanel and AdminReferralPanel
+// See features/admin/presentation/widgets/
 
 // ==================== SECTION: SECURITY ====================
 class _SecuritySection extends StatelessWidget {
