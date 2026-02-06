@@ -61,6 +61,12 @@ service cloud.firestore {
         allow read: if isSignedIn() && request.auth.uid == userId;
         allow write: if isSignedIn();
       }
+      // Consents (Nested)
+      match /consents/{consentId} {
+         allow create: if isSignedIn() && request.auth.uid == userId;
+         allow read: if isSignedIn() && (request.auth.uid == userId || isAdmin());
+      }
+
     }
 
     // ENTITLEMENTS: Server-Side Authority + Admin Support
@@ -199,7 +205,8 @@ service cloud.firestore {
     // ================= WEBHOOK LOGS (Audit) =================
     // Internal use only.
     match /webhook_logs/{logId} {
-      allow read, write: if false;
+      allow read: if isAdmin();
+      allow write: if false; // System only (Cloud Functions)
     }
 
     // ================= ENTERPRISE & CORPORATE =================
@@ -415,10 +422,7 @@ service cloud.firestore {
     // ================= LEGAL & COMPLIANCE =================
 
     // User Consents (subcollection handled above, root collection)
-    match /consents/{consentId} {
-      allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
-      allow read: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
-    }
+
 
     // Legal Documents
     match /legal_documents/{docId} {

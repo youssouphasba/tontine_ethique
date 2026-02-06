@@ -794,8 +794,8 @@ class AdminAuditSection extends StatelessWidget {
 
   Widget _buildConsentsLog() {
     return StreamBuilder<QuerySnapshot>(
-      stream: FirebaseFirestore.instance.collection('user_consents')
-          .orderBy('acceptedAt', descending: true)
+      stream: FirebaseFirestore.instance.collectionGroup('consents')
+          .orderBy('createdAt', descending: true)
           .limit(50)
           .snapshots(),
       builder: (context, snapshot) {

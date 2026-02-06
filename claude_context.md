@@ -438,6 +438,10 @@ firebase functions:log
   - Nettoyage dépendances et cache (`flutter clean`).
 - ✅ **Localization** : Suppression doublons (`localization_provider.dart`).
 
+**Backoffice Fixes (Permissions)** :
+- ✅ **Firestore Rules** : Accès Admin autorisé pour `webhook_logs` et `consents` (nested).
+- ✅ **Admin Panel** : Correction requête `consents` (`collectionGroup` + tri `createdAt`).
+- ✅ **Déploiement** : Web Admin + Rules mis à jour en production.
 
 ---
 
