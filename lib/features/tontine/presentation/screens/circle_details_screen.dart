@@ -6,29 +6,15 @@ import 'package:tontetic/core/theme/app_theme.dart';
 import 'package:tontetic/features/social/presentation/screens/profile_screen.dart';
 import 'package:tontetic/core/providers/user_provider.dart';
 import 'package:tontetic/core/providers/localization_provider.dart';
-import 'package:tontetic/core/providers/localization_provider.dart';\nimport 'package:tontetic/core/providers/localization_provider.dart';
-import 'package:tontetic/core/providers/localization_provider.dart';
-import 'package:tontetic/core/providers/localization_provider.dart';
 import 'package:tontetic/core/providers/tontine_provider.dart';
-import 'package:tontetic/core/providers/localization_provider.dart';
-import 'package:tontetic/core/providers/localization_provider.dart';
-import 'package:tontetic/core/providers/localization_provider.dart';
-import 'package:tontetic/core/providers/localization_provider.dart';
-import 'package:tontetic/core/providers/localization_provider.dart';
-import 'package:tontetic/core/providers/localization_provider.dart';
 import 'package:tontetic/core/models/tontine_model.dart';
-import 'package:tontetic/core/providers/localization_provider.dart';
-import 'package:tontetic/core/providers/localization_provider.dart';
-import 'package:tontetic/core/providers/localization_provider.dart';
-import 'package:tontetic/core/providers/localization_provider.dart';
-import 'package:tontetic/core/providers/localization_provider.dart';
-import 'package:tontetic/core/providers/localization_provider.dart';
 import 'package:tontetic/core/presentation/widgets/tts_control_toggle.dart';
 import 'package:tontetic/core/presentation/widgets/speaker_icon.dart';
 import 'package:tontetic/features/tontine/presentation/screens/circle_chat_screen.dart';
 import 'package:tontetic/features/tontine/presentation/screens/exit_circle_screen.dart';
 import 'package:tontetic/features/tontine/presentation/screens/legal_commitment_screen.dart';
 import 'package:tontetic/core/services/notification_service.dart';
+
 
 class CircleDetailsScreen extends ConsumerStatefulWidget {
   final String circleName;

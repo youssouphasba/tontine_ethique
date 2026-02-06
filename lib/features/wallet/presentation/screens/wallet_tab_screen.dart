@@ -55,11 +55,11 @@ class WalletTabScreen extends ConsumerWidget {
                       color: Colors.white.withValues(alpha: 0.15),
                       borderRadius: BorderRadius.circular(12),
                     ),
-                    child: const Row(
+                    child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        Icon(Icons.verified_user, color: Colors.white70, size: 14),
-                        SizedBox(width: 6),
+                        const Icon(Icons.verified_user, color: Colors.white70, size: 14),
+                        const SizedBox(width: 6),
                         Text(
                           l10n.translate('psp_regulatory_banner'),
                           style: const TextStyle(color: Colors.white70, fontSize: 10),
@@ -157,10 +157,10 @@ class WalletTabScreen extends ConsumerWidget {
                      width: double.infinity,
                      padding: const EdgeInsets.all(16),
                      decoration: BoxDecoration(color: Theme.of(context).cardColor, borderRadius: BorderRadius.circular(12), border: Border.all(color: Theme.of(context).dividerColor)),
-                     child: const Center(
+                     child: Center(
                        child: Text(
                          l10n.translate('graph_soon'),
-                         style: TextStyle(color: Colors.grey, fontStyle: FontStyle.italic),
+                         style: const TextStyle(color: Colors.grey, fontStyle: FontStyle.italic),
                        ),
                      ),
                    ),
@@ -177,10 +177,10 @@ class WalletTabScreen extends ConsumerWidget {
                           ]),
                           borderRadius: BorderRadius.circular(12),
                         ),
-                       child: const Row(
+                       child: Row(
                          children: [
-                           Icon(Icons.lock_person, color: AppTheme.gold, size: 32),
-                           SizedBox(width: 16),
+                           const Icon(Icons.lock_person, color: AppTheme.gold, size: 32),
+                           const SizedBox(width: 16),
                            Expanded(
                              child: Column(
                                crossAxisAlignment: CrossAxisAlignment.start,
@@ -190,7 +190,7 @@ class WalletTabScreen extends ConsumerWidget {
                                ],
                              ),
                            ),
-                           Icon(Icons.arrow_forward, color: Colors.white),
+                           const Icon(Icons.arrow_forward, color: Colors.white),
                          ],
                        ),
                      ),

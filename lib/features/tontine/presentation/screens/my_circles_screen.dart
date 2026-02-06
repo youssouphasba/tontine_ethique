@@ -551,6 +551,10 @@ class _ExploreTabState extends ConsumerState<_ExploreTab> {
   // ignore: unused_field
   bool _legalWarningShown = false;
 
+  // Localization getter
+  LocalizationState get l10n => ref.read(localizationProvider);
+
+
   @override
   void initState() {
     super.initState();

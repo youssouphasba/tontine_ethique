@@ -108,7 +108,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> with SingleTi
     if (mounted) {
       setState(() {
         _isReferralActive = activeCampaign != null;
-        _activeCampaignReward = activeCampaign?.rewardAmount.toString() ?? '';
+        _activeCampaignReward = activeCampaign?.rewardValue.toString() ?? '';
       });
     }
   }

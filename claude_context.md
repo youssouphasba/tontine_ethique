@@ -416,6 +416,20 @@ firebase functions:log
   - UX : Ajout debug info (UID, Role) sur écran blocage
 - 🔑 **API Keys** : Clés remises en place pour `gemini_service.dart` (Mobile App)
 
+### Session 2026-02-06 (Build & Rules Stabilization)
+
+**Stabilisation Build Web** :
+- ✅ **Build Fixes** (40+ erreurs) :
+  - **Localization** : Suppression doublons (`localization_provider.dart`) et fix undefined `l10n`.
+  - **Typage** : Correction `borderSide` -> `side` (`RoundedRectangleBorder`).
+  - **Riverpod** : Refactor `ReferralScreen` en `ConsumerWidget`.
+  - **Imports** : Nettoyage imports corrompus et `const` invalides.
+
+**Sécurité & Déploiement** :
+- ✅ **Firestore Rules** : Ajout collection `campaigns` (Communication Module) + Déploiement Production.
+- ✅ **Admin Backoffice** : Module Communication activé avec targeting avancé.
+- ✅ **Walkthrough** : Documentation mise à jour (`brain/.../walkthrough.md`).
+
 ---
 
 ## 9. ARCHITECTURE PAIEMENTS CIBLE (Mangopay + Stripe)

@@ -235,7 +235,7 @@ class _AdminReferralPanelState extends State<AdminReferralPanel> {
                    child: ListTile(
                     title: Text(_startDate == null ? 'Date début' : DateFormat('dd/MM/yyyy').format(_startDate!)),
                     trailing: const Icon(Icons.calendar_today),
-                    shape: RoundedRectangleBorder(borderSide: const BorderSide(color: Colors.grey), borderRadius: BorderRadius.circular(4)),
+                    shape: RoundedRectangleBorder(side: const BorderSide(color: Colors.grey), borderRadius: BorderRadius.circular(4)),
                     onTap: () async {
                       final date = await showDatePicker(context: context, initialDate: DateTime.now(), firstDate: DateTime.now(), lastDate: DateTime.now().add(const Duration(days: 365*2)));
                       if (date != null) setState(() => _startDate = date);

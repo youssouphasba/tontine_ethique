@@ -136,7 +136,7 @@ class _UserProfileScreenState extends ConsumerState<UserProfileScreen> {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text('${l10n.translate('upload_error')} $e'),
+              content: Text('${ref.read(localizationProvider).translate('upload_error')} $e'),
               backgroundColor: Colors.red,
             ),
           );
@@ -435,7 +435,7 @@ class _UserProfileScreenState extends ConsumerState<UserProfileScreen> {
       child: TextButton.icon(
         onPressed: _confirmDeleteAccount,
         icon: const Icon(Icons.delete_forever, color: Colors.red),
-        label: Text(l10n.translate('delete_account'), style: const TextStyle(color: Colors.red)),
+        label: Text(ref.read(localizationProvider).translate('delete_account'), style: const TextStyle(color: Colors.red)),
       ),
     );
   }
@@ -444,16 +444,15 @@ class _UserProfileScreenState extends ConsumerState<UserProfileScreen> {
     final confirm = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: Text(l10n.translate('confirm_delete_title')),
+        title: Text(ref.read(localizationProvider).translate('confirm_delete_title')),
         content: Text(
-          l10n.translate('confirm_delete_content'),
+          ref.read(localizationProvider).translate('confirm_delete_content'),
         ),
         actions: [
           TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Annuler')),
           ElevatedButton(
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
             onPressed: () => Navigator.pop(ctx, true),
-            child: Text(l10n.translate('delete_confirm_btn'), style: const TextStyle(color: Colors.white)),
+            child: Text(ref.read(localizationProvider).translate('delete_confirm_btn'), style: const TextStyle(color: Colors.white)),
           ),
         ],
       ),
@@ -534,7 +533,7 @@ class _UserProfileScreenState extends ConsumerState<UserProfileScreen> {
               borderRadius: BorderRadius.circular(12),
             ),
             child: Text(
-              value.isEmpty ? l10n.translate('not_set') : value, 
+              value.isEmpty ? ref.read(localizationProvider).translate('not_set') : value, 
               style: TextStyle(
                 fontSize: 14, 
                 height: 1.5,

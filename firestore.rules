@@ -477,6 +477,11 @@ service cloud.firestore {
 
     // ================= REFERRAL & CAMPAIGNS =================
 
+    // Communication Campaigns
+    match /campaigns/{campaignId} {
+      allow read, write: if isAdmin();
+    }
+
     // Referral Campaigns
     match /referral_campaigns/{campaignId} {
       allow read: if true; // Public campaigns

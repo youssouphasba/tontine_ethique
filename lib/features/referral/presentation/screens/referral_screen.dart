@@ -1,14 +1,19 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:tontetic/core/theme/app_theme.dart';
 import 'package:tontetic/core/services/referral_service.dart';
 
-class ReferralScreen extends StatelessWidget {
+import 'package:tontetic/core/providers/user_provider.dart';
+
+class ReferralScreen extends ConsumerWidget {
   const ReferralScreen({super.key});
 
   @override
-  Widget build(BuildContext context) {
-    final String referralCode = ReferralService.generateReferralCode();
+  Widget build(BuildContext context, WidgetRef ref) {
+    final user = ref.watch(userProvider);
+    final referralService = ref.watch(referralServiceProvider);
+    final String referralCode = referralService.getReferralCode(user.uid, user.displayName);
 
     return Scaffold(
       appBar: AppBar(
@@ -46,7 +51,7 @@ class ReferralScreen extends StatelessWidget {
               style: TextStyle(fontSize: 16, color: Colors.grey),
             ),
             const SizedBox(height: 24),
-            _buildRewardSelector(),
+            _buildRewardSelector(ref),
             const SizedBox(height: 24),
 
             // Code Parrainage Card
@@ -173,9 +178,9 @@ class ReferralScreen extends StatelessWidget {
     );
   }
   */
-  Widget _buildRewardSelector() {
+  Widget _buildRewardSelector(WidgetRef ref) {
     return FutureBuilder<ReferralCampaign?>(
-      future: ProviderScope.containerOf(context).read(referralServiceProvider).getActiveCampaign(), // Assuming provider or getIt usage, but simpler:
+      future: ref.read(referralServiceProvider).getActiveCampaign(),
       // Actually we have ReferralService instance in this file? 
       // Checking file content: no service instance visible in snippet.
       // Let's assume we instantiate it or use a provider.
